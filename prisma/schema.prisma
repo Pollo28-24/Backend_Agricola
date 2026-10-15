@@ -5,3 +5,718 @@ generator client {
 datasource db {
   provider = "mysql"
 }
+
+// =====================================================================
+// ENUMERACIONES
+// =====================================================================
+
+enum EstadoSuscripcion {
+  PRUEBA
+  ACTIVA
+  VENCIDA
+  CANCELADA
+}
+
+enum EstadoParcela {
+  DISPONIBLE
+  EN_USO
+  DESCANSO
+  INACTIVA
+}
+
+enum EstadoCiclo {
+  PLANIFICADO
+  ACTIVO
+  SUSPENDIDO
+  FINALIZADO
+  CANCELADO
+}
+
+enum CalidadCosecha {
+  EXTRA
+  PRIMERA
+  SEGUNDA
+  TERCERA
+  INDUSTRIAL
+}
+
+enum TipoCliente {
+  MERCADO_MAYOREO
+  DISTRIBUIDOR
+  SUPERMERCADO
+  RESTAURANTE
+  EXPORTADOR
+  MENUDEO
+  OTRO
+}
+
+enum EstadoVenta {
+  REGISTRADA
+  CANCELADA
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  CHEQUE
+  TARJETA
+  OTRO
+}
+
+enum EtapaMerma {
+  CAMPO
+  POSCOSECHA
+  TRANSPORTE
+  ALMACEN
+}
+
+enum TipoUnidad {
+  PESO
+  VOLUMEN
+  AREA
+  TIEMPO
+  CONTEO
+}
+
+enum AccionAuditoria {
+  CREAR
+  ACTUALIZAR
+  ELIMINAR
+  CERRAR_CICLO
+  REABRIR_CICLO
+  INICIO_SESION
+}
+
+// =====================================================================
+// SUSCRIPCIÓN, EMPRESA Y SEGURIDAD
+// =====================================================================
+
+model PlanSuscripcion {
+  id              Int       @id @default(autoincrement())
+  codigo          String    @unique @db.VarChar(30)
+  nombre          String    @db.VarChar(80)
+  precioMensual   Decimal   @db.Decimal(10, 2)
+  maxParcelas     Int
+  maxUsuarios     Int
+  incluyeReportes Boolean   @default(false)
+  activo          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  empresas        Empresa[]
+
+  @@map("plan_suscripcion")
+}
+
+model Empresa {
+  id                Int               @id @default(autoincrement())
+  planId            Int
+  nombre            String            @db.VarChar(150)
+  razonSocial       String?           @db.VarChar(200)
+  rfc               String            @unique @db.VarChar(13)
+  correo            String            @db.VarChar(150)
+  telefono          String?           @db.VarChar(30)
+  direccion         String?           @db.VarChar(300)
+  moneda            String            @default("MXN") @db.Char(3)
+  estadoSuscripcion EstadoSuscripcion @default(PRUEBA)
+  fechaInicioPlan   DateTime?         @db.Date
+  activo            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  plan            PlanSuscripcion     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  usuarios        Usuario[]
+  predios         Predio[]
+  proveedores     Proveedor[]
+  clientes        Cliente[]
+  ciclos          CicloProduccion[]
+  categoriasGasto CategoriaGasto[]
+  adjuntos        Adjunto[]
+  bitacora        BitacoraAuditoria[]
+
+  @@index([planId])
+  @@index([nombre])
+  @@index([estadoSuscripcion])
+  @@map("empresa")
+}
+
+model Rol {
+  id          Int          @id @default(autoincrement())
+  codigo      String       @unique @db.VarChar(30)
+  nombre      String       @db.VarChar(80)
+  descripcion String?      @db.VarChar(255)
+  usuarios    Usuario[]
+  permisos    RolPermiso[]
+
+  @@map("rol")
+}
+
+model Permiso {
+  id          Int          @id @default(autoincrement())
+  codigo      String       @unique @db.VarChar(60)
+  descripcion String?      @db.VarChar(255)
+  roles       RolPermiso[]
+
+  @@map("permiso")
+}
+
+model RolPermiso {
+  rolId     Int
+  permisoId Int
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso   Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+  @@index([permisoId])
+  @@map("rol_permiso")
+}
+
+model Usuario {
+  id             Int       @id @default(autoincrement())
+  empresaId      Int
+  rolId          Int
+  nombre         String    @db.VarChar(80)
+  apellido       String    @db.VarChar(80)
+  correo         String    @unique @db.VarChar(120)
+  contrasenaHash String    @db.VarChar(255)
+  telefono       String?   @db.VarChar(30)
+  activo         Boolean   @default(true)
+  ultimoAcceso   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  actividadesResponsable Actividad[]         @relation("ActividadResponsable")
+  actividadesCreadas     Actividad[]         @relation("ActividadCreador")
+  ciclosCreados          CicloProduccion[]   @relation("CicloCreador")
+  ciclosCerrados         CicloProduccion[]   @relation("CicloCerrador")
+  gastosCreados          Gasto[]             @relation("GastoCreador")
+  cosechasCreadas        Cosecha[]           @relation("CosechaCreador")
+  ventasCreadas          Venta[]             @relation("VentaCreador")
+  cobrosRegistrados      CobroVenta[]        @relation("CobroRegistrador")
+  mermasCreadas          Merma[]             @relation("MermaCreador")
+  adjuntosSubidos        Adjunto[]           @relation("AdjuntoSubidoPor")
+  eventosAuditoria       BitacoraAuditoria[]
+  refreshTokens          RefreshToken[]
+
+  @@index([empresaId])
+  @@index([rolId])
+  @@index([empresaId, activo])
+  @@map("usuario")
+}
+
+model RefreshToken {
+  id         Int       @id @default(autoincrement())
+  usuarioId  Int
+  tokenHash  String    @db.VarChar(255)
+  jti        String    @unique @db.VarChar(60)
+  revocado   Boolean   @default(false)
+  expiraEn   DateTime
+  createdAt  DateTime  @default(now())
+  revocadoEn DateTime?
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("refresh_token")
+}
+
+// =====================================================================
+// ESTRUCTURA FÍSICA: PREDIOS Y PARCELAS
+// =====================================================================
+
+model Predio {
+  id                Int       @id @default(autoincrement())
+  empresaId         Int
+  nombre            String    @db.VarChar(120)
+  ubicacion         String?   @db.VarChar(255)
+  municipio         String?   @db.VarChar(100)
+  entidadFederativa String?   @db.VarChar(100)
+  superficieTotal   Decimal   @db.Decimal(10, 2)
+  latitud           Decimal?  @db.Decimal(10, 7)
+  longitud          Decimal?  @db.Decimal(10, 7)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  empresa  Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  parcelas Parcela[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+  @@map("predio")
+}
+
+model TipoSuelo {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique @db.VarChar(80)
+  descripcion String?   @db.VarChar(255)
+  parcelas    Parcela[]
+
+  @@map("tipo_suelo")
+}
+
+model Parcela {
+  id          Int           @id @default(autoincrement())
+  predioId    Int
+  tipoSueloId Int?
+  nombre      String        @db.VarChar(120)
+  superficie  Decimal       @db.Decimal(10, 2)
+  latitud     Decimal?      @db.Decimal(10, 7)
+  longitud    Decimal?      @db.Decimal(10, 7)
+  poligono    Json?
+  estado      EstadoParcela @default(DISPONIBLE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  predio    Predio            @relation(fields: [predioId], references: [id], onDelete: Restrict)
+  tipoSuelo TipoSuelo?        @relation(fields: [tipoSueloId], references: [id], onDelete: Restrict)
+  ciclos    CicloProduccion[]
+
+  @@unique([predioId, nombre])
+  @@index([predioId])
+  @@index([tipoSueloId])
+  @@index([estado])
+  @@map("parcela")
+}
+
+// =====================================================================
+// CATÁLOGOS AGRÍCOLAS
+// =====================================================================
+
+model Cultivo {
+  id               Int        @id @default(autoincrement())
+  nombre           String     @unique @db.VarChar(100)
+  nombreCientifico String?    @db.VarChar(150)
+  descripcion      String?    @db.VarChar(500)
+  activo           Boolean    @default(true)
+  variedades       Variedad[]
+
+  @@map("cultivo")
+}
+
+model Variedad {
+  id                Int               @id @default(autoincrement())
+  cultivoId         Int
+  nombre            String            @db.VarChar(100)
+  descripcion       String?           @db.VarChar(500)
+  duracionCicloDias Int?
+  activo            Boolean           @default(true)
+  cultivo           Cultivo           @relation(fields: [cultivoId], references: [id], onDelete: Restrict)
+  ciclos            CicloProduccion[]
+
+  @@unique([cultivoId, nombre])
+  @@index([cultivoId])
+  @@map("variedad")
+}
+
+model UnidadMedida {
+  id          Int            @id @default(autoincrement())
+  codigo      String         @unique @db.VarChar(20)
+  nombre      String         @db.VarChar(80)
+  tipo        TipoUnidad
+  factorABase Decimal        @default(1) @db.Decimal(14, 6)
+
+  gastos        Gasto[]
+  cosechas      Cosecha[]
+  detallesVenta DetalleVenta[]
+  mermas        Merma[]
+
+  @@index([tipo])
+  @@map("unidad_medida")
+}
+
+model TipoActividad {
+  id          Int         @id @default(autoincrement())
+  nombre      String      @unique @db.VarChar(100)
+  descripcion String?     @db.VarChar(255)
+  activo      Boolean     @default(true)
+  actividades Actividad[]
+
+  @@map("tipo_actividad")
+}
+
+model CategoriaGasto {
+  id               Int      @id @default(autoincrement())
+  empresaId        Int?
+  categoriaPadreId Int?
+  nombre           String   @db.VarChar(100)
+  descripcion      String?  @db.VarChar(255)
+  activo           Boolean  @default(true)
+
+  // Columna GENERADA por MySQL (ver migración 3.12). Nunca se escribe desde la aplicación.
+  claveNombre      String?  @unique @db.VarChar(191)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  empresa Empresa?         @relation(fields: [empresaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  padre   CategoriaGasto?  @relation("ArbolCategoria", fields: [categoriaPadreId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  hijas   CategoriaGasto[] @relation("ArbolCategoria")
+  gastos  Gasto[]
+
+  @@index([empresaId])
+  @@index([categoriaPadreId])
+  @@map("categoria_gasto")
+}
+
+model MotivoMerma {
+  id          Int     @id @default(autoincrement())
+  nombre      String  @unique @db.VarChar(100)
+  descripcion String? @db.VarChar(255)
+  activo      Boolean @default(true)
+  mermas      Merma[]
+
+  @@map("motivo_merma")
+}
+
+// =====================================================================
+// TERCEROS
+// =====================================================================
+
+model Proveedor {
+  id        Int       @id @default(autoincrement())
+  empresaId Int
+  nombre    String    @db.VarChar(150)
+  rfc       String?   @db.VarChar(13)
+  telefono  String?   @db.VarChar(30)
+  correo    String?   @db.VarChar(150)
+  direccion String?   @db.VarChar(300)
+  activo    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  gastos  Gasto[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+  @@map("proveedor")
+}
+
+model Cliente {
+  id        Int         @id @default(autoincrement())
+  empresaId Int
+  nombre    String      @db.VarChar(150)
+  rfc       String?     @db.VarChar(13)
+  telefono  String?     @db.VarChar(30)
+  correo    String?     @db.VarChar(150)
+  tipo      TipoCliente @default(OTRO)
+  activo    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  ventas  Venta[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+  @@map("cliente")
+}
+
+// =====================================================================
+// NÚCLEO: CICLO DE PRODUCCIÓN
+// =====================================================================
+
+model CicloProduccion {
+  id                 Int         @id @default(autoincrement())
+  empresaId          Int
+  parcelaId          Int
+  variedadId         Int
+  nombre             String?     @db.VarChar(120)
+  fechaInicio        DateTime    @db.Date
+  fechaFin           DateTime?   @db.Date
+  superficieSembrada Decimal     @db.Decimal(10, 2)
+  metaProduccionKg   Decimal?    @db.Decimal(14, 3)
+  estado             EstadoCiclo @default(PLANIFICADO)
+  observaciones      String?     @db.Text
+  cerradoEn          DateTime?
+  cerradoPorId       Int?
+  creadoPorId        Int
+
+  // Columna GENERADA por MySQL (ver migración 3.12): garantiza un solo ciclo ACTIVO por parcela (RN-009).
+  claveCicloActivo   Int?        @unique
+
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?
+
+  empresa    Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  parcela    Parcela   @relation(fields: [parcelaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  variedad   Variedad  @relation(fields: [variedadId], references: [id], onDelete: Restrict)
+  creadoPor  Usuario   @relation("CicloCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  cerradoPor Usuario?  @relation("CicloCerrador", fields: [cerradoPorId], references: [id], onDelete: Restrict)
+
+  actividades Actividad[]
+  gastos      Gasto[]
+  cosechas    Cosecha[]
+  ventas      Venta[]
+  mermas      Merma[]
+
+  @@index([empresaId, estado])
+  @@index([empresaId, fechaInicio])
+  @@index([parcelaId])
+  @@index([parcelaId, estado])
+  @@index([variedadId])
+  @@index([estado])
+  @@index([fechaInicio])
+  @@index([fechaFin])
+  @@map("ciclo_produccion")
+}
+
+model Actividad {
+  id              Int       @id @default(autoincrement())
+  cicloId         Int
+  tipoActividadId Int
+  responsableId   Int?
+  creadoPorId     Int
+  fecha           DateTime  @db.Date
+  descripcion     String?   @db.VarChar(500)
+  horasTrabajadas Decimal?  @db.Decimal(6, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  ciclo         CicloProduccion @relation(fields: [cicloId], references: [id], onDelete: Restrict)
+  tipoActividad TipoActividad   @relation(fields: [tipoActividadId], references: [id], onDelete: Restrict)
+  responsable   Usuario?        @relation("ActividadResponsable", fields: [responsableId], references: [id], onDelete: Restrict)
+  creadoPor     Usuario         @relation("ActividadCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  gastos        Gasto[]
+
+  @@index([cicloId])
+  @@index([cicloId, fecha])
+  @@index([tipoActividadId])
+  @@index([responsableId])
+  @@map("actividad")
+}
+
+// =====================================================================
+// COSTOS
+// =====================================================================
+
+model Gasto {
+  id                Int       @id @default(autoincrement())
+  cicloId           Int
+  categoriaId       Int
+  proveedorId       Int?
+  actividadId       Int?
+  unidadId          Int?
+  creadoPorId       Int
+  fecha             DateTime  @db.Date
+  descripcion       String?   @db.VarChar(500)
+  cantidad          Decimal   @default(1) @db.Decimal(12, 3)
+  costoUnitario     Decimal   @db.Decimal(12, 2)
+  impuesto          Decimal   @default(0) @db.Decimal(12, 2)
+  total             Decimal   @db.Decimal(12, 2)
+  numeroComprobante String?   @db.VarChar(60)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  ciclo     CicloProduccion @relation(fields: [cicloId], references: [id], onDelete: Restrict)
+  categoria CategoriaGasto  @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  proveedor Proveedor?      @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  actividad Actividad?      @relation(fields: [actividadId], references: [id], onDelete: Restrict)
+  unidad    UnidadMedida?   @relation(fields: [unidadId], references: [id], onDelete: Restrict)
+  creadoPor Usuario         @relation("GastoCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([cicloId])
+  @@index([cicloId, fecha])
+  @@index([cicloId, categoriaId])
+  @@index([categoriaId])
+  @@index([proveedorId])
+  @@index([actividadId])
+  @@index([fecha])
+  @@map("gasto")
+}
+
+// =====================================================================
+// PRODUCCIÓN
+// =====================================================================
+
+model Cosecha {
+  id            Int            @id @default(autoincrement())
+  cicloId       Int
+  unidadId      Int
+  creadoPorId   Int
+  fecha         DateTime       @db.Date
+  cantidad      Decimal        @db.Decimal(12, 3)
+  calidad       CalidadCosecha @default(PRIMERA)
+  observaciones String?        @db.VarChar(500)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  ciclo         CicloProduccion @relation(fields: [cicloId], references: [id], onDelete: Restrict)
+  unidad        UnidadMedida    @relation(fields: [unidadId], references: [id], onDelete: Restrict)
+  creadoPor     Usuario         @relation("CosechaCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+  detallesVenta DetalleVenta[]
+  mermas        Merma[]
+
+  @@index([cicloId])
+  @@index([cicloId, fecha])
+  @@index([cicloId, calidad])
+  @@index([fecha])
+  @@map("cosecha")
+}
+
+// =====================================================================
+// VENTAS Y COBROS
+// =====================================================================
+
+model Venta {
+  id              Int         @id @default(autoincrement())
+  cicloId         Int
+  clienteId       Int
+  creadoPorId     Int
+  fecha           DateTime    @db.Date
+  numeroFactura   String?     @db.VarChar(60)
+  descuento       Decimal     @default(0) @db.Decimal(12, 2)
+  impuesto        Decimal     @default(0) @db.Decimal(12, 2)
+  total           Decimal     @db.Decimal(12, 2)
+  fechaLimitePago DateTime?   @db.Date
+  estado          EstadoVenta @default(REGISTRADA)
+  notas           String?     @db.VarChar(500)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  ciclo     CicloProduccion @relation(fields: [cicloId], references: [id], onDelete: Restrict)
+  cliente   Cliente         @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  creadoPor Usuario         @relation("VentaCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+
+  detalles DetalleVenta[]
+  cobros   CobroVenta[]
+
+  @@index([cicloId])
+  @@index([cicloId, fecha])
+  @@index([clienteId])
+  @@index([clienteId, fecha])
+  @@index([fecha])
+  @@index([numeroFactura])
+  @@index([fechaLimitePago])
+  @@map("venta")
+}
+
+model DetalleVenta {
+  id             Int            @id @default(autoincrement())
+  ventaId        Int
+  cosechaId      Int?
+  unidadId       Int
+  calidad        CalidadCosecha @default(PRIMERA)
+  cantidad       Decimal        @db.Decimal(12, 3)
+  precioUnitario Decimal        @db.Decimal(12, 2)
+
+  venta   Venta        @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  cosecha Cosecha?     @relation(fields: [cosechaId], references: [id], onDelete: Restrict)
+  unidad  UnidadMedida @relation(fields: [unidadId], references: [id], onDelete: Restrict)
+
+  @@index([ventaId])
+  @@index([cosechaId])
+  @@index([unidadId])
+  @@map("detalle_venta")
+}
+
+model CobroVenta {
+  id              Int        @id @default(autoincrement())
+  ventaId         Int
+  registradoPorId Int
+  fecha           DateTime   @db.Date
+  monto           Decimal    @db.Decimal(12, 2)
+  metodo          MetodoPago @default(EFECTIVO)
+  referencia      String?    @db.VarChar(100)
+  createdAt       DateTime   @default(now())
+  deletedAt       DateTime?  // anulación del cobro (RN-063)
+
+  venta         Venta   @relation(fields: [ventaId], references: [id], onDelete: Restrict)
+  registradoPor Usuario @relation("CobroRegistrador", fields: [registradoPorId], references: [id], onDelete: Restrict)
+
+  @@index([ventaId])
+  @@index([ventaId, fecha])
+  @@index([fecha])
+  @@map("cobro_venta")
+}
+
+// =====================================================================
+// MERMAS
+// =====================================================================
+
+model Merma {
+  id            Int        @id @default(autoincrement())
+  cicloId       Int
+  motivoId      Int
+  cosechaId     Int?
+  unidadId      Int
+  creadoPorId   Int
+  fecha         DateTime   @db.Date
+  cantidad      Decimal    @db.Decimal(12, 3)
+  etapa         EtapaMerma @default(POSCOSECHA)
+  observaciones String?    @db.VarChar(500)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  ciclo     CicloProduccion @relation(fields: [cicloId], references: [id], onDelete: Restrict)
+  motivo    MotivoMerma     @relation(fields: [motivoId], references: [id], onDelete: Restrict)
+  cosecha   Cosecha?        @relation(fields: [cosechaId], references: [id], onDelete: Restrict)
+  unidad    UnidadMedida    @relation(fields: [unidadId], references: [id], onDelete: Restrict)
+  creadoPor Usuario         @relation("MermaCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([cicloId])
+  @@index([cicloId, fecha])
+  @@index([cicloId, etapa])
+  @@index([motivoId])
+  @@index([cosechaId])
+  @@map("merma")
+}
+
+// =====================================================================
+// AUDITORÍA Y ARCHIVOS ADJUNTOS
+// =====================================================================
+
+model BitacoraAuditoria {
+  id                BigInt          @id @default(autoincrement())
+  empresaId         Int
+  usuarioId         Int?
+  entidad           String          @db.VarChar(60)
+  entidadId         Int
+  accion            AccionAuditoria
+  valoresAnteriores Json?
+  valoresNuevos     Json?
+  direccionIp       String?         @db.VarChar(45)
+  createdAt         DateTime        @default(now())
+
+  empresa Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, createdAt])
+  @@index([entidad, entidadId])
+  @@index([usuarioId])
+  @@map("bitacora_auditoria")
+}
+
+model Adjunto {
+  id                  Int      @id @default(autoincrement())
+  empresaId           Int
+  subidoPorId         Int
+  entidad             String   @db.VarChar(60)
+  entidadId           Int
+  nombreArchivo       String   @db.VarChar(255)
+  tipoMime            String   @db.VarChar(100)
+  tamanoBytes         Int
+  claveAlmacenamiento String   @db.VarChar(500)
+  createdAt           DateTime @default(now())
+
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  subidoPor Usuario @relation("AdjuntoSubidoPor", fields: [subidoPorId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId])
+  @@index([entidad, entidadId])
+  @@map("adjunto")
+}
