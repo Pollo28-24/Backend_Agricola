@@ -7,6 +7,7 @@ import { UpdateParcelaDto } from './dto/update-parcela.dto';
 import { ParcelaResponseDto } from './dto/parcela-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
 
 @Injectable()
 export class ParcelasService {
@@ -362,9 +363,11 @@ export class ParcelasService {
       );
     }
 
-    const sufijo = `#baja${parcela.id}`;
-    const nombreBase = parcela.nombre.slice(0, 120 - sufijo.length);
-    const nombreLiberado = `${nombreBase}${sufijo}`;
+    const nombreLiberado = SoftDeleteUtil.generarValorBaja(
+      parcela.nombre,
+      parcela.id,
+      120,
+    );
 
     await this.prisma.parcela.update({
       where: { id: parcelaId },

@@ -8,6 +8,7 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { UsuarioResponseDto } from './dto/usuario-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
 
 @Injectable()
 export class UsuariosService {
@@ -339,10 +340,12 @@ export class UsuariosService {
       );
     }
 
-    // Anonimizar correo para liberar índice único (Sección 3.11)
-    const sufijo = `#baja${usuario.id}`;
-    const correoBase = usuario.correo.slice(0, 120 - sufijo.length);
-    const correoLiberado = `${correoBase}${sufijo}`;
+    // Anonimizar correo para liberar índice único (Sección 3.11 / RN-041)
+    const correoLiberado = SoftDeleteUtil.generarValorBaja(
+      usuario.correo,
+      usuario.id,
+      120,
+    );
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Baja lógica y anonimización

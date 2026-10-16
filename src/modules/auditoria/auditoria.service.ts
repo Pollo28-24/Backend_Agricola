@@ -9,6 +9,7 @@ import {
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { PaginationUtil } from '../../common/utils/pagination.util';
 
 @Injectable()
 export class AuditoriaService {
@@ -23,10 +24,7 @@ export class AuditoriaService {
     empresaId: number,
     filtros: FiltroAuditoriaDto,
   ): Promise<PaginatedResponseDto<AuditoriaResponseDto>> {
-    const page = Number(filtros.page) > 0 ? Number(filtros.page) : 1;
-    const limit = Number(filtros.limit) > 0 ? Number(filtros.limit) : 20;
-    const skip = (page - 1) * limit;
-    const take = limit;
+    const pagination = PaginationUtil.normalizar(filtros);
 
     const where: Prisma.BitacoraAuditoriaWhereInput = {
       empresaId,
@@ -46,23 +44,21 @@ export class AuditoriaService {
           },
         },
         orderBy: { createdAt: 'desc' },
-        skip,
-        take,
+        skip: pagination.skip,
+        take: pagination.limit,
       }),
       this.prisma.bitacoraAuditoria.count({ where }),
     ]);
 
     const data = registros.map((r) => this.formatearRespuesta(r));
-    const totalPages = Math.ceil(total / limit) || 1;
 
     return {
       data,
-      meta: {
+      meta: PaginationUtil.crearMeta(
+        pagination.page,
+        pagination.limit,
         total,
-        page,
-        limit,
-        totalPages,
-      },
+      ),
     };
   }
 

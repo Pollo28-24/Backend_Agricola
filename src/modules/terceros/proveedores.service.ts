@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
+import { PaginationUtil } from '../../common/utils/pagination.util';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { ProveedorResponseDto } from './dto/proveedor-response.dto';
@@ -80,9 +82,7 @@ export class ProveedoresService {
     empresaId: number,
     filtro: FiltroProveedorDto,
   ): Promise<PaginatedResponseDto<ProveedorResponseDto>> {
-    const page = filtro.page && filtro.page > 0 ? Number(filtro.page) : 1;
-    const limit = filtro.limit && filtro.limit > 0 ? Math.min(Number(filtro.limit), 100) : 20;
-    const skip = (page - 1) * limit;
+    const pagination = PaginationUtil.normalizar(filtro);
 
     const where: Prisma.ProveedorWhereInput = {
       empresaId,
@@ -112,21 +112,18 @@ export class ProveedoresService {
           },
         },
         orderBy: { nombre: 'asc' },
-        skip,
-        take: limit,
+        skip: pagination.skip,
+        take: pagination.limit,
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit) || 1;
-
     return {
       data: items.map((p) => this.formatearProveedor(p, p._count.gastos)),
-      meta: {
+      meta: PaginationUtil.crearMeta(
+        pagination.page,
+        pagination.limit,
         total,
-        page,
-        limit,
-        totalPages,
-      },
+      ),
     };
   }
 
@@ -307,9 +304,11 @@ export class ProveedoresService {
       };
     }
 
-    const sufijo = `#baja${id}`;
-    const nombreBase = proveedor.nombre.slice(0, 150 - sufijo.length);
-    const nombreLiberado = `${nombreBase}${sufijo}`;
+    const nombreLiberado = SoftDeleteUtil.generarValorBaja(
+      proveedor.nombre,
+      id,
+      150,
+    );
 
     await this.prisma.proveedor.update({
       where: { id },

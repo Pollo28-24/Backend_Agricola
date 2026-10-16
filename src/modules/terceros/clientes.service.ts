@@ -4,6 +4,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
+import { PaginationUtil } from '../../common/utils/pagination.util';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { ClienteResponseDto } from './dto/cliente-response.dto';
@@ -79,9 +81,7 @@ export class ClientesService {
     empresaId: number,
     filtro: FiltroClienteDto,
   ): Promise<PaginatedResponseDto<ClienteResponseDto>> {
-    const page = filtro.page && filtro.page > 0 ? Number(filtro.page) : 1;
-    const limit = filtro.limit && filtro.limit > 0 ? Math.min(Number(filtro.limit), 100) : 20;
-    const skip = (page - 1) * limit;
+    const pagination = PaginationUtil.normalizar(filtro);
 
     const where: Prisma.ClienteWhereInput = {
       empresaId,
@@ -115,21 +115,18 @@ export class ClientesService {
           },
         },
         orderBy: { nombre: 'asc' },
-        skip,
-        take: limit,
+        skip: pagination.skip,
+        take: pagination.limit,
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit) || 1;
-
     return {
       data: items.map((c) => this.formatearCliente(c, c._count.ventas)),
-      meta: {
+      meta: PaginationUtil.crearMeta(
+        pagination.page,
+        pagination.limit,
         total,
-        page,
-        limit,
-        totalPages,
-      },
+      ),
     };
   }
 
@@ -310,9 +307,11 @@ export class ClientesService {
       };
     }
 
-    const sufijo = `#baja${id}`;
-    const nombreBase = cliente.nombre.slice(0, 150 - sufijo.length);
-    const nombreLiberado = `${nombreBase}${sufijo}`;
+    const nombreLiberado = SoftDeleteUtil.generarValorBaja(
+      cliente.nombre,
+      id,
+      150,
+    );
 
     await this.prisma.cliente.update({
       where: { id },

@@ -7,6 +7,7 @@ import { UpdatePredioDto } from './dto/update-predio.dto';
 import { PredioResponseDto } from './dto/predio-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
 
 @Injectable()
 export class PrediosService {
@@ -254,9 +255,11 @@ export class PrediosService {
       );
     }
 
-    const sufijo = `#baja${predio.id}`;
-    const nombreBase = predio.nombre.slice(0, 120 - sufijo.length);
-    const nombreLiberado = `${nombreBase}${sufijo}`;
+    const nombreLiberado = SoftDeleteUtil.generarValorBaja(
+      predio.nombre,
+      predio.id,
+      150,
+    );
 
     await this.prisma.predio.update({
       where: { id: predioId },

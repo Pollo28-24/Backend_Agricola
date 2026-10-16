@@ -22,6 +22,7 @@ import { FiltroCicloDto } from './dto/filtro-ciclo.dto';
 import { CicloResponseDto } from './dto/ciclo-response.dto';
 import { CicloDetalleResponseDto } from './dto/ciclo-detalle-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { PaginationUtil } from '../../common/utils/pagination.util';
 
 dayjs.extend(utc);
 
@@ -156,9 +157,7 @@ export class CiclosService {
     empresaId: number,
     filtro: FiltroCicloDto,
   ): Promise<PaginatedResponseDto<CicloResponseDto>> {
-    const page = filtro.page && filtro.page > 0 ? Number(filtro.page) : 1;
-    const limit = filtro.limit && filtro.limit > 0 ? Math.min(Number(filtro.limit), 100) : 20;
-    const skip = (page - 1) * limit;
+    const pagination = PaginationUtil.normalizar(filtro);
 
     const where: Prisma.CicloProduccionWhereInput = {
       empresaId,
@@ -204,21 +203,18 @@ export class CiclosService {
       this.prisma.cicloProduccion.findMany({
         where,
         orderBy: [{ fechaInicio: 'desc' }, { id: 'desc' }],
-        skip,
-        take: limit,
+        skip: pagination.skip,
+        take: pagination.limit,
       }),
     ]);
 
-    const totalPages = Math.ceil(total / limit) || 1;
-
     return {
       data: items.map((c) => this.formatearCiclo(c)),
-      meta: {
+      meta: PaginationUtil.crearMeta(
+        pagination.page,
+        pagination.limit,
         total,
-        page,
-        limit,
-        totalPages,
-      },
+      ),
     };
   }
 
