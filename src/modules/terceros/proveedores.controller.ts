@@ -17,7 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { TercerosService } from './terceros.service';
+import { ProveedoresService } from './proveedores.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { ProveedorResponseDto } from './dto/proveedor-response.dto';
@@ -30,7 +30,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 @ApiBearerAuth('JWT-auth')
 @Controller('proveedores')
 export class ProveedoresController {
-  constructor(private readonly tercerosService: TercerosService) {}
+  constructor(private readonly proveedoresService: ProveedoresService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -42,7 +42,7 @@ export class ProveedoresController {
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreateProveedorDto,
   ): Promise<ProveedorResponseDto> {
-    return this.tercerosService.crearProveedor(empresaId, dto);
+    return this.proveedoresService.crearProveedor(empresaId, dto);
   }
 
   @Get()
@@ -52,7 +52,7 @@ export class ProveedoresController {
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroProveedorDto,
   ): Promise<PaginatedResponseDto<ProveedorResponseDto>> {
-    return this.tercerosService.listarProveedores(empresaId, filtro);
+    return this.proveedoresService.listarProveedores(empresaId, filtro);
   }
 
   @Get(':id')
@@ -63,7 +63,7 @@ export class ProveedoresController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ProveedorResponseDto> {
-    return this.tercerosService.obtenerProveedorPorId(empresaId, id);
+    return this.proveedoresService.obtenerProveedorPorId(empresaId, id);
   }
 
   @Patch(':id')
@@ -77,7 +77,7 @@ export class ProveedoresController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProveedorDto,
   ): Promise<ProveedorResponseDto> {
-    return this.tercerosService.actualizarProveedor(empresaId, id, dto);
+    return this.proveedoresService.actualizarProveedor(empresaId, id, dto);
   }
 
   @Delete(':id')
@@ -91,6 +91,6 @@ export class ProveedoresController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
-    return this.tercerosService.eliminarProveedor(empresaId, id);
+    return this.proveedoresService.eliminarProveedor(empresaId, id);
   }
 }

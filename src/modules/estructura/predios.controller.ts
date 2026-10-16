@@ -16,7 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { EstructuraService } from './estructura.service';
+import { PrediosService } from './predios.service';
 import { CreatePredioDto } from './dto/create-predio.dto';
 import { UpdatePredioDto } from './dto/update-predio.dto';
 import { PredioResponseDto } from './dto/predio-response.dto';
@@ -27,7 +27,7 @@ import { RequirePermisos } from '../../common/decorators/require-permisos.decora
 @ApiBearerAuth('JWT-auth')
 @Controller('predios')
 export class PrediosController {
-  constructor(private readonly estructuraService: EstructuraService) {}
+  constructor(private readonly prediosService: PrediosService) {}
 
   @Post()
   @RequirePermisos('estructura:administrar')
@@ -39,7 +39,7 @@ export class PrediosController {
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreatePredioDto,
   ): Promise<PredioResponseDto> {
-    return this.estructuraService.crearPredio(empresaId, dto);
+    return this.prediosService.crearPredio(empresaId, dto);
   }
 
   @Get()
@@ -48,7 +48,7 @@ export class PrediosController {
   async listar(
     @CurrentUser('empresaId') empresaId: number,
   ): Promise<PredioResponseDto[]> {
-    return this.estructuraService.listarPredios(empresaId);
+    return this.prediosService.listarPredios(empresaId);
   }
 
   @Get(':id')
@@ -59,7 +59,7 @@ export class PrediosController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<PredioResponseDto> {
-    return this.estructuraService.obtenerPredioPorId(empresaId, id);
+    return this.prediosService.obtenerPredioPorId(empresaId, id);
   }
 
   @Patch(':id')
@@ -73,7 +73,7 @@ export class PrediosController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePredioDto,
   ): Promise<PredioResponseDto> {
-    return this.estructuraService.actualizarPredio(empresaId, id, dto);
+    return this.prediosService.actualizarPredio(empresaId, id, dto);
   }
 
   @Delete(':id')
@@ -91,6 +91,6 @@ export class PrediosController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ mensaje: string }> {
-    return this.estructuraService.eliminarPredio(empresaId, id);
+    return this.prediosService.eliminarPredio(empresaId, id);
   }
 }

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ClientesController } from './clientes.controller';
-import { TercerosService } from './terceros.service';
+import { ClientesService } from './clientes.service';
 import { TipoCliente } from '@prisma/client';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
@@ -28,7 +28,7 @@ describe('ClientesController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClientesController],
-      providers: [{ provide: TercerosService, useValue: service }],
+      providers: [{ provide: ClientesService, useValue: service }],
     }).compile();
 
     controller = module.get<ClientesController>(ClientesController);

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProveedoresController } from './proveedores.controller';
-import { TercerosService } from './terceros.service';
+import { ProveedoresService } from './proveedores.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 
@@ -27,7 +27,7 @@ describe('ProveedoresController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProveedoresController],
-      providers: [{ provide: TercerosService, useValue: service }],
+      providers: [{ provide: ProveedoresService, useValue: service }],
     }).compile();
 
     controller = module.get<ProveedoresController>(ProveedoresController);

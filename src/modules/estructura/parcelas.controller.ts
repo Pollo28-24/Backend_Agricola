@@ -19,7 +19,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { EstadoParcela } from '@prisma/client';
-import { EstructuraService } from './estructura.service';
+import { ParcelasService } from './parcelas.service';
 import { CreateParcelaDto } from './dto/create-parcela.dto';
 import { UpdateParcelaDto } from './dto/update-parcela.dto';
 import { ParcelaResponseDto } from './dto/parcela-response.dto';
@@ -30,7 +30,7 @@ import { RequirePermisos } from '../../common/decorators/require-permisos.decora
 @ApiBearerAuth('JWT-auth')
 @Controller('parcelas')
 export class ParcelasController {
-  constructor(private readonly estructuraService: EstructuraService) {}
+  constructor(private readonly parcelasService: ParcelasService) {}
 
   @Post()
   @RequirePermisos('estructura:administrar')
@@ -53,7 +53,7 @@ export class ParcelasController {
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreateParcelaDto,
   ): Promise<ParcelaResponseDto> {
-    return this.estructuraService.crearParcela(empresaId, dto);
+    return this.parcelasService.crearParcela(empresaId, dto);
   }
 
   @Get()
@@ -70,7 +70,7 @@ export class ParcelasController {
     @Query('predioId') predioId?: number,
     @Query('estado') estado?: EstadoParcela,
   ): Promise<ParcelaResponseDto[]> {
-    return this.estructuraService.listarParcelas(
+    return this.parcelasService.listarParcelas(
       empresaId,
       predioId ? Number(predioId) : undefined,
       estado,
@@ -88,7 +88,7 @@ export class ParcelasController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ParcelaResponseDto> {
-    return this.estructuraService.obtenerParcelaPorId(empresaId, id);
+    return this.parcelasService.obtenerParcelaPorId(empresaId, id);
   }
 
   @Patch(':id')
@@ -105,7 +105,7 @@ export class ParcelasController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateParcelaDto,
   ): Promise<ParcelaResponseDto> {
-    return this.estructuraService.actualizarParcela(empresaId, id, dto);
+    return this.parcelasService.actualizarParcela(empresaId, id, dto);
   }
 
   @Delete(':id')
@@ -127,6 +127,6 @@ export class ParcelasController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ mensaje: string }> {
-    return this.estructuraService.eliminarParcela(empresaId, id);
+    return this.parcelasService.eliminarParcela(empresaId, id);
   }
 }

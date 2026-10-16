@@ -2,9 +2,6 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { AccionAuditoria, EstadoCiclo, EstadoParcela } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
-import { CreatePredioDto } from './dto/create-predio.dto';
-import { UpdatePredioDto } from './dto/update-predio.dto';
-import { PredioResponseDto } from './dto/predio-response.dto';
 import { CreateParcelaDto } from './dto/create-parcela.dto';
 import { UpdateParcelaDto } from './dto/update-parcela.dto';
 import { ParcelaResponseDto } from './dto/parcela-response.dto';
@@ -12,288 +9,16 @@ import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 
 @Injectable()
-export class EstructuraService {
+export class ParcelasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
   ) {}
 
-  // =====================================================================
-  // PREDIOS
-  // =====================================================================
-
-  /**
-   * Alta de nuevo predio agrícola para la empresa (RN-003).
-   * Valida unicidad de nombre en la empresa entre los predios activos.
-   */
-  async crearPredio(
-    empresaId: number,
-    dto: CreatePredioDto,
-  ): Promise<PredioResponseDto> {
-    const nombreNormalizado = dto.nombre.trim();
-
-    const predioExistente = await this.prisma.predio.findFirst({
-      where: {
-        empresaId,
-        nombre: nombreNormalizado,
-        deletedAt: null,
-      },
-    });
-
-    if (predioExistente) {
-      throw new DomainError(
-        CodigoError.CONFLICTO,
-        `Ya existe un predio activo con el nombre '${nombreNormalizado}' en su empresa`,
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const nuevoPredio = await this.prisma.predio.create({
-      data: {
-        empresaId,
-        nombre: nombreNormalizado,
-        ubicacion: dto.ubicacion?.trim() || null,
-        municipio: dto.municipio?.trim() || null,
-        entidadFederativa: dto.entidadFederativa?.trim() || null,
-        superficieTotal: dto.superficieTotal,
-        latitud: dto.latitud ?? null,
-        longitud: dto.longitud ?? null,
-      },
-    });
-
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'predio',
-      entidadId: nuevoPredio.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevoPredio.id,
-        nombre: nuevoPredio.nombre,
-        superficieTotal: nuevoPredio.superficieTotal.toString(),
-      },
-    });
-
-    return this.formatearPredio(nuevoPredio, 0);
-  }
-
-  /**
-   * Listar predios activos de la empresa con conteo de parcelas activas.
-   */
-  async listarPredios(empresaId: number): Promise<PredioResponseDto[]> {
-    const predios = await this.prisma.predio.findMany({
-      where: {
-        empresaId,
-        deletedAt: null,
-      },
-      include: {
-        _count: {
-          select: {
-            parcelas: {
-              where: { deletedAt: null },
-            },
-          },
-        },
-      },
-      orderBy: { nombre: 'asc' },
-    });
-
-    return predios.map((p) => this.formatearPredio(p, p._count.parcelas));
-  }
-
-  /**
-   * Consultar predio por ID con aislamiento multi-tenant (RN-068).
-   */
-  async obtenerPredioPorId(
-    empresaId: number,
-    predioId: number,
-  ): Promise<PredioResponseDto> {
-    const predio = await this.prisma.predio.findFirst({
-      where: {
-        id: predioId,
-        empresaId,
-        deletedAt: null,
-      },
-      include: {
-        _count: {
-          select: {
-            parcelas: {
-              where: { deletedAt: null },
-            },
-          },
-        },
-      },
-    });
-
-    if (!predio) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Predio no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    return this.formatearPredio(predio, predio._count.parcelas);
-  }
-
-  /**
-   * Actualizar predio de la empresa.
-   */
-  async actualizarPredio(
-    empresaId: number,
-    predioId: number,
-    dto: UpdatePredioDto,
-  ): Promise<PredioResponseDto> {
-    const predioActual = await this.prisma.predio.findFirst({
-      where: {
-        id: predioId,
-        empresaId,
-        deletedAt: null,
-      },
-    });
-
-    if (!predioActual) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Predio no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    if (dto.nombre && dto.nombre.trim() !== predioActual.nombre) {
-      const duplicado = await this.prisma.predio.findFirst({
-        where: {
-          empresaId,
-          nombre: dto.nombre.trim(),
-          deletedAt: null,
-          id: { not: predioId },
-        },
-      });
-
-      if (duplicado) {
-        throw new DomainError(
-          CodigoError.CONFLICTO,
-          `Ya existe otro predio con el nombre '${dto.nombre.trim()}'`,
-          HttpStatus.CONFLICT,
-        );
-      }
-    }
-
-    const predioActualizado = await this.prisma.predio.update({
-      where: { id: predioId },
-      data: {
-        ...(dto.nombre && { nombre: dto.nombre.trim() }),
-        ...(dto.ubicacion !== undefined && { ubicacion: dto.ubicacion?.trim() || null }),
-        ...(dto.municipio !== undefined && { municipio: dto.municipio?.trim() || null }),
-        ...(dto.entidadFederativa !== undefined && {
-          entidadFederativa: dto.entidadFederativa?.trim() || null,
-        }),
-        ...(dto.superficieTotal !== undefined && {
-          superficieTotal: dto.superficieTotal,
-        }),
-        ...(dto.latitud !== undefined && { latitud: dto.latitud }),
-        ...(dto.longitud !== undefined && { longitud: dto.longitud }),
-      },
-      include: {
-        _count: {
-          select: {
-            parcelas: {
-              where: { deletedAt: null },
-            },
-          },
-        },
-      },
-    });
-
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'predio',
-      entidadId: predioId,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: {
-        nombre: predioActual.nombre,
-        superficieTotal: predioActual.superficieTotal.toString(),
-      },
-      valoresNuevos: {
-        nombre: predioActualizado.nombre,
-        superficieTotal: predioActualizado.superficieTotal.toString(),
-      },
-    });
-
-    return this.formatearPredio(predioActualizado, predioActualizado._count.parcelas);
-  }
-
-  /**
-   * Baja lógica de predio y liberación de índice único de nombre (RN-041, Sección 3.11).
-   * Valida que no tenga parcelas activas asociadas.
-   */
-  async eliminarPredio(
-    empresaId: number,
-    predioId: number,
-  ): Promise<{ mensaje: string }> {
-    const predio = await this.prisma.predio.findFirst({
-      where: {
-        id: predioId,
-        empresaId,
-        deletedAt: null,
-      },
-    });
-
-    if (!predio) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Predio no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    const parcelasCount = await this.prisma.parcela.count({
-      where: {
-        predioId,
-        deletedAt: null,
-      },
-    });
-
-    if (parcelasCount > 0) {
-      throw new DomainError(
-        CodigoError.CONFLICTO,
-        `No se puede eliminar el predio '${predio.nombre}' porque contiene ${parcelasCount} parcela(s) activa(s). Debe eliminar primero sus parcelas.`,
-        HttpStatus.CONFLICT,
-      );
-    }
-
-    const sufijo = `#baja${predio.id}`;
-    const nombreBase = predio.nombre.slice(0, 120 - sufijo.length);
-    const nombreLiberado = `${nombreBase}${sufijo}`;
-
-    await this.prisma.predio.update({
-      where: { id: predioId },
-      data: {
-        deletedAt: new Date(),
-        nombre: nombreLiberado,
-      },
-    });
-
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'predio',
-      entidadId: predioId,
-      accion: AccionAuditoria.ELIMINAR,
-      valoresAnteriores: {
-        id: predio.id,
-        nombreOriginal: predio.nombre,
-      },
-    });
-
-    return { mensaje: 'Predio eliminado exitosamente' };
-  }
-
-  // =====================================================================
-  // PARCELAS
-  // =====================================================================
-
   /**
    * Alta de nueva parcela con validación de límite de plan (RN-037),
    * pertenencia del predio al tenant (RN-068), unicidad de nombre y GeoJSON.
+   * Protegido contra concurrencia mediante lock pesimista FOR UPDATE (ADR-002).
    */
   async crearParcela(
     empresaId: number,
@@ -665,25 +390,8 @@ export class EstructuraService {
   }
 
   // =====================================================================
-  // FORMATEADORES PRIVADOS
+  // FORMATEADOR PRIVADO
   // =====================================================================
-
-  private formatearPredio(predio: any, parcelasCount: number): PredioResponseDto {
-    return {
-      id: predio.id,
-      empresaId: predio.empresaId,
-      nombre: predio.nombre,
-      ubicacion: predio.ubicacion,
-      municipio: predio.municipio,
-      entidadFederativa: predio.entidadFederativa,
-      superficieTotal: predio.superficieTotal.toString(),
-      latitud: predio.latitud ? predio.latitud.toString() : null,
-      longitud: predio.longitud ? predio.longitud.toString() : null,
-      parcelasCount,
-      createdAt: predio.createdAt.toISOString(),
-      updatedAt: predio.updatedAt.toISOString(),
-    };
-  }
 
   private formatearParcela(parcela: any): ParcelaResponseDto {
     return {

@@ -17,7 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { TercerosService } from './terceros.service';
+import { ClientesService } from './clientes.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { ClienteResponseDto } from './dto/cliente-response.dto';
@@ -31,7 +31,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 @RequirePermisos('tercero:administrar')
 @Controller('clientes')
 export class ClientesController {
-  constructor(private readonly tercerosService: TercerosService) {}
+  constructor(private readonly clientesService: ClientesService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -42,7 +42,7 @@ export class ClientesController {
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreateClienteDto,
   ): Promise<ClienteResponseDto> {
-    return this.tercerosService.crearCliente(empresaId, dto);
+    return this.clientesService.crearCliente(empresaId, dto);
   }
 
   @Get()
@@ -52,7 +52,7 @@ export class ClientesController {
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroClienteDto,
   ): Promise<PaginatedResponseDto<ClienteResponseDto>> {
-    return this.tercerosService.listarClientes(empresaId, filtro);
+    return this.clientesService.listarClientes(empresaId, filtro);
   }
 
   @Get(':id')
@@ -63,7 +63,7 @@ export class ClientesController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ClienteResponseDto> {
-    return this.tercerosService.obtenerClientePorId(empresaId, id);
+    return this.clientesService.obtenerClientePorId(empresaId, id);
   }
 
   @Patch(':id')
@@ -76,7 +76,7 @@ export class ClientesController {
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateClienteDto,
   ): Promise<ClienteResponseDto> {
-    return this.tercerosService.actualizarCliente(empresaId, id, dto);
+    return this.clientesService.actualizarCliente(empresaId, id, dto);
   }
 
   @Delete(':id')
@@ -89,6 +89,6 @@ export class ClientesController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
-    return this.tercerosService.eliminarCliente(empresaId, id);
+    return this.clientesService.eliminarCliente(empresaId, id);
   }
 }

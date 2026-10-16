@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PrediosController } from './predios.controller';
 import { ParcelasController } from './parcelas.controller';
-import { EstructuraService } from './estructura.service';
+import { PrediosService } from './predios.service';
+import { ParcelasService } from './parcelas.service';
 
 @Module({
   controllers: [PrediosController, ParcelasController],
-  providers: [EstructuraService],
-  exports: [EstructuraService],
+  providers: [PrediosService, ParcelasService],
+  exports: [PrediosService, ParcelasService],
 })
 export class EstructuraModule {}

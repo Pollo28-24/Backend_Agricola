@@ -1,27 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus } from '@nestjs/common';
-import { TipoCliente, AccionAuditoria } from '@prisma/client';
-import { TercerosService } from './terceros.service';
+import { AccionAuditoria } from '@prisma/client';
+import { ProveedoresService } from './proveedores.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { DomainError } from '../../common/errors/domain.error';
-import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
-import { CreateClienteDto } from './dto/create-cliente.dto';
-import { UpdateClienteDto } from './dto/update-cliente.dto';
 
-describe('TercerosService', () => {
-  let service: TercerosService;
+describe('ProveedoresService', () => {
+  let service: ProveedoresService;
   let prisma: {
     proveedor: {
-      findFirst: jest.Mock;
-      findMany: jest.Mock;
-      count: jest.Mock;
-      create: jest.Mock;
-      update: jest.Mock;
-    };
-    cliente: {
       findFirst: jest.Mock;
       findMany: jest.Mock;
       count: jest.Mock;
@@ -44,13 +33,6 @@ describe('TercerosService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
-      cliente: {
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        count: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-      },
     };
 
     auditService = {
@@ -59,22 +41,18 @@ describe('TercerosService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        TercerosService,
+        ProveedoresService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: auditService },
       ],
     }).compile();
 
-    service = module.get<TercerosService>(TercerosService);
+    service = module.get<ProveedoresService>(ProveedoresService);
   });
 
   it('debe estar definido', () => {
     expect(service).toBeDefined();
   });
-
-  // =====================================================================
-  // PROVEEDORES
-  // =====================================================================
 
   describe('crearProveedor', () => {
     it('debe registrar un proveedor exitosamente y auditar la creación', async () => {
@@ -268,99 +246,6 @@ describe('TercerosService', () => {
       expect(prisma.proveedor.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 7 },
-          data: { activo: false },
-        }),
-      );
-    });
-  });
-
-  // =====================================================================
-  // CLIENTES
-  // =====================================================================
-
-  describe('crearCliente', () => {
-    it('debe registrar un cliente exitosamente con su tipo de canal', async () => {
-      const dto: CreateClienteDto = {
-        nombre: 'Supermercado Guadalajara',
-        tipo: TipoCliente.SUPERMERCADO,
-      };
-
-      prisma.cliente.findFirst.mockResolvedValue(null);
-      prisma.cliente.create.mockResolvedValue({
-        id: 1,
-        empresaId,
-        nombre: 'Supermercado Guadalajara',
-        rfc: null,
-        telefono: null,
-        correo: null,
-        tipo: TipoCliente.SUPERMERCADO,
-        activo: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      const res = await service.crearCliente(empresaId, dto);
-
-      expect(res.id).toBe(1);
-      expect(res.tipo).toBe(TipoCliente.SUPERMERCADO);
-      expect(res.totalVentas).toBe(0);
-      expect(auditService.registrar).toHaveBeenCalledWith(
-        expect.objectContaining({
-          accion: AccionAuditoria.CREAR,
-        }),
-      );
-    });
-
-    it('debe rechazar creación si ya existe cliente activo con el mismo nombre', async () => {
-      prisma.cliente.findFirst.mockResolvedValue({ id: 5, nombre: 'Supermercado Guadalajara' });
-
-      await expect(
-        service.crearCliente(empresaId, { nombre: 'Supermercado Guadalajara' }),
-      ).rejects.toThrow(DomainError);
-    });
-  });
-
-  describe('eliminarCliente', () => {
-    it('debe realizar baja lógica si no tiene ventas registradas', async () => {
-      prisma.cliente.findFirst.mockResolvedValue({
-        id: 12,
-        empresaId,
-        nombre: 'Distribuidora del Sur',
-        activo: true,
-        _count: { ventas: 0 },
-      });
-      prisma.cliente.update.mockResolvedValue({});
-
-      const res = await service.eliminarCliente(empresaId, 12);
-
-      expect(res.message).toContain('exitosamente');
-      expect(prisma.cliente.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 12 },
-          data: expect.objectContaining({
-            activo: false,
-            nombre: 'Distribuidora del Sur#baja12',
-          }),
-        }),
-      );
-    });
-
-    it('debe desactivar el cliente en lugar de eliminarlo si tiene ventas vinculadas (RN-041)', async () => {
-      prisma.cliente.findFirst.mockResolvedValue({
-        id: 12,
-        empresaId,
-        nombre: 'Distribuidora del Sur',
-        activo: true,
-        _count: { ventas: 4 },
-      });
-      prisma.cliente.update.mockResolvedValue({});
-
-      const res = await service.eliminarCliente(empresaId, 12);
-
-      expect(res.message).toContain('desactivado');
-      expect(prisma.cliente.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 12 },
           data: { activo: false },
         }),
       );
