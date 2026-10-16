@@ -11,6 +11,7 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { CatalogosModule } from './modules/catalogos/catalogos.module';
 import { EstructuraModule } from './modules/estructura/estructura.module';
+import { TercerosModule } from './modules/terceros/terceros.module';
 import { envValidationSchema } from './config/env.validation';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AccesoVigenteGuard } from './common/guards/acceso-vigente.guard';
@@ -39,6 +40,7 @@ import { PermisosGuard } from './common/guards/permisos.guard';
     AuditoriaModule,
     CatalogosModule,
     EstructuraModule,
+    TercerosModule,
   ],
   providers: [
     {
