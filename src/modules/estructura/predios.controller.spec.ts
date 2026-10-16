@@ -67,4 +67,25 @@ describe('PrediosController', () => {
     expect(mockEstructuraService.eliminarPredio).toHaveBeenCalledWith(5, 1);
     expect(res.mensaje).toBe('ok');
   });
+
+  describe('Permisos RBAC granulares (Fase 1)', () => {
+    const reflector = new (require('@nestjs/core').Reflector)();
+
+    it('la clase PrediosController no debe tener RequirePermisos a nivel global', () => {
+      const permisosClase = reflector.get('permisos', PrediosController);
+      expect(permisosClase).toBeUndefined();
+    });
+
+    it('crear, actualizar y eliminar deben exigir estructura:administrar', () => {
+      expect(reflector.get('permisos', controller.crear)).toEqual(['estructura:administrar']);
+      expect(reflector.get('permisos', controller.actualizar)).toEqual(['estructura:administrar']);
+      expect(reflector.get('permisos', controller.eliminar)).toEqual(['estructura:administrar']);
+    });
+
+    it('listar y obtenerPorId deben permitir acceso de lectura sin estructura:administrar', () => {
+      expect(reflector.get('permisos', controller.listar)).toBeUndefined();
+      expect(reflector.get('permisos', controller.obtenerPorId)).toBeUndefined();
+    });
+  });
 });
+

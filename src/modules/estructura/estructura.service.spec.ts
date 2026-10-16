@@ -35,6 +35,8 @@ describe('EstructuraService (RN-037, RN-041, RN-068, Sección 3.11)', () => {
     cicloProduccion: {
       count: jest.fn(),
     },
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   };
 
   const mockAuditService = {
@@ -43,6 +45,8 @@ describe('EstructuraService (RN-037, RN-041, RN-068, Sección 3.11)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb(mockPrismaService));
+    mockPrismaService.$queryRaw.mockResolvedValue([{ id: 10 }]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -225,7 +229,9 @@ describe('EstructuraService (RN-037, RN-041, RN-068, Sección 3.11)', () => {
           entidad: 'parcela',
           accion: AccionAuditoria.CREAR,
         }),
+        expect.anything(),
       );
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
     });
 
     it('debe rechazar con 409 LIMITE_PLAN_EXCEDIDO si se alcanza el cupo maxParcelas (RN-037)', async () => {

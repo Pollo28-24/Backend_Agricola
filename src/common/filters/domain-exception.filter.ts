@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { DomainError } from '../errors/domain.error';
 import { CodigoError } from '../errors/codigos-error.enum';
 
@@ -28,6 +29,33 @@ export class DomainExceptionFilter implements ExceptionFilter {
       code = exception.code;
       message = exception.message;
       details = exception.details;
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      switch (exception.code) {
+        case 'P2002':
+          statusCode = HttpStatus.CONFLICT;
+          code = CodigoError.CONFLICTO;
+          message = 'Ya existe un registro con los datos proporcionados';
+          break;
+        case 'P2003':
+          statusCode = HttpStatus.CONFLICT;
+          code = CodigoError.CONFLICTO;
+          message =
+            'No es posible completar la operación debido a dependencias con otros registros';
+          break;
+        case 'P2025':
+          statusCode = HttpStatus.NOT_FOUND;
+          code = CodigoError.RECURSO_NO_ENCONTRADO;
+          message = 'El registro solicitado no existe o no se encuentra disponible';
+          break;
+        default:
+          this.logger.error(
+            `Error de base de datos no mapeado [${exception.code}]: ${exception.message}`,
+          );
+          statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+          code = CodigoError.ERROR_INTERNO;
+          message = 'Ocurrió un error en la base de datos';
+          break;
+      }
     } else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       const res = exception.getResponse();

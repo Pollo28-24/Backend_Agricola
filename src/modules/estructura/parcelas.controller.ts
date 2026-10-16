@@ -28,12 +28,12 @@ import { RequirePermisos } from '../../common/decorators/require-permisos.decora
 
 @ApiTags('Estructura Agrícola - Parcelas')
 @ApiBearerAuth('JWT-auth')
-@RequirePermisos('estructura:administrar')
 @Controller('parcelas')
 export class ParcelasController {
   constructor(private readonly estructuraService: EstructuraService) {}
 
   @Post()
+  @RequirePermisos('estructura:administrar')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
@@ -92,6 +92,7 @@ export class ParcelasController {
   }
 
   @Patch(':id')
+  @RequirePermisos('estructura:administrar')
   @ApiOperation({ summary: 'Actualizar datos de una parcela' })
   @ApiResponse({ status: 200, type: ParcelaResponseDto })
   @ApiResponse({
@@ -108,6 +109,7 @@ export class ParcelasController {
   }
 
   @Delete(':id')
+  @RequirePermisos('estructura:administrar')
   @ApiOperation({
     summary:
       'Baja lógica de parcela y liberación de nombre (RN-041, Sección 3.11)',

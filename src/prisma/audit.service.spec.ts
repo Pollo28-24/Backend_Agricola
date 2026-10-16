@@ -69,4 +69,77 @@ describe('AuditService', () => {
 
     expect(mockPrismaService.bitacoraAuditoria.create).not.toHaveBeenCalled();
   });
+
+  describe('Modo Transaccional (con tx)', () => {
+    it('debe registrar en bitácora usando el TransactionClient', async () => {
+      const mockTx = {
+        bitacoraAuditoria: {
+          create: jest.fn().mockResolvedValue({ id: BigInt(2) }),
+        },
+      } as any;
+
+      await service.registrar(
+        {
+          entidad: 'ciclo_produccion',
+          entidadId: 50,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: { nombre: 'Ciclo 2026', contrasenaHash: 'hidden' },
+        },
+        mockTx,
+      );
+
+      expect(mockTx.bitacoraAuditoria.create).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.bitacoraAuditoria.create).not.toHaveBeenCalled();
+
+      const args = mockTx.bitacoraAuditoria.create.mock.calls[0][0].data;
+      expect(args.empresaId).toBe(10);
+      expect(args.entidad).toBe('ciclo_produccion');
+      expect(args.entidadId).toBe(50);
+      expect(args.valoresNuevos.contrasenaHash).toBeUndefined();
+    });
+
+    it('debe lanzar DomainError si falta empresaId en contexto transaccional', async () => {
+      mockClsService.get.mockReturnValueOnce(undefined); // empresaId undefined
+
+      const mockTx = {
+        bitacoraAuditoria: {
+          create: jest.fn(),
+        },
+      } as any;
+
+      await expect(
+        service.registrar(
+          {
+            entidad: 'ciclo_produccion',
+            entidadId: 50,
+            accion: AccionAuditoria.CREAR,
+          },
+          mockTx,
+        ),
+      ).rejects.toThrow('falta empresaId en contexto transaccional');
+
+      expect(mockTx.bitacoraAuditoria.create).not.toHaveBeenCalled();
+    });
+
+    it('debe relanzar el error si la base de datos falla dentro de la transacción (rethrow para rollback)', async () => {
+      const dbError = new Error('Deadlock detected in InnoDB');
+      const mockTx = {
+        bitacoraAuditoria: {
+          create: jest.fn().mockRejectedValue(dbError),
+        },
+      } as any;
+
+      await expect(
+        service.registrar(
+          {
+            entidad: 'ciclo_produccion',
+            entidadId: 50,
+            accion: AccionAuditoria.CREAR,
+          },
+          mockTx,
+        ),
+      ).rejects.toThrow('Deadlock detected in InnoDB');
+    });
+  });
 });
+

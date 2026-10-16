@@ -545,22 +545,26 @@ export class CiclosService {
           });
         }
 
-        // 6. Registrar en bitácora de auditoría dentro de la misma transacción (helper reutilizable)
-        await this.registrarAuditoriaTx(tx, {
-          empresaId,
-          usuarioId,
-          entidadId: id,
-          accion: accionAuditoria,
-          valoresAnteriores: {
-            estado: ciclo.estado,
-            cerradoEn: ciclo.cerradoEn,
+        // 6. Registrar en bitácora de auditoría dentro de la misma transacción (AuditService bimodal)
+        await this.auditService.registrar(
+          {
+            empresaId,
+            usuarioId,
+            entidad: 'ciclo_produccion',
+            entidadId: id,
+            accion: accionAuditoria,
+            valoresAnteriores: {
+              estado: ciclo.estado,
+              cerradoEn: ciclo.cerradoEn,
+            },
+            valoresNuevos: {
+              estado: cicloActualizado.estado,
+              cerradoEn: cicloActualizado.cerradoEn,
+              accion,
+            },
           },
-          valoresNuevos: {
-            estado: cicloActualizado.estado,
-            cerradoEn: cicloActualizado.cerradoEn,
-            accion,
-          },
-        });
+          tx,
+        );
 
         return this.formatearCiclo(cicloActualizado);
       });
@@ -670,17 +674,21 @@ export class CiclosService {
         },
       });
 
-      await this.registrarAuditoriaTx(tx, {
-        empresaId,
-        usuarioId,
-        entidadId: id,
-        accion: AccionAuditoria.ELIMINAR,
-        valoresAnteriores: {
-          id: ciclo.id,
-          nombre: ciclo.nombre,
-          estado: ciclo.estado,
+      await this.auditService.registrar(
+        {
+          empresaId,
+          usuarioId,
+          entidad: 'ciclo_produccion',
+          entidadId: id,
+          accion: AccionAuditoria.ELIMINAR,
+          valoresAnteriores: {
+            id: ciclo.id,
+            nombre: ciclo.nombre,
+            estado: ciclo.estado,
+          },
         },
-      });
+        tx,
+      );
 
       return { message: 'Ciclo de producción planificado eliminado exitosamente' };
     });
@@ -689,33 +697,6 @@ export class CiclosService {
   // =====================================================================
   // AUXILIARES Y FORMATEADORES
   // =====================================================================
-
-  /**
-   * Helper transaccional reutilizable para asentar bitácora de auditoría dentro de $transaction.
-   */
-  private async registrarAuditoriaTx(
-    tx: Prisma.TransactionClient,
-    params: {
-      empresaId: number;
-      usuarioId: number;
-      entidadId: number;
-      accion: AccionAuditoria;
-      valoresAnteriores?: Prisma.InputJsonValue;
-      valoresNuevos?: Prisma.InputJsonValue;
-    },
-  ): Promise<void> {
-    await tx.bitacoraAuditoria.create({
-      data: {
-        empresaId: params.empresaId,
-        usuarioId: params.usuarioId,
-        entidad: 'ciclo_produccion',
-        entidadId: params.entidadId,
-        accion: params.accion,
-        valoresAnteriores: params.valoresAnteriores,
-        valoresNuevos: params.valoresNuevos,
-      },
-    });
-  }
 
   /**
    * RN-009: Valida que la parcela no posea ningún ciclo en estado ACTIVO.

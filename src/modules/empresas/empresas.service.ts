@@ -116,6 +116,44 @@ export class EmpresasService {
         },
       });
 
+      // Auditoría transaccional pre-autenticación con IDs reales explícitos (Blindaje 2 / RN-043 / RN-074)
+      await this.auditService.registrar(
+        {
+          empresaId: nuevaEmpresa.id,
+          usuarioId: null,
+          entidad: 'empresa',
+          entidadId: nuevaEmpresa.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: nuevaEmpresa.id,
+            nombre: nuevaEmpresa.nombre,
+            rfc: nuevaEmpresa.rfc,
+            planId: nuevaEmpresa.planId,
+          },
+          ip,
+        },
+        tx,
+      );
+
+      await this.auditService.registrar(
+        {
+          empresaId: nuevaEmpresa.id,
+          usuarioId: nuevoUsuario.id,
+          entidad: 'usuario',
+          entidadId: nuevoUsuario.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            apellido: nuevoUsuario.apellido,
+            correo: nuevoUsuario.correo,
+            rol: 'ADMIN',
+          },
+          ip,
+        },
+        tx,
+      );
+
       return { empresa: nuevaEmpresa, usuario: nuevoUsuario };
     });
 

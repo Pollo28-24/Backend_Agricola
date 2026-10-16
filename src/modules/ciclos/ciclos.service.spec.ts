@@ -339,8 +339,8 @@ describe('CiclosService', () => {
           data: { estado: EstadoParcela.EN_USO },
         }),
       );
-      expect(prisma.bitacoraAuditoria.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(auditService.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({
           empresaId,
           usuarioId,
           entidad: 'ciclo_produccion',
@@ -354,7 +354,8 @@ describe('CiclosService', () => {
             accion: AccionCiclo.INICIAR,
           }),
         }),
-      });
+        expect.anything(),
+      );
     });
 
     it('INICIAR: debe rechazar con 409 si ya existe otro ciclo ACTIVO en la parcela (RN-009)', async () => {
@@ -374,7 +375,7 @@ describe('CiclosService', () => {
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
       expect(prisma.parcela.update).not.toHaveBeenCalled();
-      expect(prisma.bitacoraAuditoria.create).not.toHaveBeenCalled();
+      expect(auditService.registrar).not.toHaveBeenCalled();
     });
 
     it('INICIAR: debe atrapar error P2002 de MySQL sobre claveCicloActivo y mapear a 409 (RN-009)', async () => {
@@ -442,8 +443,8 @@ describe('CiclosService', () => {
           data: { estado: EstadoParcela.DISPONIBLE },
         }),
       );
-      expect(prisma.bitacoraAuditoria.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(auditService.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({
           empresaId,
           usuarioId,
           entidad: 'ciclo_produccion',
@@ -457,7 +458,8 @@ describe('CiclosService', () => {
             accion: AccionCiclo.FINALIZAR,
           }),
         }),
-      });
+        expect.anything(),
+      );
     });
 
     it('REABRIR: debe reabrir ciclo cerrado si no hay otro ciclo activo en la parcela (RN-067)', async () => {
@@ -503,8 +505,8 @@ describe('CiclosService', () => {
           data: { estado: EstadoParcela.EN_USO },
         }),
       );
-      expect(prisma.bitacoraAuditoria.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(auditService.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({
           empresaId,
           usuarioId,
           entidad: 'ciclo_produccion',
@@ -518,7 +520,8 @@ describe('CiclosService', () => {
             accion: AccionCiclo.REABRIR,
           }),
         }),
-      });
+        expect.anything(),
+      );
     });
 
     it('INICIAR: debe rechazar si la parcela está inactiva (RN-075) y no ejecutar mutaciones', async () => {
@@ -536,7 +539,7 @@ describe('CiclosService', () => {
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
       expect(prisma.parcela.update).not.toHaveBeenCalled();
-      expect(prisma.bitacoraAuditoria.create).not.toHaveBeenCalled();
+      expect(auditService.registrar).not.toHaveBeenCalled();
     });
 
     it('debe rechazar una transición inválida (ej. REANUDAR desde PLANIFICADO)', async () => {
@@ -554,7 +557,7 @@ describe('CiclosService', () => {
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
       expect(prisma.parcela.update).not.toHaveBeenCalled();
-      expect(prisma.bitacoraAuditoria.create).not.toHaveBeenCalled();
+      expect(auditService.registrar).not.toHaveBeenCalled();
     });
   });
 
@@ -580,15 +583,16 @@ describe('CiclosService', () => {
 
       const res = await service.eliminarCiclo(empresaId, usuarioId, 1);
       expect(res.message).toContain('exitosamente');
-      expect(prisma.bitacoraAuditoria.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(auditService.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({
           empresaId,
           usuarioId,
           entidad: 'ciclo_produccion',
           entidadId: 1,
           accion: AccionAuditoria.ELIMINAR,
         }),
-      });
+        expect.anything(),
+      );
     });
 
     it('debe rechazar la eliminación si el ciclo está FINALIZADO (RN-016)', async () => {
@@ -610,7 +614,7 @@ describe('CiclosService', () => {
       ).rejects.toThrow(DomainError);
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
-      expect(prisma.bitacoraAuditoria.create).not.toHaveBeenCalled();
+      expect(auditService.registrar).not.toHaveBeenCalled();
     });
 
     it('debe rechazar la eliminación si el ciclo tiene gastos registrados', async () => {
@@ -632,7 +636,7 @@ describe('CiclosService', () => {
       ).rejects.toThrow(DomainError);
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
-      expect(prisma.bitacoraAuditoria.create).not.toHaveBeenCalled();
+      expect(auditService.registrar).not.toHaveBeenCalled();
     });
   });
 });

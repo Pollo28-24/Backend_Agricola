@@ -27,110 +27,118 @@ export class UsuariosService {
   ): Promise<UsuarioResponseDto> {
     const correoNormalizado = dto.correo.toLowerCase().trim();
 
-    // 1. Validar límite de usuarios del plan (RN-037)
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      include: { plan: true },
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      // 0. Bloqueo pesimista de fila para prevenir race conditions en cuota de usuarios (ADR-002 / RN-037)
+      await tx.$queryRaw`SELECT id FROM empresa WHERE id = ${empresaId} FOR UPDATE`;
 
-    if (!empresa || empresa.deletedAt !== null) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Empresa no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+      // 1. Validar límite de usuarios del plan (RN-037)
+      const empresa = await tx.empresa.findUnique({
+        where: { id: empresaId },
+        include: { plan: true },
+      });
 
-    const usuariosActivos = await this.prisma.usuario.count({
-      where: {
-        empresaId,
-        activo: true,
-        deletedAt: null,
-      },
-    });
+      if (!empresa || empresa.deletedAt !== null) {
+        throw new DomainError(
+          CodigoError.RECURSO_NO_ENCONTRADO,
+          'Empresa no encontrada',
+          HttpStatus.NOT_FOUND,
+        );
+      }
 
-    if (usuariosActivos >= empresa.plan.maxUsuarios) {
-      throw new DomainError(
-        CodigoError.LIMITE_PLAN_EXCEDIDO,
-        `Su plan comercial '${empresa.plan.nombre}' permite un máximo de ${empresa.plan.maxUsuarios} usuarios activos. Actualice su plan para invitar a más colaboradores.`,
-        HttpStatus.CONFLICT,
-        {
-          maxUsuarios: empresa.plan.maxUsuarios,
-          usuariosActuales: usuariosActivos,
+      const usuariosActivos = await tx.usuario.count({
+        where: {
+          empresaId,
+          activo: true,
+          deletedAt: null,
         },
-      );
-    }
+      });
 
-    // 2. Validar que el correo no esté ocupado por un usuario activo en el sistema (RN-002)
-    const usuarioExistente = await this.prisma.usuario.findUnique({
-      where: { correo: correoNormalizado },
-    });
+      if (usuariosActivos >= empresa.plan.maxUsuarios) {
+        throw new DomainError(
+          CodigoError.LIMITE_PLAN_EXCEDIDO,
+          `Su plan comercial '${empresa.plan.nombre}' permite un máximo de ${empresa.plan.maxUsuarios} usuarios activos. Actualice su plan para invitar a más colaboradores.`,
+          HttpStatus.CONFLICT,
+          {
+            maxUsuarios: empresa.plan.maxUsuarios,
+            usuariosActuales: usuariosActivos,
+          },
+        );
+      }
 
-    if (usuarioExistente && usuarioExistente.deletedAt === null) {
-      throw new DomainError(
-        CodigoError.CONFLICTO,
-        `Ya existe un usuario registrado con el correo ${correoNormalizado}`,
-        HttpStatus.CONFLICT,
-      );
-    }
+      // 2. Validar que el correo no esté ocupado por un usuario activo en el sistema (RN-002)
+      const usuarioExistente = await tx.usuario.findUnique({
+        where: { correo: correoNormalizado },
+      });
 
-    // 3. Validar existencia del rol (RN-061)
-    const rol = await this.prisma.rol.findUnique({
-      where: { codigo: dto.rolCodigo },
-    });
+      if (usuarioExistente && usuarioExistente.deletedAt === null) {
+        throw new DomainError(
+          CodigoError.CONFLICTO,
+          `Ya existe un usuario registrado con el correo ${correoNormalizado}`,
+          HttpStatus.CONFLICT,
+        );
+      }
 
-    if (!rol) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `El rol '${dto.rolCodigo}' no existe en el sistema`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+      // 3. Validar existencia del rol (RN-061)
+      const rol = await tx.rol.findUnique({
+        where: { codigo: dto.rolCodigo },
+      });
 
-    // 4. Cifrado de contraseña (RN-040)
-    const contrasenaHash = await this.passwordService.hash(dto.contrasena);
+      if (!rol) {
+        throw new DomainError(
+          CodigoError.RECURSO_NO_ENCONTRADO,
+          `El rol '${dto.rolCodigo}' no existe en el sistema`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
 
-    // 5. Creación del usuario asociado a la empresa (RN-003)
-    const nuevoUsuario = await this.prisma.usuario.create({
-      data: {
-        empresaId,
-        rolId: rol.id,
-        nombre: dto.nombre.trim(),
-        apellido: dto.apellido.trim(),
-        correo: correoNormalizado,
-        contrasenaHash,
-        telefono: dto.telefono?.trim() || null,
-        activo: true,
-      },
-      include: {
-        rol: {
-          include: {
-            permisos: {
-              include: {
-                permiso: true,
+      // 4. Cifrado de contraseña (RN-040)
+      const contrasenaHash = await this.passwordService.hash(dto.contrasena);
+
+      // 5. Creación del usuario asociado a la empresa (RN-003)
+      const nuevoUsuario = await tx.usuario.create({
+        data: {
+          empresaId,
+          rolId: rol.id,
+          nombre: dto.nombre.trim(),
+          apellido: dto.apellido.trim(),
+          correo: correoNormalizado,
+          contrasenaHash,
+          telefono: dto.telefono?.trim() || null,
+          activo: true,
+        },
+        include: {
+          rol: {
+            include: {
+              permisos: {
+                include: {
+                  permiso: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    // 6. Auditoría (RN-043, RN-074)
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'usuario',
-      entidadId: nuevoUsuario.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevoUsuario.id,
-        nombre: nuevoUsuario.nombre,
-        apellido: nuevoUsuario.apellido,
-        correo: nuevoUsuario.correo,
-        rol: nuevoUsuario.rol.codigo,
-      },
-    });
+      // 6. Auditoría transaccional (RN-043, RN-074)
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'usuario',
+          entidadId: nuevoUsuario.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            apellido: nuevoUsuario.apellido,
+            correo: nuevoUsuario.correo,
+            rol: nuevoUsuario.rol.codigo,
+          },
+        },
+        tx,
+      );
 
-    return this.formatearRespuesta(nuevoUsuario);
+      return this.formatearRespuesta(nuevoUsuario);
+    });
   }
 
   /**
@@ -227,23 +235,27 @@ export class UsuariosService {
       );
     }
 
-    // Si se reactiva un usuario desactivado, validar cupo del plan (RN-037)
+    // Si se reactiva un usuario desactivado, validar cupo del plan con lock pesimista (ADR-002 / RN-037)
     if (dto.activo === true && usuarioActual.activo === false) {
-      const empresa = await this.prisma.empresa.findUnique({
-        where: { id: empresaId },
-        include: { plan: true },
-      });
-      const usuariosActivos = await this.prisma.usuario.count({
-        where: { empresaId, activo: true, deletedAt: null },
-      });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM empresa WHERE id = ${empresaId} FOR UPDATE`;
 
-      if (empresa && usuariosActivos >= empresa.plan.maxUsuarios) {
-        throw new DomainError(
-          CodigoError.LIMITE_PLAN_EXCEDIDO,
-          `No se puede reactivar el usuario. Su plan permite un máximo de ${empresa.plan.maxUsuarios} usuarios activos.`,
-          HttpStatus.CONFLICT,
-        );
-      }
+        const empresa = await tx.empresa.findUnique({
+          where: { id: empresaId },
+          include: { plan: true },
+        });
+        const usuariosActivos = await tx.usuario.count({
+          where: { empresaId, activo: true, deletedAt: null },
+        });
+
+        if (empresa && usuariosActivos >= empresa.plan.maxUsuarios) {
+          throw new DomainError(
+            CodigoError.LIMITE_PLAN_EXCEDIDO,
+            `No se puede reactivar el usuario. Su plan permite un máximo de ${empresa.plan.maxUsuarios} usuarios activos.`,
+            HttpStatus.CONFLICT,
+          );
+        }
+      });
     }
 
     let rolId = usuarioActual.rolId;
@@ -351,18 +363,21 @@ export class UsuariosService {
           revocadoEn: new Date(),
         },
       });
-    });
 
-    // 3. Auditar baja lógica
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'usuario',
-      entidadId: usuarioId,
-      accion: AccionAuditoria.ELIMINAR,
-      valoresAnteriores: {
-        id: usuario.id,
-        correoOriginal: usuario.correo,
-      },
+      // 3. Auditar baja lógica dentro de la misma transacción (ADR-001)
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'usuario',
+          entidadId: usuarioId,
+          accion: AccionAuditoria.ELIMINAR,
+          valoresAnteriores: {
+            id: usuario.id,
+            correoOriginal: usuario.correo,
+          },
+        },
+        tx,
+      );
     });
 
     return { mensaje: 'Usuario dado de baja exitosamente' };

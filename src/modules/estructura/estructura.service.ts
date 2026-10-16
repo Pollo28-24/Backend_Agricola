@@ -301,120 +301,129 @@ export class EstructuraService {
   ): Promise<ParcelaResponseDto> {
     const nombreNormalizado = dto.nombre.trim();
 
-    // 1. Validar límite de parcelas del plan comercial (RN-037)
-    const empresa = await this.prisma.empresa.findUnique({
-      where: { id: empresaId },
-      include: { plan: true },
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      // 0. Bloqueo pesimista de fila para prevenir race conditions en cuota comercial (ADR-002 / RN-037)
+      await tx.$queryRaw`SELECT id FROM empresa WHERE id = ${empresaId} FOR UPDATE`;
 
-    if (!empresa || empresa.deletedAt !== null) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Empresa no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    const parcelasActivas = await this.prisma.parcela.count({
-      where: {
-        predio: { empresaId },
-        deletedAt: null,
-      },
-    });
-
-    if (parcelasActivas >= empresa.plan.maxParcelas) {
-      throw new DomainError(
-        CodigoError.LIMITE_PLAN_EXCEDIDO,
-        `Su plan comercial '${empresa.plan.nombre}' permite un máximo de ${empresa.plan.maxParcelas} parcelas activas. Actualice su plan para registrar más parcelas (RN-037).`,
-        HttpStatus.CONFLICT,
-        {
-          maxParcelas: empresa.plan.maxParcelas,
-          parcelasActuales: parcelasActivas,
-        },
-      );
-    }
-
-    // 2. Validar que el predio exista y pertenezca a la empresa (RN-068)
-    const predio = await this.prisma.predio.findFirst({
-      where: {
-        id: dto.predioId,
-        empresaId,
-        deletedAt: null,
-      },
-    });
-
-    if (!predio) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'El predio especificado no existe o no pertenece a su empresa',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    // 3. Validar tipo de suelo si se especifica
-    if (dto.tipoSueloId) {
-      const tipoSuelo = await this.prisma.tipoSuelo.findUnique({
-        where: { id: dto.tipoSueloId },
+      // 1. Validar límite de parcelas del plan comercial (RN-037)
+      const empresa = await tx.empresa.findUnique({
+        where: { id: empresaId },
+        include: { plan: true },
       });
-      if (!tipoSuelo) {
+
+      if (!empresa || empresa.deletedAt !== null) {
         throw new DomainError(
           CodigoError.RECURSO_NO_ENCONTRADO,
-          'El tipo de suelo especificado no existe',
+          'Empresa no encontrada',
           HttpStatus.NOT_FOUND,
         );
       }
-    }
 
-    // 4. Validar unicidad de nombre en el predio entre las parcelas activas
-    const parcelaExistente = await this.prisma.parcela.findFirst({
-      where: {
-        predioId: dto.predioId,
-        nombre: nombreNormalizado,
-        deletedAt: null,
-      },
-    });
+      const parcelasActivas = await tx.parcela.count({
+        where: {
+          predio: { empresaId },
+          deletedAt: null,
+        },
+      });
 
-    if (parcelaExistente) {
-      throw new DomainError(
-        CodigoError.CONFLICTO,
-        `Ya existe una parcela activa con el nombre '${nombreNormalizado}' en este predio`,
-        HttpStatus.CONFLICT,
+      if (parcelasActivas >= empresa.plan.maxParcelas) {
+        throw new DomainError(
+          CodigoError.LIMITE_PLAN_EXCEDIDO,
+          `Su plan comercial '${empresa.plan.nombre}' permite un máximo de ${empresa.plan.maxParcelas} parcelas activas. Actualice su plan para registrar más parcelas (RN-037).`,
+          HttpStatus.CONFLICT,
+          {
+            maxParcelas: empresa.plan.maxParcelas,
+            parcelasActuales: parcelasActivas,
+          },
+        );
+      }
+
+      // 2. Validar que el predio exista y pertenezca a la empresa (RN-068)
+      const predio = await tx.predio.findFirst({
+        where: {
+          id: dto.predioId,
+          empresaId,
+          deletedAt: null,
+        },
+      });
+
+      if (!predio) {
+        throw new DomainError(
+          CodigoError.RECURSO_NO_ENCONTRADO,
+          'El predio especificado no existe o no pertenece a su empresa',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // 3. Validar tipo de suelo si se especifica
+      if (dto.tipoSueloId) {
+        const tipoSuelo = await tx.tipoSuelo.findUnique({
+          where: { id: dto.tipoSueloId },
+        });
+        if (!tipoSuelo) {
+          throw new DomainError(
+            CodigoError.RECURSO_NO_ENCONTRADO,
+            'El tipo de suelo especificado no existe',
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+
+      // 4. Validar unicidad de nombre en el predio entre las parcelas activas
+      const parcelaExistente = await tx.parcela.findFirst({
+        where: {
+          predioId: dto.predioId,
+          nombre: nombreNormalizado,
+          deletedAt: null,
+        },
+      });
+
+      if (parcelaExistente) {
+        throw new DomainError(
+          CodigoError.CONFLICTO,
+          `Ya existe una parcela activa con el nombre '${nombreNormalizado}' en este predio`,
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      // 5. Crear parcela
+      const nuevaParcela = await tx.parcela.create({
+        data: {
+          predioId: dto.predioId,
+          tipoSueloId: dto.tipoSueloId ?? null,
+          nombre: nombreNormalizado,
+          superficie: dto.superficie,
+          latitud: dto.latitud ?? null,
+          longitud: dto.longitud ?? null,
+          poligono: dto.poligono ?? undefined,
+          estado: dto.estado ?? EstadoParcela.DISPONIBLE,
+        },
+        include: {
+          predio: true,
+          tipoSuelo: true,
+        },
+      });
+
+      // 6. Auditoría transaccional
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'parcela',
+          entidadId: nuevaParcela.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: nuevaParcela.id,
+            predioId: nuevaParcela.predioId,
+            nombre: nuevaParcela.nombre,
+            superficie: nuevaParcela.superficie.toString(),
+            estado: nuevaParcela.estado,
+          },
+        },
+        tx,
       );
-    }
 
-    // 5. Crear parcela
-    const nuevaParcela = await this.prisma.parcela.create({
-      data: {
-        predioId: dto.predioId,
-        tipoSueloId: dto.tipoSueloId ?? null,
-        nombre: nombreNormalizado,
-        superficie: dto.superficie,
-        latitud: dto.latitud ?? null,
-        longitud: dto.longitud ?? null,
-        poligono: dto.poligono ?? undefined,
-        estado: dto.estado ?? EstadoParcela.DISPONIBLE,
-      },
-      include: {
-        predio: true,
-        tipoSuelo: true,
-      },
+      return this.formatearParcela(nuevaParcela);
     });
-
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'parcela',
-      entidadId: nuevaParcela.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevaParcela.id,
-        predioId: nuevaParcela.predioId,
-        nombre: nuevaParcela.nombre,
-        superficie: nuevaParcela.superficie.toString(),
-        estado: nuevaParcela.estado,
-      },
-    });
-
-    return this.formatearParcela(nuevaParcela);
   }
 
   /**

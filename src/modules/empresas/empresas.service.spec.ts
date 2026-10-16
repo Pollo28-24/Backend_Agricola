@@ -126,6 +126,7 @@ describe('EmpresasService (F-01, F0, RN-037)', () => {
 
       expect(res.accessToken).toBe('access_token_123');
       expect(mockPasswordService.hash).toHaveBeenCalledWith('Clave123456');
+      expect(mockAuditService.registrar).toHaveBeenCalledTimes(2);
       expect(mockAuthService.login).toHaveBeenCalledWith(
         { correo: 'admin@rancho.com', contrasena: 'Clave123456' },
         '192.168.1.1',

@@ -25,12 +25,12 @@ import { RequirePermisos } from '../../common/decorators/require-permisos.decora
 
 @ApiTags('Estructura Agrícola - Predios')
 @ApiBearerAuth('JWT-auth')
-@RequirePermisos('estructura:administrar')
 @Controller('predios')
 export class PrediosController {
   constructor(private readonly estructuraService: EstructuraService) {}
 
   @Post()
+  @RequirePermisos('estructura:administrar')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registrar un nuevo predio agrícola para la empresa (RN-003)' })
   @ApiResponse({ status: 201, type: PredioResponseDto })
@@ -63,6 +63,7 @@ export class PrediosController {
   }
 
   @Patch(':id')
+  @RequirePermisos('estructura:administrar')
   @ApiOperation({ summary: 'Actualizar datos de un predio' })
   @ApiResponse({ status: 200, type: PredioResponseDto })
   @ApiResponse({ status: 404, description: 'Predio no encontrado o no pertenece a la empresa' })
@@ -76,6 +77,7 @@ export class PrediosController {
   }
 
   @Delete(':id')
+  @RequirePermisos('estructura:administrar')
   @ApiOperation({
     summary: 'Baja lógica de predio y liberación de nombre único (RN-041, Sección 3.11)',
   })

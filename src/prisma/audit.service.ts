@@ -1,9 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
-import { AccionAuditoria } from '@prisma/client';
+import { AccionAuditoria, Prisma } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import { AppClsStore } from '../common/context/app-cls.store';
 import { sanitizarValoresAuditoria } from './extensions/audit.extension';
+import { DomainError } from '../common/errors/domain.error';
+import { CodigoError } from '../common/errors/codigos-error.enum';
 
 export interface RegistrarAuditoriaOptions {
   entidad: string;
@@ -28,11 +30,31 @@ export class AuditService {
   /**
    * Registra un evento en bitacora_auditoria asegurando la exclusión de secretos (RN-074)
    * y tomando el contexto de request (empresaId, usuarioId, ip) automáticamente si no se provee.
+   *
+   * En modo transaccional (`tx` provisto):
+   * - Lanza excepción si falta `empresaId`.
+   * - Re-lanza cualquier error de base de datos para forzar rollback de la transacción (ADR-001 / RN-043 / RN-060).
+   *
+   * En modo no transaccional (`tx` omitido):
+   * - Mantiene tolerancia a fallos registrando en log sin interrumpir la operación HTTP.
    */
-  async registrar(options: RegistrarAuditoriaOptions): Promise<void> {
+  async registrar(
+    options: RegistrarAuditoriaOptions,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const isTransactional = Boolean(tx);
+    const client = tx ?? this.prisma;
+
     try {
       const empresaId = options.empresaId ?? this.cls.get('empresaId');
       if (!empresaId) {
+        if (isTransactional) {
+          throw new DomainError(
+            CodigoError.PETICION_INVALIDA,
+            `No se pudo auditar evento ${options.accion} en ${options.entidad}:${options.entidadId}: falta empresaId en contexto transaccional (RN-043)`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
         this.logger.warn(
           `No se pudo auditar evento ${options.accion} en ${options.entidad}:${options.entidadId} porque no hay empresaId en contexto`,
         );
@@ -47,7 +69,7 @@ export class AuditService {
       const valoresAnteriores = sanitizarValoresAuditoria(options.valoresAnteriores);
       const valoresNuevos = sanitizarValoresAuditoria(options.valoresNuevos);
 
-      await this.prisma.bitacoraAuditoria.create({
+      await client.bitacoraAuditoria.create({
         data: {
           empresaId,
           usuarioId,
@@ -60,8 +82,15 @@ export class AuditService {
         },
       });
     } catch (error) {
-      // La auditoría no debe romper la transacción si ocurre un fallo interno, pero se loguea
+      if (isTransactional) {
+        this.logger.error(
+          `Fallo crítico de auditoría dentro de transacción (abortando): ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw error;
+      }
+      // En modo no transaccional se preserva la tolerancia a fallos
       this.logger.error(`Error al registrar en bitácora de auditoría:`, error);
     }
   }
 }
+
