@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EstadoCiclo, EstadoParcela, AccionAuditoria, Prisma } from '@prisma/client';
+import {
+  EstadoCiclo,
+  EstadoParcela,
+  AccionAuditoria,
+  Prisma,
+} from '@prisma/client';
 import { CiclosService } from './ciclos.service';
 import { CicloTransitionValidator } from './validators/ciclo-transition.validator';
 import { AccionCiclo } from './constants/ciclo-state-machine.constant';
@@ -7,7 +12,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { DomainError } from '../../common/errors/domain.error';
 import { CreateCicloDto } from './dto/create-ciclo.dto';
-import { UpdateCicloDto } from './dto/update-ciclo.dto';
 
 describe('CiclosService', () => {
   let service: CiclosService;
@@ -370,7 +374,12 @@ describe('CiclosService', () => {
         .mockResolvedValueOnce({ id: 99, estado: EstadoCiclo.ACTIVO }); // Ya existe activo
 
       await expect(
-        service.ejecutarTransicion(empresaId, usuarioId, 1, AccionCiclo.INICIAR),
+        service.ejecutarTransicion(
+          empresaId,
+          usuarioId,
+          1,
+          AccionCiclo.INICIAR,
+        ),
       ).rejects.toThrow(DomainError);
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
@@ -391,12 +400,21 @@ describe('CiclosService', () => {
 
       const errorP2002 = new Prisma.PrismaClientKnownRequestError(
         'Unique constraint failed',
-        { code: 'P2002', clientVersion: '5.22.0', meta: { target: ['claveCicloActivo'] } },
+        {
+          code: 'P2002',
+          clientVersion: '5.22.0',
+          meta: { target: ['claveCicloActivo'] },
+        },
       );
       prisma.cicloProduccion.update.mockRejectedValue(errorP2002);
 
       await expect(
-        service.ejecutarTransicion(empresaId, usuarioId, 1, AccionCiclo.INICIAR),
+        service.ejecutarTransicion(
+          empresaId,
+          usuarioId,
+          1,
+          AccionCiclo.INICIAR,
+        ),
       ).rejects.toThrow(DomainError);
     });
 
@@ -534,7 +552,12 @@ describe('CiclosService', () => {
       });
 
       await expect(
-        service.ejecutarTransicion(empresaId, usuarioId, 1, AccionCiclo.INICIAR),
+        service.ejecutarTransicion(
+          empresaId,
+          usuarioId,
+          1,
+          AccionCiclo.INICIAR,
+        ),
       ).rejects.toThrow(DomainError);
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
@@ -552,7 +575,12 @@ describe('CiclosService', () => {
       });
 
       await expect(
-        service.ejecutarTransicion(empresaId, usuarioId, 1, AccionCiclo.REANUDAR),
+        service.ejecutarTransicion(
+          empresaId,
+          usuarioId,
+          1,
+          AccionCiclo.REANUDAR,
+        ),
       ).rejects.toThrow(DomainError);
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();

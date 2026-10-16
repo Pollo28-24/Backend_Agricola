@@ -23,7 +23,8 @@ export class FiltroClienteDto extends PaginationQueryDto {
   tipo?: TipoCliente;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado activo (true/false). Si se omite, retorna ambos.',
+    description:
+      'Filtrar por estado activo (true/false). Si se omite, retorna ambos.',
     example: true,
   })
   @IsOptional()

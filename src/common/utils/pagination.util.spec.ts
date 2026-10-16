@@ -35,7 +35,9 @@ describe('PaginationUtil', () => {
       expect(PaginationUtil.normalizar({ limit: undefined }).limit).toBe(20);
       expect(PaginationUtil.normalizar({ limit: 0 }).limit).toBe(20);
       expect(PaginationUtil.normalizar({ limit: -10 }).limit).toBe(20);
-      expect(PaginationUtil.normalizar({ limit: 'invalido' as any }).limit).toBe(20);
+      expect(
+        PaginationUtil.normalizar({ limit: 'invalido' as any }).limit,
+      ).toBe(20);
     });
 
     it('debe acotar el límite a maxLimit (100 por defecto) cuando se solicita un límite mayor', () => {

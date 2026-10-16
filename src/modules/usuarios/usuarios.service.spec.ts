@@ -43,7 +43,9 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb(mockPrismaService));
+    mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
+      cb(mockPrismaService),
+    );
     mockPrismaService.$queryRaw.mockResolvedValue([{ id: 1 }]);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -220,13 +222,17 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
         deletedAt: null,
       });
 
-      mockPrismaService.$transaction.mockImplementation(async (callback: any) => {
-        const tx = {
-          usuario: { update: jest.fn().mockResolvedValue({}) },
-          refreshToken: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
-        };
-        return callback(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: any) => {
+          const tx = {
+            usuario: { update: jest.fn().mockResolvedValue({}) },
+            refreshToken: {
+              updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+            },
+          };
+          return callback(tx);
+        },
+      );
 
       const res = await service.eliminar(10, 7);
 
@@ -266,9 +272,9 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       });
       mockPrismaService.usuario.count.mockResolvedValue(2); // Cupo lleno
 
-      await expect(
-        service.actualizar(10, 8, { activo: true }),
-      ).rejects.toThrow(DomainError);
+      await expect(service.actualizar(10, 8, { activo: true })).rejects.toThrow(
+        DomainError,
+      );
       try {
         await service.actualizar(10, 8, { activo: true });
       } catch (e: any) {

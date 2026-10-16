@@ -25,7 +25,9 @@ describe('AuthService', () => {
   };
 
   const mockJwtService = {
-    sign: jest.fn((payload, options) => `token_mock_${payload.sub || payload.jti}`),
+    sign: jest.fn(
+      (payload, options) => `token_mock_${payload.sub || payload.jti}`,
+    ),
     verify: jest.fn(),
   };
 
@@ -33,7 +35,8 @@ describe('AuthService', () => {
     get: jest.fn((key: string, defaultValue?: string) => {
       if (key === 'JWT_SECRET') return 'super_secret_jwt_key_test_123456';
       if (key === 'JWT_EXPIRES_IN') return '15m';
-      if (key === 'JWT_REFRESH_SECRET') return 'super_secret_jwt_refresh_key_test';
+      if (key === 'JWT_REFRESH_SECRET')
+        return 'super_secret_jwt_refresh_key_test';
       if (key === 'JWT_REFRESH_EXPIRES_IN') return '7d';
       return defaultValue;
     }),
@@ -137,7 +140,10 @@ describe('AuthService', () => {
       mockPrismaService.usuario.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.login({ correo: 'inexistente@correo.com', contrasena: '123456' }),
+        service.login({
+          correo: 'inexistente@correo.com',
+          contrasena: '123456',
+        }),
       ).rejects.toThrow(DomainError);
     });
 
@@ -146,7 +152,10 @@ describe('AuthService', () => {
       mockPasswordService.verify.mockResolvedValue(false);
 
       await expect(
-        service.login({ correo: 'ramon@correo.com', contrasena: 'ClaveErronea' }),
+        service.login({
+          correo: 'ramon@correo.com',
+          contrasena: 'ClaveErronea',
+        }),
       ).rejects.toThrow(DomainError);
     });
 
@@ -158,7 +167,10 @@ describe('AuthService', () => {
       mockPasswordService.verify.mockResolvedValue(true);
 
       await expect(
-        service.login({ correo: 'ramon@correo.com', contrasena: 'ClaveValida' }),
+        service.login({
+          correo: 'ramon@correo.com',
+          contrasena: 'ClaveValida',
+        }),
       ).rejects.toThrow(DomainError);
     });
 
@@ -170,7 +182,10 @@ describe('AuthService', () => {
       mockPasswordService.verify.mockResolvedValue(true);
 
       await expect(
-        service.login({ correo: 'ramon@correo.com', contrasena: 'ClaveValida' }),
+        service.login({
+          correo: 'ramon@correo.com',
+          contrasena: 'ClaveValida',
+        }),
       ).rejects.toThrow(DomainError);
     });
   });
@@ -188,14 +203,18 @@ describe('AuthService', () => {
       };
 
       mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-123' });
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue(mockRefreshTokenDb);
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue(
+        mockRefreshTokenDb,
+      );
       mockPrismaService.refreshToken.update.mockResolvedValue({
         ...mockRefreshTokenDb,
         revocado: true,
       });
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
-      const res = await service.refresh({ refreshToken: 'refresh_token_valido' });
+      const res = await service.refresh({
+        refreshToken: 'refresh_token_valido',
+      });
 
       expect(res.accessToken).toBeDefined();
       expect(res.refreshToken).toBeDefined();

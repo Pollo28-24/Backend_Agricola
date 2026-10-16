@@ -6,6 +6,7 @@ import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
 import { PaginationUtil } from '../../common/utils/pagination.util';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { ProveedorResponseDto } from './dto/proveedor-response.dto';
@@ -119,11 +120,7 @@ export class ProveedoresService {
 
     return {
       data: items.map((p) => this.formatearProveedor(p, p._count.gastos)),
-      meta: PaginationUtil.crearMeta(
-        pagination.page,
-        pagination.limit,
-        total,
-      ),
+      meta: PaginationUtil.crearMeta(pagination.page, pagination.limit, total),
     };
   }
 
@@ -147,13 +144,10 @@ export class ProveedoresService {
       },
     });
 
-    if (!proveedor) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Proveedor con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      proveedor,
+      `Proveedor con ID ${id} no encontrado en su empresa`,
+    );
 
     return this.formatearProveedor(proveedor, proveedor._count.gastos);
   }
@@ -179,13 +173,10 @@ export class ProveedoresService {
       },
     });
 
-    if (!proveedor) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Proveedor con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      proveedor,
+      `Proveedor con ID ${id} no encontrado en su empresa`,
+    );
 
     const dataToUpdate: Prisma.ProveedorUpdateInput = {};
 
@@ -275,13 +266,10 @@ export class ProveedoresService {
       },
     });
 
-    if (!proveedor) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Proveedor con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      proveedor,
+      `Proveedor con ID ${id} no encontrado en su empresa`,
+    );
 
     if (proveedor._count.gastos > 0) {
       await this.prisma.proveedor.update({

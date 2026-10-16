@@ -51,7 +51,9 @@ export class CatalogosController {
   }
 
   @Get('cultivos/:id/variedades')
-  @ApiOperation({ summary: 'Consultar variedades asociadas a un cultivo específico' })
+  @ApiOperation({
+    summary: 'Consultar variedades asociadas a un cultivo específico',
+  })
   @ApiQuery({ name: 'activo', required: false, type: Boolean })
   @ApiResponse({ status: 200, type: [VariedadResponseDto] })
   @ApiResponse({ status: 404, description: 'Cultivo no encontrado' })
@@ -82,7 +84,9 @@ export class CatalogosController {
   }
 
   @Get('tipos-actividad')
-  @ApiOperation({ summary: 'Consultar catálogo de tipos de actividad agrícola' })
+  @ApiOperation({
+    summary: 'Consultar catálogo de tipos de actividad agrícola',
+  })
   @ApiQuery({ name: 'activo', required: false, type: Boolean })
   @ApiResponse({ status: 200, type: [TipoActividadResponseDto] })
   async obtenerTiposActividad(

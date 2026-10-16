@@ -16,7 +16,8 @@ export class FiltroAuditoriaDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     example: 'usuario',
-    description: 'Filtrar por nombre de la entidad afectada (ej. usuario, parcela, ciclo_produccion)',
+    description:
+      'Filtrar por nombre de la entidad afectada (ej. usuario, parcela, ciclo_produccion)',
   })
   @IsOptional()
   @IsString({ message: 'La entidad debe ser una cadena de texto' })

@@ -13,7 +13,8 @@ export class CreateClienteDto {
   @ApiProperty({
     example: 'Central de Abastos Guadalajara',
     maxLength: 150,
-    description: 'Nombre comercial o razón social del cliente (único por empresa)',
+    description:
+      'Nombre comercial o razón social del cliente (único por empresa)',
   })
   @IsString({ message: 'El nombre debe ser una cadena de texto' })
   @IsNotEmpty({ message: 'El nombre del cliente es obligatorio' })

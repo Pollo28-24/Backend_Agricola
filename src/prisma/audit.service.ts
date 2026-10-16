@@ -62,11 +62,15 @@ export class AuditService {
       }
 
       const usuarioId =
-        options.usuarioId !== undefined ? options.usuarioId : this.cls.get('usuarioId') || null;
+        options.usuarioId !== undefined
+          ? options.usuarioId
+          : this.cls.get('usuarioId') || null;
 
       const direccionIp = options.ip ?? this.cls.get('ip') ?? null;
 
-      const valoresAnteriores = sanitizarValoresAuditoria(options.valoresAnteriores);
+      const valoresAnteriores = sanitizarValoresAuditoria(
+        options.valoresAnteriores,
+      );
       const valoresNuevos = sanitizarValoresAuditoria(options.valoresNuevos);
 
       await client.bitacoraAuditoria.create({
@@ -93,4 +97,3 @@ export class AuditService {
     }
   }
 }
-

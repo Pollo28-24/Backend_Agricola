@@ -55,7 +55,7 @@ export class EmpresasService {
     }
 
     // 2. Transacción atómica de creación
-    const resultado = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       // Buscar plan comercial
       const plan = await tx.planSuscripcion.findUnique({
         where: { codigo: dto.planCodigo },
@@ -252,10 +252,16 @@ export class EmpresasService {
       where: { id: empresaId },
       data: {
         ...(dto.nombre && { nombre: dto.nombre.trim() }),
-        ...(dto.razonSocial !== undefined && { razonSocial: dto.razonSocial?.trim() || null }),
+        ...(dto.razonSocial !== undefined && {
+          razonSocial: dto.razonSocial?.trim() || null,
+        }),
         ...(dto.correo && { correo: dto.correo.toLowerCase().trim() }),
-        ...(dto.telefono !== undefined && { telefono: dto.telefono?.trim() || null }),
-        ...(dto.direccion !== undefined && { direccion: dto.direccion?.trim() || null }),
+        ...(dto.telefono !== undefined && {
+          telefono: dto.telefono?.trim() || null,
+        }),
+        ...(dto.direccion !== undefined && {
+          direccion: dto.direccion?.trim() || null,
+        }),
       },
     });
 

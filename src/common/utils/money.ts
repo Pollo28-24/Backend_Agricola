@@ -3,7 +3,9 @@ import { Prisma } from '@prisma/client';
 export class MoneyUtil {
   public static readonly TOLERANCIA_CENTAVOS = new Prisma.Decimal('0.05');
 
-  public static toDecimal(val: number | string | Prisma.Decimal): Prisma.Decimal {
+  public static toDecimal(
+    val: number | string | Prisma.Decimal,
+  ): Prisma.Decimal {
     if (val instanceof Prisma.Decimal) return val;
     return new Prisma.Decimal(val);
   }

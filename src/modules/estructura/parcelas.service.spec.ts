@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AccionAuditoria, EstadoCiclo, EstadoParcela } from '@prisma/client';
+import { AccionAuditoria, EstadoParcela } from '@prisma/client';
 import { ParcelasService } from './parcelas.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
@@ -41,7 +41,9 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrismaService.$transaction.mockImplementation(async (cb: any) => cb(mockPrismaService));
+    mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
+      cb(mockPrismaService),
+    );
     mockPrismaService.$queryRaw.mockResolvedValue([{ id: 10 }]);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -75,8 +77,14 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
       plan: { nombre: 'Productor', maxParcelas: 10 },
     });
     mockPrismaService.parcela.count.mockResolvedValue(4); // 4 de 10 usadas
-    mockPrismaService.predio.findFirst.mockResolvedValue({ id: 1, empresaId: 10 });
-    mockPrismaService.tipoSuelo.findUnique.mockResolvedValue({ id: 2, nombre: 'Franco' });
+    mockPrismaService.predio.findFirst.mockResolvedValue({
+      id: 1,
+      empresaId: 10,
+    });
+    mockPrismaService.tipoSuelo.findUnique.mockResolvedValue({
+      id: 2,
+      nombre: 'Franco',
+    });
     mockPrismaService.parcela.findFirst.mockResolvedValue(null);
     mockPrismaService.parcela.create.mockResolvedValue({
       id: 100,
@@ -119,7 +127,9 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     });
     mockPrismaService.parcela.count.mockResolvedValue(3); // Límite alcanzado
 
-    await expect(service.crearParcela(10, dtoParcela)).rejects.toThrow(DomainError);
+    await expect(service.crearParcela(10, dtoParcela)).rejects.toThrow(
+      DomainError,
+    );
     try {
       await service.crearParcela(10, dtoParcela);
     } catch (e: any) {
@@ -137,7 +147,9 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     mockPrismaService.parcela.count.mockResolvedValue(0);
     mockPrismaService.predio.findFirst.mockResolvedValue(null); // No existe en la empresa
 
-    await expect(service.crearParcela(10, dtoParcela)).rejects.toThrow(DomainError);
+    await expect(service.crearParcela(10, dtoParcela)).rejects.toThrow(
+      DomainError,
+    );
     try {
       await service.crearParcela(10, dtoParcela);
     } catch (e: any) {
@@ -153,10 +165,18 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
       plan: { nombre: 'Productor', maxParcelas: 10 },
     });
     mockPrismaService.parcela.count.mockResolvedValue(0);
-    mockPrismaService.predio.findFirst.mockResolvedValue({ id: 1, empresaId: 10 });
-    mockPrismaService.parcela.findFirst.mockResolvedValue({ id: 99, nombre: 'Parcela 1 Sur' });
+    mockPrismaService.predio.findFirst.mockResolvedValue({
+      id: 1,
+      empresaId: 10,
+    });
+    mockPrismaService.parcela.findFirst.mockResolvedValue({
+      id: 99,
+      nombre: 'Parcela 1 Sur',
+    });
 
-    await expect(service.crearParcela(10, dtoParcela)).rejects.toThrow(DomainError);
+    await expect(service.crearParcela(10, dtoParcela)).rejects.toThrow(
+      DomainError,
+    );
     try {
       await service.crearParcela(10, dtoParcela);
     } catch (e: any) {
@@ -204,7 +224,12 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
 
   it('debe actualizar parcela exitosamente', async () => {
     mockPrismaService.parcela.findFirst
-      .mockResolvedValueOnce({ id: 10, predioId: 1, nombre: 'Viejo', superficie: 5.0 })
+      .mockResolvedValueOnce({
+        id: 10,
+        predioId: 1,
+        nombre: 'Viejo',
+        superficie: 5.0,
+      })
       .mockResolvedValueOnce(null); // Duplicado check
 
     mockPrismaService.parcela.update.mockResolvedValue({
@@ -219,7 +244,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
       tipoSuelo: null,
     });
 
-    const dtoUpdate: UpdateParcelaDto = { nombre: 'Parcela Editada', superficie: 6.0 };
+    const dtoUpdate: UpdateParcelaDto = {
+      nombre: 'Parcela Editada',
+      superficie: 6.0,
+    };
     const res = await service.actualizarParcela(10, 10, dtoUpdate);
     expect(res.nombre).toBe('Parcela Editada');
     expect(mockAuditService.registrar).toHaveBeenCalledWith(
@@ -232,7 +260,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
   });
 
   it('debe rechazar la eliminación si la parcela tiene ciclos activos o planificados', async () => {
-    mockPrismaService.parcela.findFirst.mockResolvedValue({ id: 10, nombre: 'Parcela con Ciclo' });
+    mockPrismaService.parcela.findFirst.mockResolvedValue({
+      id: 10,
+      nombre: 'Parcela con Ciclo',
+    });
     mockPrismaService.cicloProduccion.count.mockResolvedValue(1); // 1 ciclo en curso
 
     await expect(service.eliminarParcela(10, 10)).rejects.toThrow(DomainError);
@@ -245,7 +276,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
   });
 
   it('debe dar de baja lógica la parcela y anexar #baja{id} para liberar índice único (RN-041)', async () => {
-    mockPrismaService.parcela.findFirst.mockResolvedValue({ id: 10, nombre: 'Parcela A Borrar' });
+    mockPrismaService.parcela.findFirst.mockResolvedValue({
+      id: 10,
+      nombre: 'Parcela A Borrar',
+    });
     mockPrismaService.cicloProduccion.count.mockResolvedValue(0);
     mockPrismaService.parcela.update.mockResolvedValue({});
 

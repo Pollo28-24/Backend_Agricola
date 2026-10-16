@@ -57,7 +57,9 @@ export class CreateUsuarioDto {
     example: RolCodigoEnum.CAPTURISTA,
     description: 'Rol del usuario dentro del sistema (RN-061)',
   })
-  @IsEnum(RolCodigoEnum, { message: 'El rol debe ser ADMIN, CAPTURISTA o CONTADOR' })
+  @IsEnum(RolCodigoEnum, {
+    message: 'El rol debe ser ADMIN, CAPTURISTA o CONTADOR',
+  })
   @IsNotEmpty({ message: 'El rol es obligatorio' })
   rolCodigo!: RolCodigoEnum;
 

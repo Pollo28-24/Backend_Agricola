@@ -20,7 +20,9 @@ describe('AccesoVigenteGuard (RN-038, RN-072)', () => {
     method?: string;
     url?: string;
   }): ExecutionContext {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(options.isPublic || false);
+    jest
+      .spyOn(reflector, 'getAllAndOverride')
+      .mockReturnValue(options.isPublic || false);
 
     const request = {
       user: options.user,
@@ -67,7 +69,10 @@ describe('AccesoVigenteGuard (RN-038, RN-072)', () => {
     const ctxGet = mockContext({ user: userVencido, method: 'GET' });
     expect(guard.canActivate(ctxGet)).toBe(true);
 
-    const userCancelado = { id: 1, estadoSuscripcion: EstadoSuscripcion.CANCELADA };
+    const userCancelado = {
+      id: 1,
+      estadoSuscripcion: EstadoSuscripcion.CANCELADA,
+    };
     const ctxHead = mockContext({ user: userCancelado, method: 'HEAD' });
     expect(guard.canActivate(ctxHead)).toBe(true);
   });

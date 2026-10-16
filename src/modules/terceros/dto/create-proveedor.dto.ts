@@ -11,7 +11,8 @@ export class CreateProveedorDto {
   @ApiProperty({
     example: 'Agroinsumos del Valle S.A. de C.V.',
     maxLength: 150,
-    description: 'Nombre comercial o razón social del proveedor (único por empresa)',
+    description:
+      'Nombre comercial o razón social del proveedor (único por empresa)',
   })
   @IsString({ message: 'El nombre debe ser una cadena de texto' })
   @IsNotEmpty({ message: 'El nombre del proveedor es obligatorio' })

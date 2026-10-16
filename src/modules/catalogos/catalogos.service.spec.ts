@@ -261,7 +261,9 @@ describe('CatalogosService (RN-047, RN-048)', () => {
         categoriaPadreId: 2,
       };
 
-      await expect(service.crearCategoriaGasto(5, dto)).rejects.toThrow(DomainError);
+      await expect(service.crearCategoriaGasto(5, dto)).rejects.toThrow(
+        DomainError,
+      );
       try {
         await service.crearCategoriaGasto(5, dto);
       } catch (e: any) {
@@ -284,7 +286,9 @@ describe('CatalogosService (RN-047, RN-048)', () => {
         categoriaPadreId: 99,
       };
 
-      await expect(service.crearCategoriaGasto(5, dto)).rejects.toThrow(DomainError);
+      await expect(service.crearCategoriaGasto(5, dto)).rejects.toThrow(
+        DomainError,
+      );
       try {
         await service.crearCategoriaGasto(5, dto);
       } catch (e: any) {
@@ -303,7 +307,9 @@ describe('CatalogosService (RN-047, RN-048)', () => {
         nombre: 'Mano de Obra',
       };
 
-      await expect(service.crearCategoriaGasto(5, dto)).rejects.toThrow(DomainError);
+      await expect(service.crearCategoriaGasto(5, dto)).rejects.toThrow(
+        DomainError,
+      );
       try {
         await service.crearCategoriaGasto(5, dto);
       } catch (e: any) {

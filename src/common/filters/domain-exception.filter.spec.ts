@@ -103,7 +103,8 @@ describe('DomainExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({
         statusCode: HttpStatus.NOT_FOUND,
         code: CodigoError.RECURSO_NO_ENCONTRADO,
-        message: 'El registro solicitado no existe o no se encuentra disponible',
+        message:
+          'El registro solicitado no existe o no se encuentra disponible',
       });
     });
 

@@ -37,7 +37,10 @@ export class ProveedoresController {
   @RequirePermisos('tercero:administrar')
   @ApiOperation({ summary: 'Registrar un nuevo proveedor comercial (F-05)' })
   @ApiResponse({ status: 201, type: ProveedorResponseDto })
-  @ApiResponse({ status: 409, description: 'Ya existe un proveedor con ese nombre en la empresa' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe un proveedor con ese nombre en la empresa',
+  })
   async crear(
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreateProveedorDto,
@@ -46,7 +49,9 @@ export class ProveedoresController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar proveedores de la empresa con paginación y búsqueda' })
+  @ApiOperation({
+    summary: 'Listar proveedores de la empresa con paginación y búsqueda',
+  })
   @ApiResponse({ status: 200, type: PaginatedResponseDto })
   async listar(
     @CurrentUser('empresaId') empresaId: number,
@@ -56,9 +61,14 @@ export class ProveedoresController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Consultar detalle de un proveedor por ID (RN-068)' })
+  @ApiOperation({
+    summary: 'Consultar detalle de un proveedor por ID (RN-068)',
+  })
   @ApiResponse({ status: 200, type: ProveedorResponseDto })
-  @ApiResponse({ status: 404, description: 'Proveedor no encontrado o no pertenece a la empresa' })
+  @ApiResponse({
+    status: 404,
+    description: 'Proveedor no encontrado o no pertenece a la empresa',
+  })
   async obtenerPorId(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -83,10 +93,15 @@ export class ProveedoresController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @RequirePermisos('tercero:administrar')
-  @ApiOperation({ summary: 'Baja lógica de un proveedor sin historial (RN-041)' })
+  @ApiOperation({
+    summary: 'Baja lógica de un proveedor sin historial (RN-041)',
+  })
   @ApiResponse({ status: 200, description: 'Proveedor eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })
-  @ApiResponse({ status: 409, description: 'El proveedor posee gastos asociados y no puede eliminarse' })
+  @ApiResponse({
+    status: 409,
+    description: 'El proveedor posee gastos asociados y no puede eliminarse',
+  })
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,

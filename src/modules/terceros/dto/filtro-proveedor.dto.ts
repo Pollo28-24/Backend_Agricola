@@ -13,7 +13,8 @@ export class FiltroProveedorDto extends PaginationQueryDto {
   q?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado activo (true/false). Si se omite, retorna ambos.',
+    description:
+      'Filtrar por estado activo (true/false). Si se omite, retorna ambos.',
     example: true,
   })
   @IsOptional()

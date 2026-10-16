@@ -19,9 +19,7 @@ describe('ParcelasController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ParcelasController],
-      providers: [
-        { provide: ParcelasService, useValue: mockParcelasService },
-      ],
+      providers: [{ provide: ParcelasService, useValue: mockParcelasService }],
     }).compile();
 
     controller = module.get<ParcelasController>(ParcelasController);
@@ -37,9 +35,12 @@ describe('ParcelasController', () => {
       nombre: 'Parcela Nueva',
       superficie: 3.5,
     };
-    mockParcelasService.crearParcela.mockResolvedValue({ id: 10, nombre: 'Parcela Nueva' });
+    mockParcelasService.crearParcela.mockResolvedValue({
+      id: 10,
+      nombre: 'Parcela Nueva',
+    });
 
-    const res = await controller.crear(5, dto as any);
+    const res = await controller.crear(5, dto);
     expect(mockParcelasService.crearParcela).toHaveBeenCalledWith(5, dto);
     expect(res.id).toBe(10);
   });
@@ -64,9 +65,16 @@ describe('ParcelasController', () => {
 
   it('debe delegar actualizarParcela', async () => {
     const dto = { superficie: 4.0 };
-    mockParcelasService.actualizarParcela.mockResolvedValue({ id: 10, superficie: '4.0' });
-    const res = await controller.actualizar(5, 10, dto as any);
-    expect(mockParcelasService.actualizarParcela).toHaveBeenCalledWith(5, 10, dto);
+    mockParcelasService.actualizarParcela.mockResolvedValue({
+      id: 10,
+      superficie: '4.0',
+    });
+    const res = await controller.actualizar(5, 10, dto);
+    expect(mockParcelasService.actualizarParcela).toHaveBeenCalledWith(
+      5,
+      10,
+      dto,
+    );
     expect(res.superficie).toBe('4.0');
   });
 
@@ -86,15 +94,22 @@ describe('ParcelasController', () => {
     });
 
     it('crear, actualizar y eliminar deben exigir estructura:administrar', () => {
-      expect(reflector.get('permisos', controller.crear)).toEqual(['estructura:administrar']);
-      expect(reflector.get('permisos', controller.actualizar)).toEqual(['estructura:administrar']);
-      expect(reflector.get('permisos', controller.eliminar)).toEqual(['estructura:administrar']);
+      expect(reflector.get('permisos', controller.crear)).toEqual([
+        'estructura:administrar',
+      ]);
+      expect(reflector.get('permisos', controller.actualizar)).toEqual([
+        'estructura:administrar',
+      ]);
+      expect(reflector.get('permisos', controller.eliminar)).toEqual([
+        'estructura:administrar',
+      ]);
     });
 
     it('listar y obtenerPorId deben permitir acceso de lectura sin estructura:administrar', () => {
       expect(reflector.get('permisos', controller.listar)).toBeUndefined();
-      expect(reflector.get('permisos', controller.obtenerPorId)).toBeUndefined();
+      expect(
+        reflector.get('permisos', controller.obtenerPorId),
+      ).toBeUndefined();
     });
   });
 });
-

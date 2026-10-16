@@ -4,7 +4,10 @@ export class CultivoResponseDto {
   @ApiProperty({ example: 1, description: 'ID del cultivo' })
   id!: number;
 
-  @ApiProperty({ example: 'Tomate', description: 'Nombre comercial del cultivo' })
+  @ApiProperty({
+    example: 'Tomate',
+    description: 'Nombre comercial del cultivo',
+  })
   nombre!: string;
 
   @ApiPropertyOptional({
@@ -21,6 +24,9 @@ export class CultivoResponseDto {
   })
   descripcion!: string | null;
 
-  @ApiProperty({ example: true, description: 'Indica si el cultivo está activo' })
+  @ApiProperty({
+    example: true,
+    description: 'Indica si el cultivo está activo',
+  })
   activo!: boolean;
 }

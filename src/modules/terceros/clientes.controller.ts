@@ -37,7 +37,10 @@ export class ClientesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registrar un nuevo cliente comercial (F-06)' })
   @ApiResponse({ status: 201, type: ClienteResponseDto })
-  @ApiResponse({ status: 409, description: 'Ya existe un cliente con ese nombre en la empresa' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe un cliente con ese nombre en la empresa',
+  })
   async crear(
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreateClienteDto,
@@ -46,7 +49,9 @@ export class ClientesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar clientes de la empresa con paginación y filtros' })
+  @ApiOperation({
+    summary: 'Listar clientes de la empresa con paginación y filtros',
+  })
   @ApiResponse({ status: 200, type: PaginatedResponseDto })
   async listar(
     @CurrentUser('empresaId') empresaId: number,
@@ -58,7 +63,10 @@ export class ClientesController {
   @Get(':id')
   @ApiOperation({ summary: 'Consultar detalle de un cliente por ID (RN-068)' })
   @ApiResponse({ status: 200, type: ClienteResponseDto })
-  @ApiResponse({ status: 404, description: 'Cliente no encontrado o no pertenece a la empresa' })
+  @ApiResponse({
+    status: 404,
+    description: 'Cliente no encontrado o no pertenece a la empresa',
+  })
   async obtenerPorId(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -84,7 +92,10 @@ export class ClientesController {
   @ApiOperation({ summary: 'Baja lógica de un cliente sin historial (RN-041)' })
   @ApiResponse({ status: 200, description: 'Cliente eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Cliente no encontrado' })
-  @ApiResponse({ status: 409, description: 'El cliente posee ventas asociadas y no puede eliminarse' })
+  @ApiResponse({
+    status: 409,
+    description: 'El cliente posee ventas asociadas y no puede eliminarse',
+  })
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,

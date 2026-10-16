@@ -71,9 +71,12 @@ export class RegistroEmpresaDto {
   @ApiProperty({
     enum: PlanCodigoEnum,
     example: PlanCodigoEnum.PRODUCTOR,
-    description: 'Código del plan comercial seleccionado (define límites de usuarios y parcelas)',
+    description:
+      'Código del plan comercial seleccionado (define límites de usuarios y parcelas)',
   })
-  @IsEnum(PlanCodigoEnum, { message: 'El plan debe ser BASICO, PRODUCTOR o PROFESIONAL' })
+  @IsEnum(PlanCodigoEnum, {
+    message: 'El plan debe ser BASICO, PRODUCTOR o PROFESIONAL',
+  })
   @IsNotEmpty({ message: 'El plan comercial es obligatorio' })
   planCodigo!: PlanCodigoEnum;
 
@@ -98,7 +101,8 @@ export class RegistroEmpresaDto {
 
   @ApiProperty({
     example: 'ramon@correo.com',
-    description: 'Correo de acceso del administrador (único en todo el sistema, RN-002)',
+    description:
+      'Correo de acceso del administrador (único en todo el sistema, RN-002)',
   })
   @IsEmail({}, { message: 'El correo del usuario no es válido' })
   @IsNotEmpty({ message: 'El correo del usuario es obligatorio' })

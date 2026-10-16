@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FiltroAuditoriaDto } from './dto/filtro-auditoria.dto';
@@ -7,8 +7,7 @@ import {
   AuditoriaUsuarioDto,
 } from './dto/auditoria-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
-import { CodigoError } from '../../common/errors/codigos-error.enum';
-import { DomainError } from '../../common/errors/domain.error';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 
 @Injectable()
@@ -54,11 +53,7 @@ export class AuditoriaService {
 
     return {
       data,
-      meta: PaginationUtil.crearMeta(
-        pagination.page,
-        pagination.limit,
-        total,
-      ),
+      meta: PaginationUtil.crearMeta(pagination.page, pagination.limit, total),
     };
   }
 
@@ -84,13 +79,10 @@ export class AuditoriaService {
       },
     });
 
-    if (!registro) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Registro de auditoría no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      registro,
+      'Registro de auditoría no encontrado',
+    );
 
     return this.formatearRespuesta(registro);
   }

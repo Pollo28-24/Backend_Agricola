@@ -87,9 +87,14 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
   });
 
   it('debe rechazar con 409 CONFLICTO si ya existe un predio activo con el mismo nombre en la empresa', async () => {
-    mockPrismaService.predio.findFirst.mockResolvedValue({ id: 1, nombre: 'Rancho Santa Fe' });
+    mockPrismaService.predio.findFirst.mockResolvedValue({
+      id: 1,
+      nombre: 'Rancho Santa Fe',
+    });
 
-    await expect(service.crearPredio(10, dtoPredio)).rejects.toThrow(DomainError);
+    await expect(service.crearPredio(10, dtoPredio)).rejects.toThrow(
+      DomainError,
+    );
     try {
       await service.crearPredio(10, dtoPredio);
     } catch (e: any) {
@@ -131,14 +136,22 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
     expect(res.id).toBe(1);
     expect(mockPrismaService.predio.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: 1, empresaId: 10, deletedAt: null }),
+        where: expect.objectContaining({
+          id: 1,
+          empresaId: 10,
+          deletedAt: null,
+        }),
       }),
     );
   });
 
   it('debe actualizar un predio exitosamente validando colisión de nombre', async () => {
     mockPrismaService.predio.findFirst
-      .mockResolvedValueOnce({ id: 1, nombre: 'Antiguo', superficieTotal: 20.0 }) // Actual
+      .mockResolvedValueOnce({
+        id: 1,
+        nombre: 'Antiguo',
+        superficieTotal: 20.0,
+      }) // Actual
       .mockResolvedValueOnce(null); // Duplicado check
 
     mockPrismaService.predio.update.mockResolvedValue({
@@ -151,7 +164,10 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
       updatedAt: new Date('2026-10-15T12:00:00Z'),
     });
 
-    const dtoUpdate: UpdatePredioDto = { nombre: 'Rancho Modificado', superficieTotal: 35.0 };
+    const dtoUpdate: UpdatePredioDto = {
+      nombre: 'Rancho Modificado',
+      superficieTotal: 35.0,
+    };
     const res = await service.actualizarPredio(10, 1, dtoUpdate);
 
     expect(res.nombre).toBe('Rancho Modificado');
@@ -165,7 +181,10 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
   });
 
   it('debe rechazar la eliminación si el predio contiene parcelas activas', async () => {
-    mockPrismaService.predio.findFirst.mockResolvedValue({ id: 1, nombre: 'Rancho con Parcelas' });
+    mockPrismaService.predio.findFirst.mockResolvedValue({
+      id: 1,
+      nombre: 'Rancho con Parcelas',
+    });
     mockPrismaService.parcela.count.mockResolvedValue(2); // Tiene 2 parcelas
 
     await expect(service.eliminarPredio(10, 1)).rejects.toThrow(DomainError);
@@ -178,7 +197,10 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
   });
 
   it('debe dar de baja lógica el predio y anexar #baja{id} para liberar índice único (RN-041)', async () => {
-    mockPrismaService.predio.findFirst.mockResolvedValue({ id: 5, nombre: 'Predio A Borrar' });
+    mockPrismaService.predio.findFirst.mockResolvedValue({
+      id: 5,
+      nombre: 'Predio A Borrar',
+    });
     mockPrismaService.parcela.count.mockResolvedValue(0); // Sin parcelas
     mockPrismaService.predio.update.mockResolvedValue({});
 

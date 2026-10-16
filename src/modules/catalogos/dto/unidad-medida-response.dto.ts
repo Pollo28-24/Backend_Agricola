@@ -6,10 +6,13 @@ export class FiltroUnidadMedidaDto {
   @ApiPropertyOptional({
     enum: TipoUnidad,
     example: TipoUnidad.PESO,
-    description: 'Filtrar por tipo de magnitud física (PESO, VOLUMEN, AREA, TIEMPO, CONTEO)',
+    description:
+      'Filtrar por tipo de magnitud física (PESO, VOLUMEN, AREA, TIEMPO, CONTEO)',
   })
   @IsOptional()
-  @IsEnum(TipoUnidad, { message: 'El tipo debe ser PESO, VOLUMEN, AREA, TIEMPO o CONTEO' })
+  @IsEnum(TipoUnidad, {
+    message: 'El tipo debe ser PESO, VOLUMEN, AREA, TIEMPO o CONTEO',
+  })
   tipo?: TipoUnidad;
 }
 
@@ -20,7 +23,10 @@ export class UnidadMedidaResponseDto {
   @ApiProperty({ example: 'KG', description: 'Código de la unidad' })
   codigo!: string;
 
-  @ApiProperty({ example: 'Kilogramo', description: 'Nombre completo de la unidad' })
+  @ApiProperty({
+    example: 'Kilogramo',
+    description: 'Nombre completo de la unidad',
+  })
   nombre!: string;
 
   @ApiProperty({

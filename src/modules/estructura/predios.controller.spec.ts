@@ -18,9 +18,7 @@ describe('PrediosController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PrediosController],
-      providers: [
-        { provide: PrediosService, useValue: mockPrediosService },
-      ],
+      providers: [{ provide: PrediosService, useValue: mockPrediosService }],
     }).compile();
 
     controller = module.get<PrediosController>(PrediosController);
@@ -32,9 +30,12 @@ describe('PrediosController', () => {
 
   it('debe delegar crearPredio pasando empresaId y DTO', async () => {
     const dto = { nombre: 'Rancho Nuevo', superficieTotal: 10 };
-    mockPrediosService.crearPredio.mockResolvedValue({ id: 1, nombre: 'Rancho Nuevo' });
+    mockPrediosService.crearPredio.mockResolvedValue({
+      id: 1,
+      nombre: 'Rancho Nuevo',
+    });
 
-    const res = await controller.crear(5, dto as any);
+    const res = await controller.crear(5, dto);
     expect(mockPrediosService.crearPredio).toHaveBeenCalledWith(5, dto);
     expect(res.id).toBe(1);
   });
@@ -55,7 +56,10 @@ describe('PrediosController', () => {
 
   it('debe delegar actualizarPredio', async () => {
     const dto = { nombre: 'Rancho Editado' };
-    mockPrediosService.actualizarPredio.mockResolvedValue({ id: 1, nombre: 'Rancho Editado' });
+    mockPrediosService.actualizarPredio.mockResolvedValue({
+      id: 1,
+      nombre: 'Rancho Editado',
+    });
     const res = await controller.actualizar(5, 1, dto);
     expect(mockPrediosService.actualizarPredio).toHaveBeenCalledWith(5, 1, dto);
     expect(res.nombre).toBe('Rancho Editado');
@@ -77,15 +81,22 @@ describe('PrediosController', () => {
     });
 
     it('crear, actualizar y eliminar deben exigir estructura:administrar', () => {
-      expect(reflector.get('permisos', controller.crear)).toEqual(['estructura:administrar']);
-      expect(reflector.get('permisos', controller.actualizar)).toEqual(['estructura:administrar']);
-      expect(reflector.get('permisos', controller.eliminar)).toEqual(['estructura:administrar']);
+      expect(reflector.get('permisos', controller.crear)).toEqual([
+        'estructura:administrar',
+      ]);
+      expect(reflector.get('permisos', controller.actualizar)).toEqual([
+        'estructura:administrar',
+      ]);
+      expect(reflector.get('permisos', controller.eliminar)).toEqual([
+        'estructura:administrar',
+      ]);
     });
 
     it('listar y obtenerPorId deben permitir acceso de lectura sin estructura:administrar', () => {
       expect(reflector.get('permisos', controller.listar)).toBeUndefined();
-      expect(reflector.get('permisos', controller.obtenerPorId)).toBeUndefined();
+      expect(
+        reflector.get('permisos', controller.obtenerPorId),
+      ).toBeUndefined();
     });
   });
 });
-

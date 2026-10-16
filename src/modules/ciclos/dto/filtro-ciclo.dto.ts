@@ -1,6 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { EstadoCiclo } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
@@ -27,7 +34,8 @@ export class FiltroCicloDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     enum: EstadoCiclo,
-    description: 'Filtrar por estado del ciclo (PLANIFICADO, ACTIVO, SUSPENDIDO, FINALIZADO, CANCELADO)',
+    description:
+      'Filtrar por estado del ciclo (PLANIFICADO, ACTIVO, SUSPENDIDO, FINALIZADO, CANCELADO)',
     example: EstadoCiclo.ACTIVO,
   })
   @IsOptional()
@@ -40,7 +48,9 @@ export class FiltroCicloDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'fechaInicioDesde debe ser YYYY-MM-DD' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fechaInicioDesde debe ser YYYY-MM-DD',
+  })
   fechaInicioDesde?: string;
 
   @ApiPropertyOptional({
@@ -49,7 +59,9 @@ export class FiltroCicloDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'fechaInicioHasta debe ser YYYY-MM-DD' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'fechaInicioHasta debe ser YYYY-MM-DD',
+  })
   fechaInicioHasta?: string;
 
   @ApiPropertyOptional({

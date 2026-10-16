@@ -28,7 +28,10 @@ export class UpdateCicloDto {
   @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 2 },
-    { message: 'La superficie sembrada debe ser un número con hasta 2 decimales' },
+    {
+      message:
+        'La superficie sembrada debe ser un número con hasta 2 decimales',
+    },
   )
   @IsPositive({ message: 'La superficie sembrada debe ser mayor a 0 (RN-018)' })
   superficieSembrada?: number;
@@ -41,7 +44,9 @@ export class UpdateCicloDto {
   @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 3 },
-    { message: 'La meta de producción debe ser un número con hasta 3 decimales' },
+    {
+      message: 'La meta de producción debe ser un número con hasta 3 decimales',
+    },
   )
   @IsPositive({ message: 'La meta de producción debe ser mayor a 0' })
   metaProduccionKg?: number;

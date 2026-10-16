@@ -19,9 +19,7 @@ describe('UsuariosController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsuariosController],
-      providers: [
-        { provide: UsuariosService, useValue: mockUsuariosService },
-      ],
+      providers: [{ provide: UsuariosService, useValue: mockUsuariosService }],
     }).compile();
 
     controller = module.get<UsuariosController>(UsuariosController);
@@ -39,7 +37,10 @@ describe('UsuariosController', () => {
       contrasena: 'Pass123456',
       rolCodigo: RolCodigoEnum.CONTADOR,
     };
-    mockUsuariosService.crear.mockResolvedValue({ id: 2, correo: 'lucia@rancho.com' });
+    mockUsuariosService.crear.mockResolvedValue({
+      id: 2,
+      correo: 'lucia@rancho.com',
+    });
 
     const res = await controller.crear(10, dto);
     expect(mockUsuariosService.crear).toHaveBeenCalledWith(10, dto);
@@ -64,7 +65,10 @@ describe('UsuariosController', () => {
 
   it('debe delegar actualizar usuario', async () => {
     const dto = { nombre: 'Lucía María' };
-    mockUsuariosService.actualizar.mockResolvedValue({ id: 5, nombre: 'Lucía María' });
+    mockUsuariosService.actualizar.mockResolvedValue({
+      id: 5,
+      nombre: 'Lucía María',
+    });
 
     const res = await controller.actualizar(10, 5, dto);
     expect(mockUsuariosService.actualizar).toHaveBeenCalledWith(10, 5, dto);
@@ -72,7 +76,9 @@ describe('UsuariosController', () => {
   });
 
   it('debe delegar eliminar (baja lógica)', async () => {
-    mockUsuariosService.eliminar.mockResolvedValue({ mensaje: 'Usuario dado de baja exitosamente' });
+    mockUsuariosService.eliminar.mockResolvedValue({
+      mensaje: 'Usuario dado de baja exitosamente',
+    });
 
     const res = await controller.eliminar(10, 5);
     expect(mockUsuariosService.eliminar).toHaveBeenCalledWith(10, 5);

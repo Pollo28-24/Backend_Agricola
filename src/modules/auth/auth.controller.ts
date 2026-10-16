@@ -37,7 +37,10 @@ export class AuthController {
       'Emite un Access Token de 15 minutos y un Refresh Token rotatorio. Devuelve el perfil con la lista de permisos del rol.',
   })
   @ApiResponse({ status: 200, type: AuthResponseDto })
-  @ApiResponse({ status: 401, description: 'Credenciales inválidas o cuenta inactiva' })
+  @ApiResponse({
+    status: 401,
+    description: 'Credenciales inválidas o cuenta inactiva',
+  })
   async login(
     @Body() dto: LoginDto,
     @Ip() ip: string,
@@ -49,12 +52,16 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Renovar Access Token mediante Refresh Token rotatorio (Sección 3.23)',
+    summary:
+      'Renovar Access Token mediante Refresh Token rotatorio (Sección 3.23)',
     description:
       'Revoca el refresh token actual y genera un nuevo par de tokens (rotación estricta).',
   })
   @ApiResponse({ status: 200, type: AuthResponseDto })
-  @ApiResponse({ status: 401, description: 'Token inválido, revocado o expirado' })
+  @ApiResponse({
+    status: 401,
+    description: 'Token inválido, revocado o expirado',
+  })
   async refresh(@Body() dto: RefreshTokenDto): Promise<AuthResponseDto> {
     return this.authService.refresh(dto);
   }
@@ -76,7 +83,8 @@ export class AuthController {
   @ApiBearerAuth('JWT-auth')
   @Get('me')
   @ApiOperation({
-    summary: 'Consultar perfil del usuario autenticado y sus permisos vigentes (RN-039)',
+    summary:
+      'Consultar perfil del usuario autenticado y sus permisos vigentes (RN-039)',
   })
   @ApiResponse({ status: 200, type: UsuarioPerfilDto })
   @ApiResponse({ status: 401, description: 'No autenticado o token inválido' })

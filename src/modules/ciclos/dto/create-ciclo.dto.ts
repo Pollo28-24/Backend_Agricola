@@ -43,7 +43,8 @@ export class CreateCicloDto {
 
   @ApiProperty({
     example: '2027-01-10',
-    description: 'Fecha de la primera labor o preparación del suelo (YYYY-MM-DD)',
+    description:
+      'Fecha de la primera labor o preparación del suelo (YYYY-MM-DD)',
   })
   @IsNotEmpty({ message: 'La fecha de inicio es obligatoria (RN-044)' })
   @IsString({ message: 'La fecha de inicio debe ser una cadena de texto' })
@@ -54,7 +55,8 @@ export class CreateCicloDto {
 
   @ApiPropertyOptional({
     example: '2027-06-30',
-    description: 'Fecha estimada o límite de fin del ciclo (YYYY-MM-DD, opcional)',
+    description:
+      'Fecha estimada o límite de fin del ciclo (YYYY-MM-DD, opcional)',
   })
   @IsOptional()
   @IsString({ message: 'La fecha de fin debe ser una cadena de texto' })
@@ -65,10 +67,17 @@ export class CreateCicloDto {
 
   @ApiProperty({
     example: 2.5,
-    description: 'Superficie sembrada en hectáreas (debe ser mayor a 0 y no exceder la parcela)',
+    description:
+      'Superficie sembrada en hectáreas (debe ser mayor a 0 y no exceder la parcela)',
   })
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'La superficie sembrada debe ser un número con hasta 2 decimales' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    {
+      message:
+        'La superficie sembrada debe ser un número con hasta 2 decimales',
+    },
+  )
   @IsPositive({ message: 'La superficie sembrada debe ser mayor a 0 (RN-018)' })
   superficieSembrada!: number;
 
@@ -78,8 +87,15 @@ export class CreateCicloDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 3 }, { message: 'La meta de producción debe ser un número con hasta 3 decimales' })
-  @IsPositive({ message: 'La meta de producción debe ser mayor a 0 si se especifica' })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    {
+      message: 'La meta de producción debe ser un número con hasta 3 decimales',
+    },
+  )
+  @IsPositive({
+    message: 'La meta de producción debe ser mayor a 0 si se especifica',
+  })
   metaProduccionKg?: number;
 
   @ApiPropertyOptional({

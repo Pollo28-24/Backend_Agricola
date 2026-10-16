@@ -36,7 +36,8 @@ export class CreateParcelaDto {
 
   @ApiProperty({
     example: 'Parcela Norte A',
-    description: 'Nombre o clave identificadora de la parcela dentro del predio',
+    description:
+      'Nombre o clave identificadora de la parcela dentro del predio',
   })
   @IsString({ message: 'El nombre debe ser una cadena de texto' })
   @IsNotEmpty({ message: 'El nombre es obligatorio' })

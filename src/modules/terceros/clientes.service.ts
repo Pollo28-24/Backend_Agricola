@@ -6,6 +6,7 @@ import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
 import { PaginationUtil } from '../../common/utils/pagination.util';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { ClienteResponseDto } from './dto/cliente-response.dto';
@@ -122,11 +123,7 @@ export class ClientesService {
 
     return {
       data: items.map((c) => this.formatearCliente(c, c._count.ventas)),
-      meta: PaginationUtil.crearMeta(
-        pagination.page,
-        pagination.limit,
-        total,
-      ),
+      meta: PaginationUtil.crearMeta(pagination.page, pagination.limit, total),
     };
   }
 
@@ -150,13 +147,10 @@ export class ClientesService {
       },
     });
 
-    if (!cliente) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Cliente con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      cliente,
+      `Cliente con ID ${id} no encontrado en su empresa`,
+    );
 
     return this.formatearCliente(cliente, cliente._count.ventas);
   }
@@ -182,13 +176,10 @@ export class ClientesService {
       },
     });
 
-    if (!cliente) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Cliente con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      cliente,
+      `Cliente con ID ${id} no encontrado en su empresa`,
+    );
 
     const dataToUpdate: Prisma.ClienteUpdateInput = {};
 
@@ -278,13 +269,10 @@ export class ClientesService {
       },
     });
 
-    if (!cliente) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Cliente con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      cliente,
+      `Cliente con ID ${id} no encontrado en su empresa`,
+    );
 
     if (cliente._count.ventas > 0) {
       await this.prisma.cliente.update({

@@ -48,13 +48,15 @@ export class CategoriaGastoResponseDto {
   @ApiPropertyOptional({
     example: 5,
     nullable: true,
-    description: 'ID de la empresa tenant propietaria (null si es global del sistema)',
+    description:
+      'ID de la empresa tenant propietaria (null si es global del sistema)',
   })
   empresaId!: number | null;
 
   @ApiProperty({
     example: true,
-    description: 'Indica si es una categoría personalizada creada por la empresa (RN-047)',
+    description:
+      'Indica si es una categoría personalizada creada por la empresa (RN-047)',
   })
   esPersonalizada!: boolean;
 
@@ -65,7 +67,10 @@ export class CategoriaGastoResponseDto {
   })
   categoriaPadreId!: number | null;
 
-  @ApiProperty({ example: 'Insumos agrícolas', description: 'Nombre de la categoría' })
+  @ApiProperty({
+    example: 'Insumos agrícolas',
+    description: 'Nombre de la categoría',
+  })
   nombre!: string;
 
   @ApiPropertyOptional({
@@ -80,7 +85,8 @@ export class CategoriaGastoResponseDto {
 
   @ApiPropertyOptional({
     type: () => [CategoriaGastoResponseDto],
-    description: 'Subcategorías de segundo nivel hijas de esta categoría (RN-048)',
+    description:
+      'Subcategorías de segundo nivel hijas de esta categoría (RN-048)',
   })
   subcategorias?: CategoriaGastoResponseDto[];
 }

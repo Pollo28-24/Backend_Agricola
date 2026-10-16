@@ -47,14 +47,20 @@ describe('ProveedoresController', () => {
   });
 
   it('listar debe delegar en listarProveedores', async () => {
-    service.listarProveedores.mockResolvedValue({ data: [], meta: { total: 0 } });
+    service.listarProveedores.mockResolvedValue({
+      data: [],
+      meta: { total: 0 },
+    });
     const res = await controller.listar(empresaId, {});
     expect(service.listarProveedores).toHaveBeenCalledWith(empresaId, {});
     expect(res.data).toEqual([]);
   });
 
   it('obtenerPorId debe buscar por id y empresaId', async () => {
-    service.obtenerProveedorPorId.mockResolvedValue({ id: 3, nombre: 'Proveedor 3' });
+    service.obtenerProveedorPorId.mockResolvedValue({
+      id: 3,
+      nombre: 'Proveedor 3',
+    });
     const res = await controller.obtenerPorId(empresaId, 3);
     expect(service.obtenerProveedorPorId).toHaveBeenCalledWith(empresaId, 3);
     expect(res.id).toBe(3);
@@ -69,7 +75,9 @@ describe('ProveedoresController', () => {
   });
 
   it('eliminar debe delegar la baja lógica', async () => {
-    service.eliminarProveedor.mockResolvedValue({ message: 'Proveedor eliminado exitosamente' });
+    service.eliminarProveedor.mockResolvedValue({
+      message: 'Proveedor eliminado exitosamente',
+    });
     const res = await controller.eliminar(empresaId, 3);
     expect(service.eliminarProveedor).toHaveBeenCalledWith(empresaId, 3);
     expect(res.message).toContain('exitosamente');

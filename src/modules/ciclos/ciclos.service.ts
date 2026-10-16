@@ -23,6 +23,7 @@ import { CicloResponseDto } from './dto/ciclo-response.dto';
 import { CicloDetalleResponseDto } from './dto/ciclo-detalle-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 
 dayjs.extend(utc);
 
@@ -56,13 +57,10 @@ export class CiclosService {
       },
     });
 
-    if (!parcela) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Parcela con ID ${dto.parcelaId} no encontrada en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      parcela,
+      `Parcela con ID ${dto.parcelaId} no encontrada en su empresa`,
+    );
 
     // 2. Validar que la parcela no se encuentre inactiva (RN-075)
     if (parcela.estado === EstadoParcela.INACTIVA) {
@@ -81,13 +79,10 @@ export class CiclosService {
       },
     });
 
-    if (!variedad) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Variedad con ID ${dto.variedadId} no encontrada o inactiva en el catálogo`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      variedad,
+      `Variedad con ID ${dto.variedadId} no encontrada o inactiva en el catálogo`,
+    );
 
     // 4. Validar coherencia de fechas (RN-017)
     const fechaInicioDate = this.parsearFecha(dto.fechaInicio);
@@ -210,11 +205,7 @@ export class CiclosService {
 
     return {
       data: items.map((c) => this.formatearCiclo(c)),
-      meta: PaginationUtil.crearMeta(
-        pagination.page,
-        pagination.limit,
-        total,
-      ),
+      meta: PaginationUtil.crearMeta(pagination.page, pagination.limit, total),
     };
   }
 
@@ -243,13 +234,10 @@ export class CiclosService {
       },
     });
 
-    if (!ciclo) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Ciclo de producción con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      ciclo,
+      `Ciclo de producción con ID ${id} no encontrado en su empresa`,
+    );
 
     return {
       ...this.formatearCiclo(ciclo),
@@ -264,7 +252,8 @@ export class CiclosService {
         nombre: ciclo.variedad.nombre,
         cultivoNombre: ciclo.variedad.cultivo.nombre,
       },
-      creadoPorNombre: `${ciclo.creadoPor.nombre} ${ciclo.creadoPor.apellido}`.trim(),
+      creadoPorNombre:
+        `${ciclo.creadoPor.nombre} ${ciclo.creadoPor.apellido}`.trim(),
       cerradoPorNombre: ciclo.cerradoPor
         ? `${ciclo.cerradoPor.nombre} ${ciclo.cerradoPor.apellido}`.trim()
         : null,
@@ -291,13 +280,10 @@ export class CiclosService {
       },
     });
 
-    if (!ciclo) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        `Ciclo de producción con ID ${id} no encontrado en su empresa`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(
+      ciclo,
+      `Ciclo de producción con ID ${id} no encontrado en su empresa`,
+    );
 
     // RN-015: En ciclos FINALIZADO o CANCELADO se bloquea la modificación
     if (
@@ -399,16 +385,16 @@ export class CiclosService {
           },
         });
 
-        if (!ciclo) {
-          throw new DomainError(
-            CodigoError.RECURSO_NO_ENCONTRADO,
-            `Ciclo de producción con ID ${id} no encontrado en su empresa`,
-            HttpStatus.NOT_FOUND,
-          );
-        }
+        EntityValidationUtil.assertExists(
+          ciclo,
+          `Ciclo de producción con ID ${id} no encontrado en su empresa`,
+        );
 
         // 2. Validar legalidad de la transición con el validador desacoplado
-        const nuevoEstado = this.transitionValidator.validar(ciclo.estado, accion);
+        const nuevoEstado = this.transitionValidator.validar(
+          ciclo.estado,
+          accion,
+        );
 
         const dataUpdate: Prisma.CicloProduccionUpdateInput = {
           estado: nuevoEstado,
@@ -430,7 +416,11 @@ export class CiclosService {
             }
 
             // RN-009: No puede haber otro ciclo ACTIVO en la parcela
-            await this.validarParcelaSinCicloActivo(tx, ciclo.parcelaId, ciclo.id);
+            await this.validarParcelaSinCicloActivo(
+              tx,
+              ciclo.parcelaId,
+              ciclo.id,
+            );
 
             // Sincronizar Parcela a EN_USO
             nuevoEstadoParcela = EstadoParcela.EN_USO;
@@ -445,7 +435,11 @@ export class CiclosService {
 
           case AccionCiclo.REANUDAR: {
             // RN-065: Verificar que mientras estuvo suspendido no se activó otro ciclo en la parcela
-            await this.validarParcelaSinCicloActivo(tx, ciclo.parcelaId, ciclo.id);
+            await this.validarParcelaSinCicloActivo(
+              tx,
+              ciclo.parcelaId,
+              ciclo.id,
+            );
 
             // Asegurar que la parcela esté en EN_USO
             nuevoEstadoParcela = EstadoParcela.EN_USO;
@@ -515,7 +509,11 @@ export class CiclosService {
 
           case AccionCiclo.REABRIR: {
             // RN-067: Reabrir ciclo exige que la parcela no tenga otro ciclo ACTIVO
-            await this.validarParcelaSinCicloActivo(tx, ciclo.parcelaId, ciclo.id);
+            await this.validarParcelaSinCicloActivo(
+              tx,
+              ciclo.parcelaId,
+              ciclo.id,
+            );
 
             dataUpdate.cerradoEn = null;
             dataUpdate.cerradoPor = { disconnect: true };
@@ -622,13 +620,10 @@ export class CiclosService {
         },
       });
 
-      if (!ciclo) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          `Ciclo de producción con ID ${id} no encontrado en su empresa`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(
+        ciclo,
+        `Ciclo de producción con ID ${id} no encontrado en su empresa`,
+      );
 
       // RN-016: Un ciclo finalizado no se elimina
       if (ciclo.estado === EstadoCiclo.FINALIZADO) {
@@ -686,7 +681,9 @@ export class CiclosService {
         tx,
       );
 
-      return { message: 'Ciclo de producción planificado eliminado exitosamente' };
+      return {
+        message: 'Ciclo de producción planificado eliminado exitosamente',
+      };
     });
   }
 
@@ -735,7 +732,9 @@ export class CiclosService {
       fechaFin: c.fechaFin ? FechaUtil.toDateOnly(c.fechaFin) : null,
       superficieSembrada: Number(c.superficieSembrada).toFixed(2),
       metaProduccionKg:
-        c.metaProduccionKg !== null ? Number(c.metaProduccionKg).toFixed(3) : null,
+        c.metaProduccionKg !== null
+          ? Number(c.metaProduccionKg).toFixed(3)
+          : null,
       estado: c.estado,
       observaciones: c.observaciones,
       cerradoEn: c.cerradoEn,

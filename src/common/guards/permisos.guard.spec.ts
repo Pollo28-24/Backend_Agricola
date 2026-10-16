@@ -20,11 +20,14 @@ describe('PermisosGuard (Sección 2.10.2, RN-039)', () => {
     permisosRequeridos?: string[];
     user?: any;
   }): ExecutionContext {
-    jest.spyOn(reflector, 'getAllAndOverride').mockImplementation((key: string) => {
-      if (key === IS_PUBLIC_KEY) return options.isPublic || false;
-      if (key === PERMISOS_KEY) return options.permisosRequeridos || undefined;
-      return undefined;
-    });
+    jest
+      .spyOn(reflector, 'getAllAndOverride')
+      .mockImplementation((key: string) => {
+        if (key === IS_PUBLIC_KEY) return options.isPublic || false;
+        if (key === PERMISOS_KEY)
+          return options.permisosRequeridos || undefined;
+        return undefined;
+      });
 
     const request = {
       user: options.user,
@@ -40,7 +43,10 @@ describe('PermisosGuard (Sección 2.10.2, RN-039)', () => {
   }
 
   it('debe permitir acceso si la ruta es pública', () => {
-    const ctx = mockContext({ isPublic: true, permisosRequeridos: ['ciclo:crear'] });
+    const ctx = mockContext({
+      isPublic: true,
+      permisosRequeridos: ['ciclo:crear'],
+    });
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
@@ -87,7 +93,12 @@ describe('PermisosGuard (Sección 2.10.2, RN-039)', () => {
     const userCapturista = {
       id: 2,
       rol: 'CAPTURISTA',
-      permisos: ['actividad:crear', 'gasto:crear', 'cosecha:crear', 'merma:crear'],
+      permisos: [
+        'actividad:crear',
+        'gasto:crear',
+        'cosecha:crear',
+        'merma:crear',
+      ],
     };
 
     const ctx = mockContext({

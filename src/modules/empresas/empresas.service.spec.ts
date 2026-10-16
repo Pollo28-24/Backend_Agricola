@@ -88,39 +88,41 @@ describe('EmpresasService (F-01, F0, RN-037)', () => {
       mockPrismaService.usuario.findUnique.mockResolvedValue(null);
 
       // Simular transacción
-      mockPrismaService.$transaction.mockImplementation(async (callback: any) => {
-        const tx = {
-          planSuscripcion: {
-            findUnique: jest.fn().mockResolvedValue({
-              id: 2,
-              codigo: 'PRODUCTOR',
-              activo: true,
-            }),
-          },
-          rol: {
-            findUnique: jest.fn().mockResolvedValue({
-              id: 1,
-              codigo: 'ADMIN',
-            }),
-          },
-          empresa: {
-            create: jest.fn().mockResolvedValue({
-              id: 10,
-              nombre: 'Rancho Los Pinos',
-              rfc: 'OERA700101XX0',
-              estadoSuscripcion: EstadoSuscripcion.PRUEBA,
-            }),
-          },
-          usuario: {
-            create: jest.fn().mockResolvedValue({
-              id: 1,
-              nombre: 'Ramón',
-              correo: 'admin@rancho.com',
-            }),
-          },
-        };
-        return callback(tx);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (callback: any) => {
+          const tx = {
+            planSuscripcion: {
+              findUnique: jest.fn().mockResolvedValue({
+                id: 2,
+                codigo: 'PRODUCTOR',
+                activo: true,
+              }),
+            },
+            rol: {
+              findUnique: jest.fn().mockResolvedValue({
+                id: 1,
+                codigo: 'ADMIN',
+              }),
+            },
+            empresa: {
+              create: jest.fn().mockResolvedValue({
+                id: 10,
+                nombre: 'Rancho Los Pinos',
+                rfc: 'OERA700101XX0',
+                estadoSuscripcion: EstadoSuscripcion.PRUEBA,
+              }),
+            },
+            usuario: {
+              create: jest.fn().mockResolvedValue({
+                id: 1,
+                nombre: 'Ramón',
+                correo: 'admin@rancho.com',
+              }),
+            },
+          };
+          return callback(tx);
+        },
+      );
 
       const res = await service.registrar(dtoRegistro, '192.168.1.1');
 

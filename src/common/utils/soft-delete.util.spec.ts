@@ -27,7 +27,11 @@ describe('SoftDeleteUtil (RN-041 / Sección 3.11)', () => {
   });
 
   it('debe manejar IDs de varios dígitos correctamente', () => {
-    const res = SoftDeleteUtil.generarValorBaja('Proveedor Central', 123456, 150);
+    const res = SoftDeleteUtil.generarValorBaja(
+      'Proveedor Central',
+      123456,
+      150,
+    );
     expect(res).toBe('Proveedor Central#baja123456');
     expect(res.endsWith('#baja123456')).toBe(true);
   });
@@ -45,7 +49,11 @@ describe('SoftDeleteUtil (RN-041 / Sección 3.11)', () => {
   });
 
   it('debe preservar caracteres especiales y acentos en el texto base truncado', () => {
-    const res = SoftDeleteUtil.generarValorBaja('Agrícola El Niño S.A. de C.V.', 42, 25);
+    const res = SoftDeleteUtil.generarValorBaja(
+      'Agrícola El Niño S.A. de C.V.',
+      42,
+      25,
+    );
     expect(res.endsWith('#baja42')).toBe(true);
     expect(res.length).toBe(25);
   });

@@ -24,6 +24,9 @@ export class VariedadResponseDto {
   })
   duracionCicloDias!: number | null;
 
-  @ApiProperty({ example: true, description: 'Indica si la variedad está activa' })
+  @ApiProperty({
+    example: true,
+    description: 'Indica si la variedad está activa',
+  })
   activo!: boolean;
 }

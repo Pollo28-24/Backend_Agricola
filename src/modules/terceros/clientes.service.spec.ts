@@ -88,7 +88,10 @@ describe('ClientesService', () => {
     });
 
     it('debe rechazar creación si ya existe cliente activo con el mismo nombre', async () => {
-      prisma.cliente.findFirst.mockResolvedValue({ id: 5, nombre: 'Supermercado Guadalajara' });
+      prisma.cliente.findFirst.mockResolvedValue({
+        id: 5,
+        nombre: 'Supermercado Guadalajara',
+      });
 
       await expect(
         service.crearCliente(empresaId, { nombre: 'Supermercado Guadalajara' }),
@@ -115,7 +118,10 @@ describe('ClientesService', () => {
         },
       ]);
 
-      const res = await service.listarClientes(empresaId, { page: 1, limit: 10 });
+      const res = await service.listarClientes(empresaId, {
+        page: 1,
+        limit: 10,
+      });
 
       expect(res.data).toHaveLength(1);
       expect(res.data[0].totalVentas).toBe(3);
@@ -147,7 +153,9 @@ describe('ClientesService', () => {
     it('debe responder 404 si el cliente no existe o pertenece a otra empresa (RN-068)', async () => {
       prisma.cliente.findFirst.mockResolvedValue(null);
 
-      await expect(service.obtenerClientePorId(empresaId, 999)).rejects.toThrow(DomainError);
+      await expect(service.obtenerClientePorId(empresaId, 999)).rejects.toThrow(
+        DomainError,
+      );
     });
   });
 

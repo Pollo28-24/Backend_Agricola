@@ -32,7 +32,8 @@ export class EmpresasController {
   @Post('registro')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Alta de empresa y primer usuario administrador (Formulario F-01 / Flujo F0)',
+    summary:
+      'Alta de empresa y primer usuario administrador (Formulario F-01 / Flujo F0)',
     description:
       'Crea atómicamente la empresa en estado PRUEBA, el plan y su primer usuario con rol ADMIN. Emite tokens de acceso.',
   })
@@ -49,10 +50,14 @@ export class EmpresasController {
   @RequirePermisos('empresa:administrar')
   @Get('mi-empresa')
   @ApiOperation({
-    summary: 'Consultar datos de la propia empresa, plan y cuotas de uso (RN-003, RN-037)',
+    summary:
+      'Consultar datos de la propia empresa, plan y cuotas de uso (RN-003, RN-037)',
   })
   @ApiResponse({ status: 200, type: EmpresaResponseDto })
-  @ApiResponse({ status: 403, description: 'No tiene el permiso empresa:administrar' })
+  @ApiResponse({
+    status: 403,
+    description: 'No tiene el permiso empresa:administrar',
+  })
   async obtenerMiEmpresa(
     @CurrentUser('empresaId') empresaId: number,
   ): Promise<EmpresaResponseDto> {

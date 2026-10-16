@@ -17,9 +17,7 @@ describe('EmpresasController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [EmpresasController],
-      providers: [
-        { provide: EmpresasService, useValue: mockEmpresasService },
-      ],
+      providers: [{ provide: EmpresasService, useValue: mockEmpresasService }],
     }).compile();
 
     controller = module.get<EmpresasController>(EmpresasController);
@@ -47,7 +45,10 @@ describe('EmpresasController', () => {
     });
 
     const res = await controller.registrar(dto, '127.0.0.1');
-    expect(mockEmpresasService.registrar).toHaveBeenCalledWith(dto, '127.0.0.1');
+    expect(mockEmpresasService.registrar).toHaveBeenCalledWith(
+      dto,
+      '127.0.0.1',
+    );
     expect(res.accessToken).toBe('token_f0');
   });
 
@@ -70,7 +71,10 @@ describe('EmpresasController', () => {
     });
 
     const res = await controller.actualizarMiEmpresa(5, dto);
-    expect(mockEmpresasService.actualizarMiEmpresa).toHaveBeenCalledWith(5, dto);
+    expect(mockEmpresasService.actualizarMiEmpresa).toHaveBeenCalledWith(
+      5,
+      dto,
+    );
     expect(res.telefono).toBe('9511112233');
   });
 });

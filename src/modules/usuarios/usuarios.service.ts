@@ -9,6 +9,7 @@ import { UsuarioResponseDto } from './dto/usuario-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 
 @Injectable()
 export class UsuariosService {
@@ -84,13 +85,10 @@ export class UsuariosService {
         where: { codigo: dto.rolCodigo },
       });
 
-      if (!rol) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          `El rol '${dto.rolCodigo}' no existe en el sistema`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(
+        rol,
+        `El rol '${dto.rolCodigo}' no existe en el sistema`,
+      );
 
       // 4. Cifrado de contraseña (RN-040)
       const contrasenaHash = await this.passwordService.hash(dto.contrasena);
@@ -199,13 +197,7 @@ export class UsuariosService {
       },
     });
 
-    if (!usuario) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Usuario no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(usuario, 'Usuario no encontrado');
 
     return this.formatearRespuesta(usuario);
   }
@@ -228,13 +220,7 @@ export class UsuariosService {
       include: { rol: true },
     });
 
-    if (!usuarioActual) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Usuario no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(usuarioActual, 'Usuario no encontrado');
 
     // Si se reactiva un usuario desactivado, validar cupo del plan con lock pesimista (ADR-002 / RN-037)
     if (dto.activo === true && usuarioActual.activo === false) {
@@ -264,13 +250,10 @@ export class UsuariosService {
       const nuevoRol = await this.prisma.rol.findUnique({
         where: { codigo: dto.rolCodigo },
       });
-      if (!nuevoRol) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          `El rol '${dto.rolCodigo}' no existe`,
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(
+        nuevoRol,
+        `El rol '${dto.rolCodigo}' no existe`,
+      );
       rolId = nuevoRol.id;
     }
 
@@ -279,7 +262,9 @@ export class UsuariosService {
       data: {
         ...(dto.nombre && { nombre: dto.nombre.trim() }),
         ...(dto.apellido && { apellido: dto.apellido.trim() }),
-        ...(dto.telefono !== undefined && { telefono: dto.telefono?.trim() || null }),
+        ...(dto.telefono !== undefined && {
+          telefono: dto.telefono?.trim() || null,
+        }),
         ...(dto.activo !== undefined && { activo: dto.activo }),
         rolId,
       },
@@ -323,7 +308,10 @@ export class UsuariosService {
    * Baja lógica con anonimización de correo y revocación de sesiones (Sección 3.11, RN-041).
    * Nunca borra físicamente para preservar historial y trazabilidad.
    */
-  async eliminar(empresaId: number, usuarioId: number): Promise<{ mensaje: string }> {
+  async eliminar(
+    empresaId: number,
+    usuarioId: number,
+  ): Promise<{ mensaje: string }> {
     const usuario = await this.prisma.usuario.findFirst({
       where: {
         id: usuarioId,
@@ -332,13 +320,7 @@ export class UsuariosService {
       },
     });
 
-    if (!usuario) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Usuario no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(usuario, 'Usuario no encontrado');
 
     // Anonimizar correo para liberar índice único (Sección 3.11 / RN-041)
     const correoLiberado = SoftDeleteUtil.generarValorBaja(

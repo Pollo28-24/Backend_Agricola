@@ -4,7 +4,6 @@ import { CiclosController } from './ciclos.controller';
 import { CiclosService } from './ciclos.service';
 import { AccionCiclo } from './constants/ciclo-state-machine.constant';
 import { CreateCicloDto } from './dto/create-ciclo.dto';
-import { UpdateCicloDto } from './dto/update-ciclo.dto';
 import { FinalizarCicloDto } from './dto/finalizar-ciclo.dto';
 
 describe('CiclosController', () => {
@@ -50,7 +49,11 @@ describe('CiclosController', () => {
       fechaInicio: '2027-01-10',
       superficieSembrada: 2.5,
     };
-    service.crearCiclo.mockResolvedValue({ id: 1, ...dto, estado: EstadoCiclo.PLANIFICADO });
+    service.crearCiclo.mockResolvedValue({
+      id: 1,
+      ...dto,
+      estado: EstadoCiclo.PLANIFICADO,
+    });
 
     const res = await controller.crear(empresaId, usuarioId, dto);
     expect(service.crearCiclo).toHaveBeenCalledWith(empresaId, usuarioId, dto);
@@ -66,7 +69,10 @@ describe('CiclosController', () => {
   });
 
   it('iniciar debe ejecutar la transición INICIAR', async () => {
-    service.ejecutarTransicion.mockResolvedValue({ id: 1, estado: EstadoCiclo.ACTIVO });
+    service.ejecutarTransicion.mockResolvedValue({
+      id: 1,
+      estado: EstadoCiclo.ACTIVO,
+    });
     const res = await controller.iniciar(empresaId, usuarioId, 1);
     expect(service.ejecutarTransicion).toHaveBeenCalledWith(
       empresaId,
@@ -79,7 +85,10 @@ describe('CiclosController', () => {
 
   it('finalizar debe enviar la fechaFin requerida', async () => {
     const dto: FinalizarCicloDto = { fechaFin: '2027-06-30' };
-    service.ejecutarTransicion.mockResolvedValue({ id: 1, estado: EstadoCiclo.FINALIZADO });
+    service.ejecutarTransicion.mockResolvedValue({
+      id: 1,
+      estado: EstadoCiclo.FINALIZADO,
+    });
 
     const res = await controller.finalizar(empresaId, usuarioId, 1, dto);
     expect(service.ejecutarTransicion).toHaveBeenCalledWith(
@@ -93,7 +102,10 @@ describe('CiclosController', () => {
   });
 
   it('reabrir debe ejecutar la transición REABRIR', async () => {
-    service.ejecutarTransicion.mockResolvedValue({ id: 1, estado: EstadoCiclo.ACTIVO });
+    service.ejecutarTransicion.mockResolvedValue({
+      id: 1,
+      estado: EstadoCiclo.ACTIVO,
+    });
     const res = await controller.reabrir(empresaId, usuarioId, 1);
     expect(service.ejecutarTransicion).toHaveBeenCalledWith(
       empresaId,
@@ -105,7 +117,9 @@ describe('CiclosController', () => {
   });
 
   it('eliminar debe delegar en service.eliminarCiclo', async () => {
-    service.eliminarCiclo.mockResolvedValue({ message: 'Ciclo eliminado exitosamente' });
+    service.eliminarCiclo.mockResolvedValue({
+      message: 'Ciclo eliminado exitosamente',
+    });
     const res = await controller.eliminar(empresaId, usuarioId, 1);
     expect(service.eliminarCiclo).toHaveBeenCalledWith(empresaId, usuarioId, 1);
     expect(res.message).toContain('exitosamente');

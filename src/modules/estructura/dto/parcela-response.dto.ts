@@ -25,7 +25,10 @@ export class ParcelaResponseDto {
   })
   tipoSueloNombre!: string | null;
 
-  @ApiProperty({ example: 'Parcela Norte A', description: 'Nombre de la parcela' })
+  @ApiProperty({
+    example: 'Parcela Norte A',
+    description: 'Nombre de la parcela',
+  })
   nombre!: string;
 
   @ApiProperty({

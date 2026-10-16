@@ -7,7 +7,10 @@ export class PaginacionMetaDto {
   @ApiProperty({ example: 1, description: 'Página actual consultada' })
   page!: number;
 
-  @ApiProperty({ example: 20, description: 'Cantidad máxima de registros por página' })
+  @ApiProperty({
+    example: 20,
+    description: 'Cantidad máxima de registros por página',
+  })
   limit!: number;
 
   @ApiProperty({ example: 3, description: 'Total de páginas disponibles' })
@@ -15,9 +18,15 @@ export class PaginacionMetaDto {
 }
 
 export class PaginatedResponseDto<T> {
-  @ApiProperty({ isArray: true, description: 'Listado de elementos de la página actual' })
+  @ApiProperty({
+    isArray: true,
+    description: 'Listado de elementos de la página actual',
+  })
   data!: T[];
 
-  @ApiProperty({ type: PaginacionMetaDto, description: 'Metadatos de la paginación' })
+  @ApiProperty({
+    type: PaginacionMetaDto,
+    description: 'Metadatos de la paginación',
+  })
   meta!: PaginacionMetaDto;
 }

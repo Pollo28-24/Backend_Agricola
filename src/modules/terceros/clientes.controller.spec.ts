@@ -59,7 +59,10 @@ describe('ClientesController', () => {
   });
 
   it('obtenerPorId debe buscar por id y empresaId', async () => {
-    service.obtenerClientePorId.mockResolvedValue({ id: 5, nombre: 'Cliente 5' });
+    service.obtenerClientePorId.mockResolvedValue({
+      id: 5,
+      nombre: 'Cliente 5',
+    });
     const res = await controller.obtenerPorId(empresaId, 5);
     expect(service.obtenerClientePorId).toHaveBeenCalledWith(empresaId, 5);
     expect(res.id).toBe(5);
@@ -74,7 +77,9 @@ describe('ClientesController', () => {
   });
 
   it('eliminar debe delegar la baja lógica', async () => {
-    service.eliminarCliente.mockResolvedValue({ message: 'Cliente eliminado exitosamente' });
+    service.eliminarCliente.mockResolvedValue({
+      message: 'Cliente eliminado exitosamente',
+    });
     const res = await controller.eliminar(empresaId, 5);
     expect(service.eliminarCliente).toHaveBeenCalledWith(empresaId, 5);
     expect(res.message).toContain('exitosamente');

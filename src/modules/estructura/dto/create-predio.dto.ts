@@ -44,7 +44,9 @@ export class CreatePredioDto {
   })
   @IsOptional()
   @IsString({ message: 'La entidad federativa debe ser una cadena de texto' })
-  @MaxLength(100, { message: 'La entidad federativa no puede exceder 100 caracteres' })
+  @MaxLength(100, {
+    message: 'La entidad federativa no puede exceder 100 caracteres',
+  })
   entidadFederativa?: string;
 
   @ApiProperty({

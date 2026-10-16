@@ -4,7 +4,10 @@ export class PredioResponseDto {
   @ApiProperty({ example: 1, description: 'ID del predio' })
   id!: number;
 
-  @ApiProperty({ example: 5, description: 'ID de la empresa tenant propietaria' })
+  @ApiProperty({
+    example: 5,
+    description: 'ID de la empresa tenant propietaria',
+  })
   empresaId!: number;
 
   @ApiProperty({ example: 'Rancho Santa Fe', description: 'Nombre del predio' })

@@ -4,7 +4,10 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { ClsService } from 'nestjs-cls';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { JwtPayload, UsuarioAutenticado } from '../interfaces/jwt-payload.interface';
+import {
+  JwtPayload,
+  UsuarioAutenticado,
+} from '../interfaces/jwt-payload.interface';
 import { AppClsStore } from '../../../common/context/app-cls.store';
 import { CodigoError } from '../../../common/errors/codigos-error.enum';
 import { DomainError } from '../../../common/errors/domain.error';

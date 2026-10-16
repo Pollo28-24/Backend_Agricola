@@ -1,6 +1,9 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { EstadoCiclo } from '@prisma/client';
-import { AccionCiclo, TRANSICIONES_CICLO } from '../constants/ciclo-state-machine.constant';
+import {
+  AccionCiclo,
+  TRANSICIONES_CICLO,
+} from '../constants/ciclo-state-machine.constant';
 import { DomainError } from '../../../common/errors/domain.error';
 import { CodigoError } from '../../../common/errors/codigos-error.enum';
 

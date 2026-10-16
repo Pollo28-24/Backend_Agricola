@@ -8,6 +8,7 @@ import { ParcelaResponseDto } from './dto/parcela-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 
 @Injectable()
 export class ParcelasService {
@@ -73,26 +74,20 @@ export class ParcelasService {
         },
       });
 
-      if (!predio) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'El predio especificado no existe o no pertenece a su empresa',
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(
+        predio,
+        'El predio especificado no existe o no pertenece a su empresa',
+      );
 
       // 3. Validar tipo de suelo si se especifica
       if (dto.tipoSueloId) {
         const tipoSuelo = await tx.tipoSuelo.findUnique({
           where: { id: dto.tipoSueloId },
         });
-        if (!tipoSuelo) {
-          throw new DomainError(
-            CodigoError.RECURSO_NO_ENCONTRADO,
-            'El tipo de suelo especificado no existe',
-            HttpStatus.NOT_FOUND,
-          );
-        }
+        EntityValidationUtil.assertExists(
+          tipoSuelo,
+          'El tipo de suelo especificado no existe',
+        );
       }
 
       // 4. Validar unicidad de nombre en el predio entre las parcelas activas
@@ -196,13 +191,7 @@ export class ParcelasService {
       },
     });
 
-    if (!parcela) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Parcela no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(parcela, 'Parcela no encontrada');
 
     return this.formatearParcela(parcela);
   }
@@ -224,13 +213,7 @@ export class ParcelasService {
       include: { predio: true },
     });
 
-    if (!parcelaActual) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Parcela no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(parcelaActual, 'Parcela no encontrada');
 
     const targetPredioId = dto.predioId ?? parcelaActual.predioId;
 
@@ -238,13 +221,10 @@ export class ParcelasService {
       const nuevoPredio = await this.prisma.predio.findFirst({
         where: { id: dto.predioId, empresaId, deletedAt: null },
       });
-      if (!nuevoPredio) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'El nuevo predio especificado no existe o no pertenece a su empresa',
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(
+        nuevoPredio,
+        'El nuevo predio especificado no existe o no pertenece a su empresa',
+      );
     }
 
     if (dto.nombre) {
@@ -270,13 +250,10 @@ export class ParcelasService {
       const tipoSuelo = await this.prisma.tipoSuelo.findUnique({
         where: { id: dto.tipoSueloId },
       });
-      if (!tipoSuelo) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'El tipo de suelo especificado no existe',
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(
+        tipoSuelo,
+        'El tipo de suelo especificado no existe',
+      );
     }
 
     const parcelaActualizada = await this.prisma.parcela.update({
@@ -288,7 +265,9 @@ export class ParcelasService {
         ...(dto.superficie !== undefined && { superficie: dto.superficie }),
         ...(dto.latitud !== undefined && { latitud: dto.latitud }),
         ...(dto.longitud !== undefined && { longitud: dto.longitud }),
-        ...(dto.poligono !== undefined && { poligono: dto.poligono ?? undefined }),
+        ...(dto.poligono !== undefined && {
+          poligono: dto.poligono ?? undefined,
+        }),
         ...(dto.estado && { estado: dto.estado }),
       },
       include: {
@@ -333,13 +312,7 @@ export class ParcelasService {
       },
     });
 
-    if (!parcela) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Parcela no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(parcela, 'Parcela no encontrada');
 
     const ciclosEnCurso = await this.prisma.cicloProduccion.count({
       where: {

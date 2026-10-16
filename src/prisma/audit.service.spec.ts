@@ -45,7 +45,8 @@ describe('AuditService', () => {
     });
 
     expect(mockPrismaService.bitacoraAuditoria.create).toHaveBeenCalledTimes(1);
-    const args = mockPrismaService.bitacoraAuditoria.create.mock.calls[0][0].data;
+    const args =
+      mockPrismaService.bitacoraAuditoria.create.mock.calls[0][0].data;
 
     expect(args.empresaId).toBe(10);
     expect(args.usuarioId).toBe(5);
@@ -142,4 +143,3 @@ describe('AuditService', () => {
     });
   });
 });
-

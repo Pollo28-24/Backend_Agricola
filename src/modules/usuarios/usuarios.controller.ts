@@ -36,14 +36,18 @@ export class UsuariosController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Invitar/crear un nuevo usuario en la empresa (F-02, RN-037, RN-061)',
+    summary:
+      'Invitar/crear un nuevo usuario en la empresa (F-02, RN-037, RN-061)',
   })
   @ApiResponse({ status: 201, type: UsuarioResponseDto })
   @ApiResponse({
     status: 403,
     description: 'Límite de usuarios del plan alcanzado (RN-037)',
   })
-  @ApiResponse({ status: 409, description: 'Correo ya registrado en el sistema' })
+  @ApiResponse({
+    status: 409,
+    description: 'Correo ya registrado en el sistema',
+  })
   async crear(
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreateUsuarioDto,
@@ -68,7 +72,8 @@ export class UsuariosController {
   @RequirePermisos('usuario:administrar')
   @Get(':id')
   @ApiOperation({
-    summary: 'Consultar un usuario por ID con aislamiento multi-tenant (RN-068)',
+    summary:
+      'Consultar un usuario por ID con aislamiento multi-tenant (RN-068)',
   })
   @ApiResponse({ status: 200, type: UsuarioResponseDto })
   @ApiResponse({
@@ -106,7 +111,10 @@ export class UsuariosController {
     summary:
       'Baja lógica de usuario, anonimización y revocación de sesiones (Sección 3.11, RN-041)',
   })
-  @ApiResponse({ status: 200, description: 'Usuario dado de baja exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Usuario dado de baja exitosamente',
+  })
   @ApiResponse({
     status: 404,
     description: 'Usuario no encontrado o no pertenece a la empresa',

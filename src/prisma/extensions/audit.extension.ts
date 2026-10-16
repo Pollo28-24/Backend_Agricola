@@ -12,7 +12,9 @@ export const CAMPOS_EXCLUIDOS_AUDITORIA = new Set([
 /**
  * Sanitiza un objeto eliminando contraseñas y tokens antes de guardarlo en bitácora (RN-074)
  */
-export function sanitizarValoresAuditoria(datos: unknown): Record<string, unknown> | null {
+export function sanitizarValoresAuditoria(
+  datos: unknown,
+): Record<string, unknown> | null {
   if (!datos || typeof datos !== 'object') {
     return null;
   }

@@ -9,9 +9,12 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor(configService: ConfigService) {
-    const databaseUrl = configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL;
+    const databaseUrl =
+      configService.get<string>('DATABASE_URL') || process.env.DATABASE_URL;
     if (!databaseUrl) {
-      throw new Error('La variable de entorno DATABASE_URL no está configurada');
+      throw new Error(
+        'La variable de entorno DATABASE_URL no está configurada',
+      );
     }
 
     const dbUrl = new URL(databaseUrl);

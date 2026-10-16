@@ -45,7 +45,8 @@ export class DomainExceptionFilter implements ExceptionFilter {
         case 'P2025':
           statusCode = HttpStatus.NOT_FOUND;
           code = CodigoError.RECURSO_NO_ENCONTRADO;
-          message = 'El registro solicitado no existe o no se encuentra disponible';
+          message =
+            'El registro solicitado no existe o no se encuentra disponible';
           break;
         default:
           this.logger.error(
@@ -70,7 +71,10 @@ export class DomainExceptionFilter implements ExceptionFilter {
         code = this.mapStatusToCode(statusCode);
       }
     } else if (exception instanceof Error) {
-      this.logger.error(`Error no controlado: ${exception.message}`, exception.stack);
+      this.logger.error(
+        `Error no controlado: ${exception.message}`,
+        exception.stack,
+      );
       message = 'Error interno del servidor';
     }
 

@@ -17,9 +17,7 @@ describe('AuthController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: mockAuthService },
-      ],
+      providers: [{ provide: AuthService, useValue: mockAuthService }],
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
@@ -31,7 +29,10 @@ describe('AuthController', () => {
 
   it('debe llamar a authService.login con dto e IP', async () => {
     const dto = { correo: 'test@correo.com', contrasena: '123456' };
-    mockAuthService.login.mockResolvedValue({ accessToken: 'a', refreshToken: 'r' });
+    mockAuthService.login.mockResolvedValue({
+      accessToken: 'a',
+      refreshToken: 'r',
+    });
 
     const res = await controller.login(dto, '192.168.1.50');
     expect(mockAuthService.login).toHaveBeenCalledWith(dto, '192.168.1.50');
@@ -40,7 +41,10 @@ describe('AuthController', () => {
 
   it('debe llamar a authService.refresh', async () => {
     const dto = { refreshToken: 'ref_123' };
-    mockAuthService.refresh.mockResolvedValue({ accessToken: 'a2', refreshToken: 'r2' });
+    mockAuthService.refresh.mockResolvedValue({
+      accessToken: 'a2',
+      refreshToken: 'r2',
+    });
 
     const res = await controller.refresh(dto);
     expect(mockAuthService.refresh).toHaveBeenCalledWith(dto);

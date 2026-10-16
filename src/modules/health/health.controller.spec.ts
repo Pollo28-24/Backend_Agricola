@@ -36,7 +36,9 @@ describe('HealthController', () => {
   });
 
   it('debe retornar database disconnected si la consulta falla', async () => {
-    mockPrismaService.$queryRaw.mockRejectedValueOnce(new Error('Connection lost'));
+    mockPrismaService.$queryRaw.mockRejectedValueOnce(
+      new Error('Connection lost'),
+    );
     const res = await controller.check();
     expect(res.status).toBe('ok');
     expect(res.database).toBe('disconnected');

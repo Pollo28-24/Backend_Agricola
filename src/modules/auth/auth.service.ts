@@ -30,7 +30,8 @@ export class AuthService {
   ) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '15m');
-    this.jwtRefreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET')!;
+    this.jwtRefreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET')!;
     this.jwtRefreshExpiresIn = this.configService.get<string>(
       'JWT_REFRESH_EXPIRES_IN',
       '7d',
@@ -117,7 +118,10 @@ export class AuthService {
       entidadId: usuario.id,
       accion: AccionAuditoria.INICIO_SESION,
       ip,
-      valoresNuevos: { correo: usuario.correo, fecha: new Date().toISOString() },
+      valoresNuevos: {
+        correo: usuario.correo,
+        fecha: new Date().toISOString(),
+      },
     });
 
     const permisos = usuario.rol.permisos.map((rp) => rp.permiso.codigo);

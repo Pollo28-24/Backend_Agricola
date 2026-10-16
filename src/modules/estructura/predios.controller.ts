@@ -32,9 +32,14 @@ export class PrediosController {
   @Post()
   @RequirePermisos('estructura:administrar')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registrar un nuevo predio agrícola para la empresa (RN-003)' })
+  @ApiOperation({
+    summary: 'Registrar un nuevo predio agrícola para la empresa (RN-003)',
+  })
   @ApiResponse({ status: 201, type: PredioResponseDto })
-  @ApiResponse({ status: 409, description: 'Ya existe un predio con ese nombre en la empresa' })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe un predio con ese nombre en la empresa',
+  })
   async crear(
     @CurrentUser('empresaId') empresaId: number,
     @Body() dto: CreatePredioDto,
@@ -43,7 +48,9 @@ export class PrediosController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar predios activos de la empresa con conteo de parcelas' })
+  @ApiOperation({
+    summary: 'Listar predios activos de la empresa con conteo de parcelas',
+  })
   @ApiResponse({ status: 200, type: [PredioResponseDto] })
   async listar(
     @CurrentUser('empresaId') empresaId: number,
@@ -54,7 +61,10 @@ export class PrediosController {
   @Get(':id')
   @ApiOperation({ summary: 'Consultar detalle de un predio por ID (RN-068)' })
   @ApiResponse({ status: 200, type: PredioResponseDto })
-  @ApiResponse({ status: 404, description: 'Predio no encontrado o no pertenece a la empresa' })
+  @ApiResponse({
+    status: 404,
+    description: 'Predio no encontrado o no pertenece a la empresa',
+  })
   async obtenerPorId(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -66,8 +76,14 @@ export class PrediosController {
   @RequirePermisos('estructura:administrar')
   @ApiOperation({ summary: 'Actualizar datos de un predio' })
   @ApiResponse({ status: 200, type: PredioResponseDto })
-  @ApiResponse({ status: 404, description: 'Predio no encontrado o no pertenece a la empresa' })
-  @ApiResponse({ status: 409, description: 'Conflicto por duplicidad de nombre' })
+  @ApiResponse({
+    status: 404,
+    description: 'Predio no encontrado o no pertenece a la empresa',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflicto por duplicidad de nombre',
+  })
   async actualizar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -79,13 +95,18 @@ export class PrediosController {
   @Delete(':id')
   @RequirePermisos('estructura:administrar')
   @ApiOperation({
-    summary: 'Baja lógica de predio y liberación de nombre único (RN-041, Sección 3.11)',
+    summary:
+      'Baja lógica de predio y liberación de nombre único (RN-041, Sección 3.11)',
   })
   @ApiResponse({ status: 200, description: 'Predio eliminado exitosamente' })
-  @ApiResponse({ status: 404, description: 'Predio no encontrado o no pertenece a la empresa' })
+  @ApiResponse({
+    status: 404,
+    description: 'Predio no encontrado o no pertenece a la empresa',
+  })
   @ApiResponse({
     status: 409,
-    description: 'No se puede eliminar porque contiene parcelas activas asociadas',
+    description:
+      'No se puede eliminar porque contiene parcelas activas asociadas',
   })
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,

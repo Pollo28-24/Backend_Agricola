@@ -59,7 +59,9 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
     ];
 
     it('debe retornar registros paginados con valores por defecto (page=1, limit=20)', async () => {
-      mockPrismaService.bitacoraAuditoria.findMany.mockResolvedValue(mockRegistros);
+      mockPrismaService.bitacoraAuditoria.findMany.mockResolvedValue(
+        mockRegistros,
+      );
       mockPrismaService.bitacoraAuditoria.count.mockResolvedValue(45);
 
       const res = await service.listar(1, new FiltroAuditoriaDto());
@@ -73,19 +75,21 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
         limit: 20,
         totalPages: 3, // Math.ceil(45 / 20) = 3
       });
-      expect(mockPrismaService.bitacoraAuditoria.findMany).toHaveBeenCalledWith({
-        where: { empresaId: 1 },
-        include: {
-          usuario: {
-            include: {
-              rol: true,
+      expect(mockPrismaService.bitacoraAuditoria.findMany).toHaveBeenCalledWith(
+        {
+          where: { empresaId: 1 },
+          include: {
+            usuario: {
+              include: {
+                rol: true,
+              },
             },
           },
+          orderBy: { createdAt: 'desc' },
+          skip: 0,
+          take: 20,
         },
-        orderBy: { createdAt: 'desc' },
-        skip: 0,
-        take: 20,
-      });
+      );
     });
 
     it('debe aplicar filtros opcionales de usuarioId, entidad y accion garantizando tenant isolation', async () => {
@@ -104,24 +108,26 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
 
       expect(res.meta.page).toBe(2);
       expect(res.meta.limit).toBe(10);
-      expect(mockPrismaService.bitacoraAuditoria.findMany).toHaveBeenCalledWith({
-        where: {
-          empresaId: 10,
-          usuarioId: 5,
-          entidad: 'parcela',
-          accion: AccionAuditoria.ACTUALIZAR,
-        },
-        include: {
-          usuario: {
-            include: {
-              rol: true,
+      expect(mockPrismaService.bitacoraAuditoria.findMany).toHaveBeenCalledWith(
+        {
+          where: {
+            empresaId: 10,
+            usuarioId: 5,
+            entidad: 'parcela',
+            accion: AccionAuditoria.ACTUALIZAR,
+          },
+          include: {
+            usuario: {
+              include: {
+                rol: true,
+              },
             },
           },
+          orderBy: { createdAt: 'desc' },
+          skip: 10, // (2 - 1) * 10
+          take: 10,
         },
-        orderBy: { createdAt: 'desc' },
-        skip: 10, // (2 - 1) * 10
-        take: 10,
-      });
+      );
     });
   });
 
@@ -146,7 +152,9 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
       expect(res.id).toBe('500');
       expect(res.empresaId).toBe(2);
       expect(res.usuario).toBeNull();
-      expect(mockPrismaService.bitacoraAuditoria.findFirst).toHaveBeenCalledWith({
+      expect(
+        mockPrismaService.bitacoraAuditoria.findFirst,
+      ).toHaveBeenCalledWith({
         where: { id: BigInt(500), empresaId: 2 },
         include: {
           usuario: {
@@ -161,7 +169,9 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
     it('debe lanzar 404 NOT_FOUND si el registro no existe o pertenece a otro tenant (RN-068)', async () => {
       mockPrismaService.bitacoraAuditoria.findFirst.mockResolvedValue(null);
 
-      await expect(service.obtenerPorId(2, BigInt(999))).rejects.toThrow(DomainError);
+      await expect(service.obtenerPorId(2, BigInt(999))).rejects.toThrow(
+        DomainError,
+      );
       try {
         await service.obtenerPorId(2, BigInt(999));
       } catch (e: any) {

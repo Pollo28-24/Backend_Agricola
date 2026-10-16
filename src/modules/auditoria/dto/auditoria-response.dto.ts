@@ -11,7 +11,10 @@ export class AuditoriaUsuarioDto {
   @ApiProperty({ example: 'Ortega', description: 'Apellido del usuario' })
   apellido!: string;
 
-  @ApiProperty({ example: 'admin@rancho.com', description: 'Correo del usuario' })
+  @ApiProperty({
+    example: 'admin@rancho.com',
+    description: 'Correo del usuario',
+  })
   correo!: string;
 
   @ApiProperty({ example: 'ADMIN', description: 'Código del rol activo' })
@@ -21,7 +24,8 @@ export class AuditoriaUsuarioDto {
 export class AuditoriaResponseDto {
   @ApiProperty({
     example: '10452',
-    description: 'Identificador único BigInt serializado en cadena (Sección 3.23)',
+    description:
+      'Identificador único BigInt serializado en cadena (Sección 3.23)',
   })
   id!: string;
 
@@ -31,7 +35,8 @@ export class AuditoriaResponseDto {
   @ApiPropertyOptional({
     example: 3,
     nullable: true,
-    description: 'ID del usuario ejecutor (null si fue una acción del sistema o usuario eliminado)',
+    description:
+      'ID del usuario ejecutor (null si fue una acción del sistema o usuario eliminado)',
   })
   usuarioId!: number | null;
 

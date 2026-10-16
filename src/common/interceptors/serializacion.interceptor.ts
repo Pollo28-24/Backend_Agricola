@@ -10,7 +10,10 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class SerializacionInterceptor implements NestInterceptor {
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  intercept(
+    _context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
     return next.handle().pipe(map((data) => this.transform(data)));
   }
 
@@ -37,7 +40,7 @@ export class SerializacionInterceptor implements NestInterceptor {
 
     if (typeof value === 'object') {
       const transformed: Record<string, unknown> = {};
-      for (const key of Object.keys(value as Record<string, unknown>)) {
+      for (const key of Object.keys(value)) {
         transformed[key] = this.transform(
           (value as Record<string, unknown>)[key],
         );

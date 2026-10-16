@@ -10,7 +10,9 @@ export class HealthController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Verificar salud del backend y conexión con la base de datos' })
+  @ApiOperation({
+    summary: 'Verificar salud del backend y conexión con la base de datos',
+  })
   @ApiResponse({ status: 200, description: 'Servicio operativo' })
   async check() {
     let dbStatus = 'ok';

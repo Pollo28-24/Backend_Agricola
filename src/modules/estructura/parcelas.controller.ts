@@ -44,7 +44,10 @@ export class ParcelasController {
     status: 403,
     description: 'Límite de parcelas del plan alcanzado (RN-037)',
   })
-  @ApiResponse({ status: 404, description: 'Predio o tipo de suelo no encontrado' })
+  @ApiResponse({
+    status: 404,
+    description: 'Predio o tipo de suelo no encontrado',
+  })
   @ApiResponse({
     status: 409,
     description: 'Ya existe una parcela con ese nombre en el predio',
@@ -57,7 +60,9 @@ export class ParcelasController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar parcelas de la empresa (con filtros opcionales)' })
+  @ApiOperation({
+    summary: 'Listar parcelas de la empresa (con filtros opcionales)',
+  })
   @ApiQuery({ name: 'predioId', required: false, type: Number })
   @ApiQuery({
     name: 'estado',
@@ -99,7 +104,10 @@ export class ParcelasController {
     status: 404,
     description: 'Parcela no encontrada o no pertenece a la empresa',
   })
-  @ApiResponse({ status: 409, description: 'Conflicto por duplicidad de nombre en el predio' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflicto por duplicidad de nombre en el predio',
+  })
   async actualizar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -114,14 +122,18 @@ export class ParcelasController {
     summary:
       'Baja lógica de parcela y liberación de nombre (RN-041, Sección 3.11)',
   })
-  @ApiResponse({ status: 200, description: 'Parcela dada de baja exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Parcela dada de baja exitosamente',
+  })
   @ApiResponse({
     status: 404,
     description: 'Parcela no encontrada o no pertenece a la empresa',
   })
   @ApiResponse({
     status: 409,
-    description: 'No se puede eliminar porque tiene ciclos de producción activos o planificados',
+    description:
+      'No se puede eliminar porque tiene ciclos de producción activos o planificados',
   })
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,

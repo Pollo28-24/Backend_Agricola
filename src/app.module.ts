@@ -60,4 +60,3 @@ import { PermisosGuard } from './common/guards/permisos.guard';
   ],
 })
 export class AppModule {}
-

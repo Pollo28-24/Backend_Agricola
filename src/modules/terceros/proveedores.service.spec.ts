@@ -99,9 +99,14 @@ describe('ProveedoresService', () => {
         nombre: 'Agroinsumos del Norte',
       };
 
-      prisma.proveedor.findFirst.mockResolvedValue({ id: 99, nombre: 'Agroinsumos del Norte' });
+      prisma.proveedor.findFirst.mockResolvedValue({
+        id: 99,
+        nombre: 'Agroinsumos del Norte',
+      });
 
-      await expect(service.crearProveedor(empresaId, dto)).rejects.toThrow(DomainError);
+      await expect(service.crearProveedor(empresaId, dto)).rejects.toThrow(
+        DomainError,
+      );
     });
   });
 
@@ -124,7 +129,10 @@ describe('ProveedoresService', () => {
         },
       ]);
 
-      const res = await service.listarProveedores(empresaId, { page: 1, limit: 10 });
+      const res = await service.listarProveedores(empresaId, {
+        page: 1,
+        limit: 10,
+      });
 
       expect(res.data).toHaveLength(1);
       expect(res.data[0].totalGastos).toBe(5);
@@ -156,7 +164,9 @@ describe('ProveedoresService', () => {
     it('debe responder 404 si el proveedor no existe o pertenece a otra empresa (RN-068)', async () => {
       prisma.proveedor.findFirst.mockResolvedValue(null);
 
-      await expect(service.obtenerProveedorPorId(empresaId, 999)).rejects.toThrow(DomainError);
+      await expect(
+        service.obtenerProveedorPorId(empresaId, 999),
+      ).rejects.toThrow(DomainError);
     });
   });
 

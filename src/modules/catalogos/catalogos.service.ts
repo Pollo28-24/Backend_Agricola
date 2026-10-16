@@ -14,6 +14,7 @@ import {
 } from './dto/categoria-gasto.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 
 @Injectable()
 export class CatalogosService {
@@ -45,13 +46,7 @@ export class CatalogosService {
       const cultivo = await this.prisma.cultivo.findUnique({
         where: { id: cultivoId },
       });
-      if (!cultivo) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'Cultivo no encontrado',
-          HttpStatus.NOT_FOUND,
-        );
-      }
+      EntityValidationUtil.assertExists(cultivo, 'Cultivo no encontrado');
     }
 
     return this.prisma.variedad.findMany({
@@ -111,7 +106,9 @@ export class CatalogosService {
   /**
    * Catálogo de Motivos de merma y pérdida en cosecha/poscosecha.
    */
-  async obtenerMotivosMerma(activo?: boolean): Promise<MotivoMermaResponseDto[]> {
+  async obtenerMotivosMerma(
+    activo?: boolean,
+  ): Promise<MotivoMermaResponseDto[]> {
     return this.prisma.motivoMerma.findMany({
       where: {
         ...(activo !== undefined ? { activo } : {}),
@@ -251,7 +248,9 @@ export class CatalogosService {
       activo: c.activo,
       ...(incluirHijas && c.hijas
         ? {
-            subcategorias: c.hijas.map((h: any) => this.mapearCategoria(h, false)),
+            subcategorias: c.hijas.map((h: any) =>
+              this.mapearCategoria(h, false),
+            ),
           }
         : {}),
     };

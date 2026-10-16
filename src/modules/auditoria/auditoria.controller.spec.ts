@@ -54,7 +54,10 @@ describe('AuditoriaController', () => {
 
     const res = await controller.obtenerPorId(5, BigInt(12345));
 
-    expect(mockAuditoriaService.obtenerPorId).toHaveBeenCalledWith(5, BigInt(12345));
+    expect(mockAuditoriaService.obtenerPorId).toHaveBeenCalledWith(
+      5,
+      BigInt(12345),
+    );
     expect(res.id).toBe('12345');
   });
 });

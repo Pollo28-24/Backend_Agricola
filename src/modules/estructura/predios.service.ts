@@ -8,6 +8,7 @@ import { PredioResponseDto } from './dto/predio-response.dto';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 import { SoftDeleteUtil } from '../../common/utils/soft-delete.util';
+import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
 
 @Injectable()
 export class PrediosService {
@@ -118,13 +119,7 @@ export class PrediosService {
       },
     });
 
-    if (!predio) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Predio no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(predio, 'Predio no encontrado');
 
     return this.formatearPredio(predio, predio._count.parcelas);
   }
@@ -145,13 +140,7 @@ export class PrediosService {
       },
     });
 
-    if (!predioActual) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Predio no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(predioActual, 'Predio no encontrado');
 
     if (dto.nombre && dto.nombre.trim() !== predioActual.nombre) {
       const duplicado = await this.prisma.predio.findFirst({
@@ -176,8 +165,12 @@ export class PrediosService {
       where: { id: predioId },
       data: {
         ...(dto.nombre && { nombre: dto.nombre.trim() }),
-        ...(dto.ubicacion !== undefined && { ubicacion: dto.ubicacion?.trim() || null }),
-        ...(dto.municipio !== undefined && { municipio: dto.municipio?.trim() || null }),
+        ...(dto.ubicacion !== undefined && {
+          ubicacion: dto.ubicacion?.trim() || null,
+        }),
+        ...(dto.municipio !== undefined && {
+          municipio: dto.municipio?.trim() || null,
+        }),
         ...(dto.entidadFederativa !== undefined && {
           entidadFederativa: dto.entidadFederativa?.trim() || null,
         }),
@@ -213,7 +206,10 @@ export class PrediosService {
       },
     });
 
-    return this.formatearPredio(predioActualizado, predioActualizado._count.parcelas);
+    return this.formatearPredio(
+      predioActualizado,
+      predioActualizado._count.parcelas,
+    );
   }
 
   /**
@@ -232,13 +228,7 @@ export class PrediosService {
       },
     });
 
-    if (!predio) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Predio no encontrado',
-        HttpStatus.NOT_FOUND,
-      );
-    }
+    EntityValidationUtil.assertExists(predio, 'Predio no encontrado');
 
     const parcelasCount = await this.prisma.parcela.count({
       where: {
@@ -287,7 +277,10 @@ export class PrediosService {
   // FORMATEADOR PRIVADO
   // =====================================================================
 
-  private formatearPredio(predio: any, parcelasCount: number): PredioResponseDto {
+  private formatearPredio(
+    predio: any,
+    parcelasCount: number,
+  ): PredioResponseDto {
     return {
       id: predio.id,
       empresaId: predio.empresaId,

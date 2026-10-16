@@ -45,7 +45,8 @@ export class AuditoriaController {
   @ApiResponse({ status: 200, type: AuditoriaResponseDto })
   @ApiResponse({
     status: 404,
-    description: 'Registro de auditoría no encontrado o no pertenece a la empresa',
+    description:
+      'Registro de auditoría no encontrado o no pertenece a la empresa',
   })
   async obtenerPorId(
     @CurrentUser('empresaId') empresaId: number,
