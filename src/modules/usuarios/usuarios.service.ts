@@ -53,7 +53,7 @@ export class UsuariosService {
       throw new DomainError(
         CodigoError.LIMITE_PLAN_EXCEDIDO,
         `Su plan comercial '${empresa.plan.nombre}' permite un máximo de ${empresa.plan.maxUsuarios} usuarios activos. Actualice su plan para invitar a más colaboradores.`,
-        HttpStatus.FORBIDDEN,
+        HttpStatus.CONFLICT,
         {
           maxUsuarios: empresa.plan.maxUsuarios,
           usuariosActuales: usuariosActivos,
@@ -241,7 +241,7 @@ export class UsuariosService {
         throw new DomainError(
           CodigoError.LIMITE_PLAN_EXCEDIDO,
           `No se puede reactivar el usuario. Su plan permite un máximo de ${empresa.plan.maxUsuarios} usuarios activos.`,
-          HttpStatus.FORBIDDEN,
+          HttpStatus.CONFLICT,
         );
       }
     }
@@ -328,7 +328,9 @@ export class UsuariosService {
     }
 
     // Anonimizar correo para liberar índice único (Sección 3.11)
-    const correoLiberado = `${usuario.correo}#baja${usuario.id}`;
+    const sufijo = `#baja${usuario.id}`;
+    const correoBase = usuario.correo.slice(0, 120 - sufijo.length);
+    const correoLiberado = `${correoBase}${sufijo}`;
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Baja lógica y anonimización

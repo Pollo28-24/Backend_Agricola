@@ -114,7 +114,7 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       );
     });
 
-    it('debe rechazar con 403 LIMITE_PLAN_EXCEDIDO si se alcanza el máximo de usuarios (RN-037)', async () => {
+    it('debe rechazar con 409 LIMITE_PLAN_EXCEDIDO si se alcanza el máximo de usuarios (RN-037)', async () => {
       mockPrismaService.empresa.findUnique.mockResolvedValue({
         id: 1,
         deletedAt: null,
@@ -127,7 +127,7 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
         await service.crear(1, dtoCrear);
       } catch (e: any) {
         expect(e.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
-        expect(e.getStatus()).toBe(403);
+        expect(e.getStatus()).toBe(409);
       }
     });
 
@@ -267,7 +267,7 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
         await service.actualizar(10, 8, { activo: true });
       } catch (e: any) {
         expect(e.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
-        expect(e.getStatus()).toBe(403);
+        expect(e.getStatus()).toBe(409);
       }
     });
   });
