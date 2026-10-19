@@ -6,8 +6,10 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { ClsServiceManager } from 'nestjs-cls';
+import { AppClsStore } from '../context/app-cls.store';
 import { DomainError } from '../errors/domain.error';
 import { CodigoError } from '../errors/codigos-error.enum';
 
@@ -17,7 +19,21 @@ export class DomainExceptionFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
+    const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
+
+    const cls = ClsServiceManager.getClsService<AppClsStore>();
+    const correlationId =
+      (cls?.isActive() ? cls.get('correlationId') : undefined) ||
+      (request?.headers?.['x-correlation-id'] as string) ||
+      (request?.headers?.['x-request-id'] as string) ||
+      (typeof response?.getHeader === 'function'
+        ? (response.getHeader('x-correlation-id') as string)
+        : undefined) ||
+      undefined;
+
+    const empresaId = cls?.isActive() ? cls.get('empresaId') : undefined;
+    const usuarioId = cls?.isActive() ? cls.get('usuarioId') : undefined;
 
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let code: string = CodigoError.ERROR_INTERNO;
@@ -49,9 +65,16 @@ export class DomainExceptionFilter implements ExceptionFilter {
             'El registro solicitado no existe o no se encuentra disponible';
           break;
         default:
-          this.logger.error(
-            `Error de base de datos no mapeado [${exception.code}]: ${exception.message}`,
-          );
+          this.logger.error({
+            correlationId,
+            empresaId,
+            usuarioId,
+            endpoint: request?.url,
+            metodo: request?.method,
+            codigo: CodigoError.ERROR_INTERNO,
+            mensaje: `Error de base de datos no mapeado [${exception.code}]: ${exception.message}`,
+            prismaCode: exception.code,
+          });
           statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
           code = CodigoError.ERROR_INTERNO;
           message = 'Ocurrió un error en la base de datos';
@@ -71,10 +94,18 @@ export class DomainExceptionFilter implements ExceptionFilter {
         code = this.mapStatusToCode(statusCode);
       }
     } else if (exception instanceof Error) {
-      this.logger.error(
-        `Error no controlado: ${exception.message}`,
-        exception.stack,
-      );
+      this.logger.error({
+        correlationId,
+        empresaId,
+        usuarioId,
+        endpoint: request?.url,
+        metodo: request?.method,
+        codigo: CodigoError.ERROR_INTERNO,
+        mensaje: `Error no controlado: ${exception.message}`,
+        ...(process.env.NODE_ENV !== 'production' && exception.stack
+          ? { stack: exception.stack }
+          : {}),
+      });
       message = 'Error interno del servidor';
     }
 

@@ -129,4 +129,39 @@ describe('DomainExceptionFilter', () => {
       });
     });
   });
+
+  it('debe registrar en log estructurado el correlationId y contexto ante errores no controlados', () => {
+    const errorGenerico = new Error('Fallo inesperado del sistema');
+    const loggerSpy = jest
+      .spyOn((filter as any).logger, 'error')
+      .mockImplementation();
+
+    const mockHostConContexto = {
+      switchToHttp: () => ({
+        getResponse: () => mockResponse,
+        getRequest: () => ({
+          url: '/api/v1/ciclos',
+          method: 'POST',
+          headers: {
+            'x-correlation-id': 'test-corr-id-xyz',
+          },
+        }),
+      }),
+    } as unknown as ArgumentsHost;
+
+    filter.catch(errorGenerico, mockHostConContexto);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+    expect(loggerSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        correlationId: 'test-corr-id-xyz',
+        endpoint: '/api/v1/ciclos',
+        metodo: 'POST',
+        codigo: CodigoError.ERROR_INTERNO,
+        mensaje: 'Error no controlado: Fallo inesperado del sistema',
+      }),
+    );
+  });
 });

@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -60,8 +60,9 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  console.log(`Servidor iniciado en http://localhost:${port}/api/v1`);
-  console.log(`Swagger disponible en http://localhost:${port}/api/docs`);
+  const logger = new Logger('Bootstrap');
+  logger.log(`Servidor iniciado en http://localhost:${port}/api/v1`);
+  logger.log(`Swagger disponible en http://localhost:${port}/api/docs`);
 }
 
 bootstrap();

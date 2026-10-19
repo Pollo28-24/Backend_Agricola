@@ -6,4 +6,5 @@ export interface AppClsStore extends ClsStore {
   rolCodigo?: string;
   permisos?: string[];
   ip?: string;
+  correlationId?: string;
 }
