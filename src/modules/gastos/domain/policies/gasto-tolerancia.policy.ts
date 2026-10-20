@@ -22,7 +22,7 @@ export interface ValidarToleranciaParams {
 @Injectable()
 export class GastoToleranciaPolicy {
   private readonly maxDiferencia = new Prisma.Decimal(
-    GASTO_CONSTANTS.TOLERANCIA_CENTAVOS,
+    GASTO_CONSTANTS.TOLERANCIA_IMPORTE,
   );
 
   assertToleranciaValida(params: ValidarToleranciaParams): void {

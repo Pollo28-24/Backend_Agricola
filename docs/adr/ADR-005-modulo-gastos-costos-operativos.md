@@ -85,3 +85,9 @@ En `actualizarGasto`:
 - Operaciones monetarias blindadas contra errores de coma flotante.
 - Garantía de inmutabilidad en la asignación de ciclos para evitar desajustes en el costeo histórico.
 - Auditoría transaccional atómica con `AuditService`: si la auditoría falla, la mutación hace rollback.
+
+---
+
+## Deuda Técnica
+1. **Falta de e2e con dos empresas y rollback con transacción real**: Las pruebas actuales validan el comportamiento con mocks unitarios. La prueba transversal de concurrencia e integración con base de datos real entre dos tenants se ejecutará en el hito transversal de pruebas e2e, programado inmediatamente antes del módulo de Ventas.
+2. **Ubicación de `CicloCapturaPolicy`**: La política vive actualmente en `src/modules/actividades/domain/policies/` y se reubicará a un espacio transversal compartido (`src/common/domain/policies/`) en el Hito 6 (Cosechas y Mermas) con re-export para preservar compatibilidad.
