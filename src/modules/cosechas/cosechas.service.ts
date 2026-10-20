@@ -84,7 +84,7 @@ export class CosechasService {
 
       // 2. Validar estado de ciclo para cosechas (rechaza PLANIFICADO, FINALIZADO, CANCELADO)
       this.cyclePolicy.assertCaptureAllowed(
-        { estado: ciclo.estado as EstadoCiclo },
+        { estado: ciclo.estado },
         'cosecha',
       );
       this.cyclePolicy.assertFechaCoherente(ciclo, fechaOperativa, 'cosecha');
@@ -322,7 +322,7 @@ export class CosechasService {
       }
 
       this.cyclePolicy.assertCaptureAllowed(
-        { estado: ciclo.estado as EstadoCiclo },
+        { estado: ciclo.estado },
         'cosecha',
       );
       if (dto.fecha) {
@@ -345,6 +345,10 @@ export class CosechasService {
       // 6. Validar balance de masa (RN-032 / RN-070): la transacción ve su propia actualización
       const balance = await calcularBalanceMasaKg(tx, cosechaExistente.cicloId);
       this.balancePolicy.assertBalanceValido(balance);
+      this.balancePolicy.assertVendidoNoExcedeNetos(
+        balance,
+        CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
+      );
 
       // 7. Auditar
       await this.auditService.registrar(
@@ -422,17 +426,29 @@ export class CosechasService {
       }
 
       this.cyclePolicy.assertCaptureAllowed(
-        { estado: ciclo.estado as EstadoCiclo },
+        { estado: ciclo.estado },
         'cosecha',
       );
 
-      // RN-050: verificar mermas vinculadas directamente
-      const mermasCount = await tx.merma.count({
-        where: { cosechaId: id, deletedAt: null },
-      });
+      // RN-050: verificar mermas y ventas vinculadas directamente
+      const [mermasCount, ventasCount] = await Promise.all([
+        tx.merma.count({
+          where: { cosechaId: id, deletedAt: null },
+        }),
+        tx.detalleVenta.count({
+          where: {
+            cosechaId: id,
+            venta: {
+              estado: { not: 'CANCELADA' },
+              deletedAt: null,
+            },
+          },
+        }),
+      ]);
       this.integridadPolicy.assertEliminacionPermitida({
         cosechaId: id,
         mermasVinculadasCount: mermasCount,
+        ventasVinculadasCount: ventasCount,
       });
 
       // Soft delete
@@ -441,9 +457,13 @@ export class CosechasService {
         data: { deletedAt: new Date() },
       });
 
-      // Revalidar balance global (RN-032 / RN-070): al borrar la cosecha, ¿mermas poscosecha exceden cosecha restante?
+      // Revalidar balance global (RN-032 / RN-070): al borrar la cosecha, ¿mermas poscosecha o ventas exceden cosecha restante?
       const balance = await calcularBalanceMasaKg(tx, cosechaExistente.cicloId);
       this.balancePolicy.assertBalanceValido(balance);
+      this.balancePolicy.assertVendidoNoExcedeNetos(
+        balance,
+        CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
+      );
 
       await this.auditService.registrar(
         {

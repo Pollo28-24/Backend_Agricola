@@ -116,10 +116,7 @@ export class MermasService {
       // 1. Bloquear ciclo
       const ciclo = await bloquearCicloParaCaptura(tx, dto.cicloId, empresaId);
 
-      this.cyclePolicy.assertCaptureAllowed(
-        { estado: ciclo.estado as EstadoCiclo },
-        'merma',
-      );
+      this.cyclePolicy.assertCaptureAllowed({ estado: ciclo.estado }, 'merma');
       this.cyclePolicy.assertFechaCoherente(ciclo, fechaOperativa, 'merma');
 
       // 2. Insertar merma
@@ -137,9 +134,13 @@ export class MermasService {
         },
       });
 
-      // 3. Revalidar balance de masa (RN-032 / B2): la tx ve su propia inserción
+      // 3. Revalidar balance de masa (RN-032 / RN-070): la tx ve su propia inserción
       const balance = await calcularBalanceMasaKg(tx, dto.cicloId);
       this.balancePolicy.assertBalanceValido(balance);
+      this.balancePolicy.assertVendidoNoExcedeNetos(
+        balance,
+        CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
+      );
 
       // 4. Auditar
       await this.auditService.registrar(
@@ -395,10 +396,7 @@ export class MermasService {
         );
       }
 
-      this.cyclePolicy.assertCaptureAllowed(
-        { estado: ciclo.estado as EstadoCiclo },
-        'merma',
-      );
+      this.cyclePolicy.assertCaptureAllowed({ estado: ciclo.estado }, 'merma');
       if (dto.fecha) {
         this.cyclePolicy.assertFechaCoherente(ciclo, fechaFusionada, 'merma');
       }
@@ -420,6 +418,10 @@ export class MermasService {
       // Validar balance de masa (RN-032 / RN-070)
       const balance = await calcularBalanceMasaKg(tx, mermaExistente.cicloId);
       this.balancePolicy.assertBalanceValido(balance);
+      this.balancePolicy.assertVendidoNoExcedeNetos(
+        balance,
+        CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
+      );
 
       await this.auditService.registrar(
         {
@@ -497,10 +499,7 @@ export class MermasService {
         );
       }
 
-      this.cyclePolicy.assertCaptureAllowed(
-        { estado: ciclo.estado as EstadoCiclo },
-        'merma',
-      );
+      this.cyclePolicy.assertCaptureAllowed({ estado: ciclo.estado }, 'merma');
 
       await tx.merma.update({
         where: { id },

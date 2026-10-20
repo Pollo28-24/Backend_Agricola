@@ -63,22 +63,27 @@ export async function bloquearCicloParaCaptura(
 export interface BalanceMasaResult {
   kgCosechados: Prisma.Decimal;
   kgMermaPoscosecha: Prisma.Decimal;
+  kgVendidos: Prisma.Decimal;
+  kgNetos: Prisma.Decimal;
+  kgDisponibles: Prisma.Decimal;
+  /** @deprecated Utilice kgDisponibles (alias para retrocompatibilidad) */
   kgNetosDisponibles: Prisma.Decimal;
-  // Preparado para RN-027 cuando exista el módulo de Ventas:
-  // kgVendidos: Prisma.Decimal;
 }
 
 /**
- * Calcula el balance acumulado de masa física en kilogramos dentro de la transacción (Ajuste B1.b).
+ * Calcula el balance acumulado de masa física en kilogramos dentro de la transacción (Ajuste B1.b y Hito 7).
  * Toda la aritmética se computa estrictamente en Prisma.Decimal utilizando factorABase.
  * - kgCosechados: sumatoria de cantidad * factorABase de cosechas activas (deletedAt IS NULL).
  * - kgMermaPoscosecha: sumatoria de mermas con etapa != 'CAMPO' y deletedAt IS NULL.
+ * - kgVendidos: sumatoria de cantidad * factorABase de renglones de ventas activas (!= 'CANCELADA' y deletedAt IS NULL).
+ * - kgNetos = kgCosechados - kgMermaPoscosecha
+ * - kgDisponibles = kgNetos - kgVendidos
  */
 export async function calcularBalanceMasaKg(
   tx: Prisma.TransactionClient,
   cicloId: number,
 ): Promise<BalanceMasaResult> {
-  const [cosechas, mermas] = await Promise.all([
+  const [cosechas, mermas, detallesVenta] = await Promise.all([
     tx.cosecha.findMany({
       where: { cicloId, deletedAt: null },
       select: {
@@ -91,6 +96,19 @@ export async function calcularBalanceMasaKg(
         cicloId,
         deletedAt: null,
         etapa: { not: 'CAMPO' },
+      },
+      select: {
+        cantidad: true,
+        unidad: { select: { factorABase: true } },
+      },
+    }),
+    tx.detalleVenta.findMany({
+      where: {
+        venta: {
+          cicloId,
+          estado: { not: 'CANCELADA' },
+          deletedAt: null,
+        },
       },
       select: {
         cantidad: true,
@@ -111,11 +129,21 @@ export async function calcularBalanceMasaKg(
     kgMermaPoscosecha = kgMermaPoscosecha.add(m.cantidad.mul(factor));
   }
 
-  const kgNetosDisponibles = kgCosechados.sub(kgMermaPoscosecha);
+  let kgVendidos = new Prisma.Decimal(0);
+  for (const dv of detallesVenta) {
+    const factor = dv.unidad?.factorABase ?? new Prisma.Decimal(1);
+    kgVendidos = kgVendidos.add(dv.cantidad.mul(factor));
+  }
+
+  const kgNetos = kgCosechados.sub(kgMermaPoscosecha);
+  const kgDisponibles = kgNetos.sub(kgVendidos);
 
   return {
     kgCosechados,
     kgMermaPoscosecha,
-    kgNetosDisponibles,
+    kgVendidos,
+    kgNetos,
+    kgDisponibles,
+    kgNetosDisponibles: kgDisponibles,
   };
 }

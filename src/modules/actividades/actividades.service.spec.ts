@@ -31,6 +31,7 @@ describe('ActividadesService', () => {
     gasto: {
       count: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let auditService: {

@@ -36,6 +36,7 @@ describe('GastosService', () => {
     unidadMedida: {
       findUnique: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let auditService: {

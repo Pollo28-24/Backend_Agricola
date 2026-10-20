@@ -71,4 +71,57 @@ describe('CicloBalanceMasaPolicy (RN-031 / RN-032)', () => {
       }),
     ).not.toThrow();
   });
+
+  describe('assertVendidoNoExcedeNetos (RN-027 / RN-070)', () => {
+    it('debe aprobar cuando kgVendidos es menor que kgNetos', () => {
+      expect(() =>
+        policy.assertVendidoNoExcedeNetos({
+          kgVendidos: new Prisma.Decimal('400.000'),
+          kgNetos: new Prisma.Decimal('500.000'),
+        }),
+      ).not.toThrow();
+    });
+
+    it('debe aprobar cuando kgVendidos es exactamente igual a kgNetos', () => {
+      expect(() =>
+        policy.assertVendidoNoExcedeNetos({
+          kgVendidos: new Prisma.Decimal('500.000'),
+          kgNetos: new Prisma.Decimal('500.000'),
+        }),
+      ).not.toThrow();
+    });
+
+    it('debe rechazar con VENTA_EXCEDE_DISPONIBLE (409) por defecto al crear/editar venta (RN-027)', () => {
+      expect(() =>
+        policy.assertVendidoNoExcedeNetos({
+          kgVendidos: new Prisma.Decimal('500.001'),
+          kgNetos: new Prisma.Decimal('500.000'),
+        }),
+      ).toThrow(
+        new DomainError(
+          CodigoError.VENTA_EXCEDE_DISPONIBLE,
+          'La venta acumulada (500.001 kg) excede la producción neta disponible (500.000 kg) en el ciclo (RN-027)',
+          HttpStatus.CONFLICT,
+        ),
+      );
+    });
+
+    it('debe rechazar con KG_VENDIDOS_EXCEDEN_NETOS (409) al reducir cosecha o añadir merma (RN-070)', () => {
+      expect(() =>
+        policy.assertVendidoNoExcedeNetos(
+          {
+            kgVendidos: new Prisma.Decimal('300.000'),
+            kgNetos: new Prisma.Decimal('200.000'),
+          },
+          CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
+        ),
+      ).toThrow(
+        new DomainError(
+          CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
+          'La operación deja los kg vendidos acumulados (300.000 kg) por encima de los kg netos producidos (200.000 kg) en el ciclo (RN-070)',
+          HttpStatus.CONFLICT,
+        ),
+      );
+    });
+  });
 });

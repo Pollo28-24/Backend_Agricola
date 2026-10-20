@@ -32,6 +32,8 @@ export interface E2eSeedData {
     cosechaCapturista: { id: number };
     mermaAdmin: { id: number };
     mermaCapturista: { id: number };
+    cliente: { id: number };
+    venta: { id: number };
   };
   empresaB: {
     id: number;
@@ -50,6 +52,8 @@ export interface E2eSeedData {
     gasto: { id: number };
     cosecha: { id: number };
     merma: { id: number };
+    cliente: { id: number };
+    venta: { id: number };
   };
   global: {
     unidadKgId: number;
@@ -327,6 +331,40 @@ export async function seedMultiempresaE2e(
     },
   });
 
+  const clienteA = await prisma.cliente.create({
+    data: {
+      empresaId: empresaA.id,
+      nombre: 'Distribuidora San Pedro A',
+      rfc: 'DSP200101AA1',
+      activo: true,
+    },
+  });
+
+  const ventaA = await prisma.venta.create({
+    data: {
+      cicloId: cicloA_Activo.id,
+      clienteId: clienteA.id,
+      creadoPorId: aAdmin.id,
+      fecha: new Date('2026-03-10'),
+      numeroFactura: 'FAC-A-001',
+      descuento: new Prisma.Decimal('0.00'),
+      impuesto: new Prisma.Decimal('0.00'),
+      total: new Prisma.Decimal('2500.00'),
+      estado: 'REGISTRADA',
+      detalles: {
+        create: [
+          {
+            cosechaId: cosechaAdminA.id,
+            unidadId: unidadKg.id,
+            calidad: CalidadCosecha.PRIMERA,
+            cantidad: new Prisma.Decimal('100.000'),
+            precioUnitario: new Prisma.Decimal('25.00'),
+          },
+        ],
+      },
+    },
+  });
+
   // =========================================================================
   // 2. EMPRESA B
   // =========================================================================
@@ -478,6 +516,40 @@ export async function seedMultiempresaE2e(
     },
   });
 
+  const clienteB = await prisma.cliente.create({
+    data: {
+      empresaId: empresaB.id,
+      nombre: 'Comercializadora del Valle B',
+      rfc: 'CVB200202BB1',
+      activo: true,
+    },
+  });
+
+  const ventaB = await prisma.venta.create({
+    data: {
+      cicloId: cicloB_Activo.id,
+      clienteId: clienteB.id,
+      creadoPorId: bAdmin.id,
+      fecha: new Date('2026-03-10'),
+      numeroFactura: 'FAC-B-001',
+      descuento: new Prisma.Decimal('0.00'),
+      impuesto: new Prisma.Decimal('0.00'),
+      total: new Prisma.Decimal('2500.00'),
+      estado: 'REGISTRADA',
+      detalles: {
+        create: [
+          {
+            cosechaId: cosechaB.id,
+            unidadId: unidadKg.id,
+            calidad: CalidadCosecha.PRIMERA,
+            cantidad: new Prisma.Decimal('100.000'),
+            precioUnitario: new Prisma.Decimal('25.00'),
+          },
+        ],
+      },
+    },
+  });
+
   cachedSeedData = {
     empresaA: {
       id: empresaA.id,
@@ -502,6 +574,8 @@ export async function seedMultiempresaE2e(
       cosechaCapturista: { id: cosechaCapA.id },
       mermaAdmin: { id: mermaAdminA.id },
       mermaCapturista: { id: mermaCapA.id },
+      cliente: { id: clienteA.id },
+      venta: { id: ventaA.id },
     },
     empresaB: {
       id: empresaB.id,
@@ -520,6 +594,8 @@ export async function seedMultiempresaE2e(
       gasto: { id: gastoB.id },
       cosecha: { id: cosechaB.id },
       merma: { id: mermaB.id },
+      cliente: { id: clienteB.id },
+      venta: { id: ventaB.id },
     },
     global: {
       unidadKgId: unidadKg.id,
@@ -686,6 +762,24 @@ export async function getOrLoadSeedData(
     where: { activo: true },
   });
 
+  const [cliA, venA] = await Promise.all([
+    prisma.cliente.findFirstOrThrow({
+      where: { empresaId: empresaA.id, nombre: 'Distribuidora San Pedro A' },
+    }),
+    prisma.venta.findFirstOrThrow({
+      where: { cicloId: cicloA_Activo.id },
+    }),
+  ]);
+
+  const [cliB, venB] = await Promise.all([
+    prisma.cliente.findFirstOrThrow({
+      where: { empresaId: empresaB.id, nombre: 'Comercializadora del Valle B' },
+    }),
+    prisma.venta.findFirstOrThrow({
+      where: { cicloId: cicloB_Activo.id },
+    }),
+  ]);
+
   cachedSeedData = {
     empresaA: {
       id: empresaA.id,
@@ -710,6 +804,8 @@ export async function getOrLoadSeedData(
       cosechaCapturista: { id: cosCapA.id },
       mermaAdmin: { id: merAdminA.id },
       mermaCapturista: { id: merCapA.id },
+      cliente: { id: cliA.id },
+      venta: { id: venA.id },
     },
     empresaB: {
       id: empresaB.id,
@@ -728,6 +824,8 @@ export async function getOrLoadSeedData(
       gasto: { id: gastoB.id },
       cosecha: { id: cosB.id },
       merma: { id: merB.id },
+      cliente: { id: cliB.id },
+      venta: { id: venB.id },
     },
     global: {
       unidadKgId: unidadKg.id,

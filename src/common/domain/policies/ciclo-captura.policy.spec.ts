@@ -57,6 +57,19 @@ describe('CicloCapturaPolicy', () => {
           HttpStatus.CONFLICT,
         ),
       );
+
+      expect(() =>
+        policy.assertCaptureAllowed(
+          { estado: EstadoCiclo.PLANIFICADO },
+          'venta',
+        ),
+      ).toThrow(
+        new DomainError(
+          CodigoError.CICLO_NO_ACTIVO,
+          'No se permite capturar ventas en un ciclo en estado PLANIFICADO. El ciclo debe estar ACTIVO o SUSPENDIDO (Tabla 2.6)',
+          HttpStatus.CONFLICT,
+        ),
+      );
     });
 
     it('debe permitir captura de cualquier tipo en ciclos ACTIVO y SUSPENDIDO', () => {
@@ -73,6 +86,9 @@ describe('CicloCapturaPolicy', () => {
         expect(() =>
           policy.assertCaptureAllowed({ estado }, 'merma'),
         ).not.toThrow();
+        expect(() =>
+          policy.assertCaptureAllowed({ estado }, 'venta'),
+        ).not.toThrow();
       }
     });
 
@@ -83,6 +99,7 @@ describe('CicloCapturaPolicy', () => {
           'gasto',
           'cosecha',
           'merma',
+          'venta',
         ] as const) {
           expect(() => policy.assertCaptureAllowed({ estado }, tipo)).toThrow(
             new DomainError(

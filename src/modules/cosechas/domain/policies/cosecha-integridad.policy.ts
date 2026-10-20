@@ -5,14 +5,13 @@ import { CodigoError } from '../../../../common/errors/codigos-error.enum';
 export interface ValidarEliminacionCosechaParams {
   cosechaId: number;
   mermasVinculadasCount: number;
-  // Preparado para ventas vinculadas (RN-050):
-  // ventasVinculadasCount?: number;
+  ventasVinculadasCount?: number;
 }
 
 /**
  * Política de dominio pura para la integridad de eliminación de cosechas (RN-050).
  * Regla: No se puede eliminar una cosecha que tenga mermas vigentes asociadas
- * (o ventas asociadas cuando se implemente dicho módulo).
+ * o ventas activas asociadas (RN-050).
  */
 @Injectable()
 export class CosechaIntegridadPolicy {
@@ -21,6 +20,14 @@ export class CosechaIntegridadPolicy {
       throw new DomainError(
         CodigoError.COSECHA_CON_MERMAS_VIGENTES,
         `No se puede eliminar la cosecha ${params.cosechaId} porque tiene ${params.mermasVinculadasCount} mermas activas vinculadas (RN-050)`,
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    if ((params.ventasVinculadasCount ?? 0) > 0) {
+      throw new DomainError(
+        CodigoError.COSECHA_CON_VENTAS_VINCULADAS,
+        `No se puede eliminar la cosecha ${params.cosechaId} porque tiene ${params.ventasVinculadasCount} renglones de venta activos vinculados (RN-050)`,
         HttpStatus.CONFLICT,
       );
     }

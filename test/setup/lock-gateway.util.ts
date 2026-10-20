@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import mariadb from 'mariadb';
+import mariadb, { Connection } from 'mariadb';
 import { assertDatabaseUrlEsValida } from './e2e-env';
 
 export interface LockHolder {
@@ -13,7 +13,7 @@ export interface LockHolder {
  */
 export async function holdCicloLock(
   cicloId: number,
-  mutateInsideTx?: (conn: mariadb.Connection) => Promise<void>,
+  mutateInsideTx?: (conn: Connection) => Promise<void>,
 ): Promise<LockHolder> {
   const dbParams = assertDatabaseUrlEsValida();
   const conn = await mariadb.createConnection({

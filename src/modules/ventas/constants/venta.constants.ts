@@ -1,0 +1,5 @@
+export const VENTA_CONSTANTS = {
+  MIN_RENGLONES: 1,
+  MAX_RENGLONES: 50,
+  TOLERANCIA_TOTAL: '0.05',
+} as const;

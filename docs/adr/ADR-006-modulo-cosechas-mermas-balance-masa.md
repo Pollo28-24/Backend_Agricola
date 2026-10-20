@@ -53,9 +53,10 @@ Prohibido el uso de tipos flotantes IEEE 754 (`number` primitivo de JS o `parseF
 - Coherencia matemática y transaccional garantizada en auditoría y balance de masa.
 
 ## Deuda Técnica
-1. **Pruebas e2e multiempresa reales**: Ejecutar suite end-to-end con dos empresas concurrentes en base de datos física para validar aislamiento tenant y locks transaccionales.
-2. **Desviación de Schema Prisma (`Cosecha.fecha`)**: `Cosecha` no tiene columna `fecha` nativa en la base de datos (a diferencia de `Gasto` y `Merma`). Se utiliza `createdAt` para filtros temporales y auditoría. Deberá evaluarse agregar la columna en una migración futura si el negocio requiere registrar cosechas con fecha retroactiva independiente de la auditoría.
-3. **Endpoints de Balance y Reportería**: `calcularBalanceMasaKg` se invoca internamente para validar la invariante física; si el frontend requiere consultar el balance de inventario, se expondrá formalmente en el módulo de Rentabilidad o Dashboard.
-4. **Lock Timeout configurable**: Evaluar parametrización de `innodb_lock_wait_timeout` en transacciones de captura bajo alta concurrencia.
-5. **Endurecimiento de Gastos y Actividades**: Gastos y Actividades actualmente leen el ciclo sin `FOR UPDATE`. Deben adoptar `bloquearCicloParaCaptura` en el hito de endurecimiento para evitar que se cuelen registros en ciclos en proceso de finalización.
-6. **Ciclos.ejecutarTransicion sin bloqueo pesimista**: La transición de estados en `CiclosService` lee el ciclo con `tx.cicloProduccion.findFirst` sin `FOR UPDATE`. Requiere lock pesimista en el hito de endurecimiento (reportado, no tocado en este hito).
+1. **[RESUELTO EN HITO 6B/7] Pruebas e2e multiempresa reales**: Ejecutada suite end-to-end con dos empresas concurrentes en base de datos física MySQL (`rentabilidad_agricola_test`), validando aislamiento y locks (ADR-007).
+2. **[RESUELTO EN HITO 7] Integración con Ventas (RN-027, RN-050, RN-070)**: Pagada íntegramente en Hito 7: control de sobreventa (`kgVendidos <= kgNetos`), bloqueo de eliminación de cosechas con ventas vigentes (`COSECHA_CON_VENTAS_VINCULADAS`) y revalidación cruzada de ventas vs masa neta en reducciones de cosecha e incrementos de merma poscosecha (`KG_VENDIDOS_EXCEDEN_NETOS`) (ADR-008).
+3. **Desviación de Schema Prisma (`Cosecha.fecha`)**: `Cosecha` no tiene columna `fecha` nativa en la base de datos (a diferencia de `Gasto` y `Merma`). Se utiliza `createdAt` para filtros temporales y auditoría. Deberá evaluarse agregar la columna en una migración futura si el negocio requiere registrar cosechas con fecha retroactiva independiente de la auditoría.
+4. **Endpoints de Balance y Reportería**: `calcularBalanceMasaKg` se invoca internamente para validar la invariante física; si el frontend requiere consultar el balance de inventario, se expondrá formalmente en el módulo de Rentabilidad o Dashboard.
+5. **Lock Timeout configurable**: Evaluar parametrización de `innodb_lock_wait_timeout` en transacciones de captura bajo alta concurrencia.
+6. **[RESUELTO EN HITO 6B] Endurecimiento de Gastos y Actividades**: Adoptaron `bloquearCicloParaCaptura` en Hito 6B con pruebas de carrera certificadas.
+7. **[RESUELTO EN HITO 6B] Ciclos.ejecutarTransicion con bloqueo pesimista**: Protegido con lock pesimista en Hito 6B.

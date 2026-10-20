@@ -35,6 +35,10 @@ describe('CosechasService', () => {
     unidadMedida: {
       findUnique: jest.Mock;
     };
+    detalleVenta: {
+      findMany: jest.Mock;
+      count: jest.Mock;
+    };
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
@@ -60,6 +64,10 @@ describe('CosechasService', () => {
       },
       unidadMedida: {
         findUnique: jest.fn(),
+      },
+      detalleVenta: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
       },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(),
@@ -317,6 +325,78 @@ describe('CosechasService', () => {
       ).rejects.toThrow(
         expect.objectContaining({
           code: CodigoError.COSECHA_CON_MERMAS_VIGENTES,
+          status: 409,
+        }),
+      );
+    });
+
+    it('debe rechazar con COSECHA_CON_VENTAS_VINCULADAS (409) si tiene ventas activas vinculadas (RN-050)', async () => {
+      prisma.cosecha.findFirst.mockResolvedValue({
+        id: 30,
+        cicloId: 1,
+        creadoPorId: usuarioId,
+        createdAt: new Date(),
+      });
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 1,
+          empresa_id: empresaId,
+          estado: EstadoCiclo.ACTIVO,
+          fecha_inicio: new Date('2027-01-01T00:00:00.000Z'),
+        },
+      ]);
+      prisma.merma.count.mockResolvedValue(0);
+      prisma.detalleVenta.count.mockResolvedValue(2); // 2 renglones de venta asociados
+
+      await expect(
+        service.eliminarCosecha(empresaId, usuarioId, true, 30),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          code: CodigoError.COSECHA_CON_VENTAS_VINCULADAS,
+          status: 409,
+        }),
+      );
+    });
+
+    it('debe rechazar con KG_VENDIDOS_EXCEDEN_NETOS (409) si al eliminar la cosecha los kg vendidos superan lo restante (RN-070)', async () => {
+      prisma.cosecha.findFirst.mockResolvedValue({
+        id: 30,
+        cicloId: 1,
+        creadoPorId: usuarioId,
+        createdAt: new Date(),
+      });
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 1,
+          empresa_id: empresaId,
+          estado: EstadoCiclo.ACTIVO,
+          fecha_inicio: new Date('2027-01-01T00:00:00.000Z'),
+        },
+      ]);
+      prisma.merma.count.mockResolvedValue(0);
+      prisma.detalleVenta.count.mockResolvedValue(0);
+      prisma.cosecha.update.mockResolvedValue({ id: 30 });
+
+      // Balance tras eliminar deja cosechas restantes = 100 kg, mermas = 0, pero ventas vigentes = 200 kg
+      prisma.cosecha.findMany.mockResolvedValue([
+        {
+          cantidad: new Prisma.Decimal('100.000'),
+          unidad: { factorABase: new Prisma.Decimal(1) },
+        },
+      ]);
+      prisma.merma.findMany.mockResolvedValue([]);
+      prisma.detalleVenta.findMany.mockResolvedValue([
+        {
+          cantidad: new Prisma.Decimal('200.000'),
+          unidad: { factorABase: new Prisma.Decimal(1) },
+        },
+      ]);
+
+      await expect(
+        service.eliminarCosecha(empresaId, usuarioId, true, 30),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          code: CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
           status: 409,
         }),
       );

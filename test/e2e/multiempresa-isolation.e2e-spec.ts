@@ -14,6 +14,7 @@ describe('C3: Aislamiento Multiempresa y Seguridad RBAC/ABAC (E2E)', () => {
   let tokenA_Admin: string;
   let tokenA_Capturista: string;
   let tokenA_Contador: string;
+  let tokenB_Admin: string;
 
   beforeAll(async () => {
     const testApp = await createTestApp();

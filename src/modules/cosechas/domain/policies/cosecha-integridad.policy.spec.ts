@@ -33,4 +33,20 @@ describe('CosechaIntegridadPolicy (RN-050)', () => {
       ),
     );
   });
+
+  it('debe rechazar con COSECHA_CON_VENTAS_VINCULADAS (409) si tiene ventas activas vinculadas', () => {
+    expect(() =>
+      policy.assertEliminacionPermitida({
+        cosechaId: 10,
+        mermasVinculadasCount: 0,
+        ventasVinculadasCount: 1,
+      }),
+    ).toThrow(
+      new DomainError(
+        CodigoError.COSECHA_CON_VENTAS_VINCULADAS,
+        'No se puede eliminar la cosecha 10 porque tiene 1 renglones de venta activos vinculados (RN-050)',
+        HttpStatus.CONFLICT,
+      ),
+    );
+  });
 });

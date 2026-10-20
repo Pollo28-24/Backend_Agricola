@@ -33,6 +33,7 @@ describe('CiclosService', () => {
     bitacoraAuditoria: {
       create: jest.Mock;
     };
+    $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
   let auditService: {

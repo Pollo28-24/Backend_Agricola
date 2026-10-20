@@ -3,7 +3,8 @@ import { EstadoCiclo } from '@prisma/client';
 import { DomainError } from '../../errors/domain.error';
 import { CodigoError } from '../../errors/codigos-error.enum';
 
-export type TipoEntidadOperativa = 'actividad' | 'gasto' | 'cosecha' | 'merma';
+export type TipoEntidadOperativa =
+  'actividad' | 'gasto' | 'cosecha' | 'merma' | 'venta';
 
 /**
  * Política institucional del ciclo de vida del Ciclo de Producción.
@@ -15,8 +16,8 @@ export class CicloCapturaPolicy {
    * RN-015 / RN-023 / Tabla 2.6:
    * Verifica si el ciclo admite captura de registros operativos según el tipo de entidad.
    * - FINALIZADO y CANCELADO: bloquean cualquier tipo de registro operativo (CICLO_CERRADO, 409).
-   * - PLANIFICADO: admite actividades y gastos preparatorios; rechaza cosechas y mermas (CICLO_NO_ACTIVO, 409).
-   * - ACTIVO y SUSPENDIDO: admiten actividades, gastos, cosechas y mermas.
+   * - PLANIFICADO: admite actividades y gastos preparatorios; rechaza cosechas, mermas y ventas (CICLO_NO_ACTIVO, 409).
+   * - ACTIVO y SUSPENDIDO: admiten actividades, gastos, cosechas, mermas y ventas.
    *
    * @param ciclo Entidad ciclo con su estado actual
    * @param tipo Tipo de entidad operativa a capturar (opcional, default 'actividad' para retrocompatibilidad)
@@ -38,7 +39,7 @@ export class CicloCapturaPolicy {
 
     if (
       ciclo.estado === EstadoCiclo.PLANIFICADO &&
-      (tipo === 'cosecha' || tipo === 'merma')
+      (tipo === 'cosecha' || tipo === 'merma' || tipo === 'venta')
     ) {
       throw new DomainError(
         CodigoError.CICLO_NO_ACTIVO,

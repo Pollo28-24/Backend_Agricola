@@ -25,4 +25,23 @@ export class CicloBalanceMasaPolicy {
       );
     }
   }
+
+  /**
+   * RN-027 / RN-070:
+   * Verifica que la masa física vendida no exceda la masa neta producida (cosechas - mermas poscosecha).
+   * Reutilizable tanto al crear/editar ventas (RN-027) como al reducir cosechas o crear/editar mermas (RN-070).
+   */
+  assertVendidoNoExcedeNetos(
+    balance: { kgVendidos: Prisma.Decimal; kgNetos: Prisma.Decimal },
+    codigoError: CodigoError = CodigoError.VENTA_EXCEDE_DISPONIBLE,
+  ): void {
+    if (balance.kgVendidos.gt(balance.kgNetos)) {
+      const msg =
+        codigoError === CodigoError.KG_VENDIDOS_EXCEDEN_NETOS
+          ? `La operación deja los kg vendidos acumulados (${balance.kgVendidos.toFixed(3)} kg) por encima de los kg netos producidos (${balance.kgNetos.toFixed(3)} kg) en el ciclo (RN-070)`
+          : `La venta acumulada (${balance.kgVendidos.toFixed(3)} kg) excede la producción neta disponible (${balance.kgNetos.toFixed(3)} kg) en el ciclo (RN-027)`;
+
+      throw new DomainError(codigoError, msg, HttpStatus.CONFLICT);
+    }
+  }
 }

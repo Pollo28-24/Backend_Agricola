@@ -38,6 +38,10 @@ describe('MermasService', () => {
     unidadMedida: {
       findUnique: jest.Mock;
     };
+    detalleVenta: {
+      findMany: jest.Mock;
+      count: jest.Mock;
+    };
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
@@ -67,6 +71,10 @@ describe('MermasService', () => {
       },
       unidadMedida: {
         findUnique: jest.fn(),
+      },
+      detalleVenta: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
       },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(),
@@ -325,6 +333,59 @@ describe('MermasService', () => {
       ).rejects.toThrow(
         expect.objectContaining({
           code: CodigoError.MERMA_EXCEDE_COSECHA,
+          status: 409,
+        }),
+      );
+    });
+
+    it('debe rechazar con KG_VENDIDOS_EXCEDEN_NETOS (409) si la merma poscosecha reduce los kg netos por debajo de los kg vendidos (RN-070)', async () => {
+      prisma.motivoMerma.findFirst.mockResolvedValue({ id: 2, activo: true });
+      prisma.unidadMedida.findUnique.mockResolvedValue({
+        id: 1,
+        tipo: TipoUnidad.PESO,
+        activo: true,
+        factorABase: new Prisma.Decimal('1.000000'),
+      });
+
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 1,
+          estado: EstadoCiclo.ACTIVO,
+          fecha_inicio: new Date('2027-01-01'),
+          fecha_fin: null,
+          empresa_id: empresaId,
+          deleted_at: null,
+        },
+      ]);
+
+      prisma.merma.create.mockResolvedValue({ id: 103 });
+
+      // Cosechados = 100 kg, Merma poscosecha = 40 kg -> Netos = 60 kg.
+      // Pero kgVendidos = 70 kg -> Netos (60) < Vendidos (70) -> Falla con KG_VENDIDOS_EXCEDEN_NETOS
+      prisma.cosecha.findMany.mockResolvedValue([
+        {
+          cantidad: new Prisma.Decimal('100.000'),
+          unidad: { factorABase: new Prisma.Decimal('1.000000') },
+        },
+      ]);
+      prisma.merma.findMany.mockResolvedValue([
+        {
+          cantidad: new Prisma.Decimal('40.000'),
+          unidad: { factorABase: new Prisma.Decimal('1.000000') },
+        },
+      ]);
+      prisma.detalleVenta.findMany.mockResolvedValue([
+        {
+          cantidad: new Prisma.Decimal('70.000'),
+          unidad: { factorABase: new Prisma.Decimal('1.000000') },
+        },
+      ]);
+
+      await expect(
+        service.crearMerma(empresaId, usuarioId, validDto),
+      ).rejects.toThrow(
+        expect.objectContaining({
+          code: CodigoError.KG_VENDIDOS_EXCEDEN_NETOS,
           status: 409,
         }),
       );
