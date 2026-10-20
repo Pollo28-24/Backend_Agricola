@@ -62,16 +62,17 @@ El análisis de carrera expuso que `GastosService` y `ActividadesService` no blo
 
 ## Tabla de Garantías: Esperadas vs. Reales (MySQL 8.0.46)
 
-| Invariante / Regla | Garantía Esperada | Mecanismo de BD / Código | Resultado Real Verificado |
+| Invariante / Objeto | Garantía Esperada (Maestro) | Estado Real en `information_schema` | Explicación / Concordancia |
 | :--- | :--- | :--- | :--- |
-| **Aislamiento Multi-tenant (RN-003 / RN-068)** | Empresa A nunca puede ver ni mutar recursos de Empresa B. Acceso cruzado retorna 404 estricto. | Filtro `where: { id, empresaId }` y políticas de pertenencia en servicios. | Verificado en 21 pruebas E2E (`multiempresa-isolation.e2e-spec.ts`). Cero fugas. |
-| **Balance de Masa Concurrente (RN-032 / RN-070)** | Dos mermas poscosecha concurrentes no pueden superar la cosecha disponible. | `SELECT ... FOR UPDATE` sobre el ciclo + `CicloBalanceMasaPolicy`. | Verificado en `concurrencia-balance-masa.e2e-spec.ts`. Exactamente 1 pasa (201) y 1 falla con 409 `MERMA_EXCEDE_COSECHA`. Cero deadlocks (1213). |
-| **Carrera de Cierre vs Captura (RN-010 / RN-012)** | Captura iniciada no puede guardarse si el ciclo se cerró concurrentemente. | `bloquearCicloParaCaptura` serializa la transición de ciclo y la captura. | Verificado en `carrera-cierre-ciclo.e2e-spec.ts`. Exactamente 1 pasa (200) y la captura posterior falla con 409 `CICLO_NO_ACTIVO`. |
-| **Rollback de Auditoría (ADR-001 / RN-043)** | Si el guardado en `bitacora_auditoria` falla, la entidad de negocio no se persiste en BD. | Transacción interactiva de Prisma `this.prisma.$transaction(async (tx) => ...)`. | Verificado en 5 operaciones mutantes en `rollback-auditoria.e2e-spec.ts`. Cero registros huérfanos. |
-| **Sanitización de Secretos (RN-074)** | La bitácora jamás almacena hashes de contraseñas ni tokens. | `sanitizarValoresAuditoria` en `AuditService`. | Verificado con prueba de control: ausencia de `contrasenaHash`, `password` y `token`. |
-| **Un solo ciclo activo por parcela (RN-009)** | Dos inicios concurrentes de ciclo en la misma parcela no pueden quedar activos simultáneamente. | Bloqueo pesimista de ciclo y parcela en `CiclosService.ejecutarTransicion`. | Verificado en `integridad-db.e2e-spec.ts`: exactamente uno 200 y el otro 409 `CICLO_YA_ACTIVO`. |
-| **CHECK Constraints Físicos** | Importes y cantidades no pueden ser `<= 0` a nivel de motor relacional. | Constraints físicos `chk_gasto_total`, `chk_cosecha_cantidad`, `chk_merma_cantidad`. | Verificado en `integridad-db.e2e-spec.ts`: rechazo con MySQL errno 3819. |
-| **Foreign Keys RESTRICT** | No se puede eliminar una parcela con ciclos ni un ciclo con gastos. | Cláusulas `ON DELETE RESTRICT` en claves foráneas de MySQL. | Verificado en `integridad-db.e2e-spec.ts`: rechazo con MySQL errno 1451. |
+| **Tablas Base** | 27 tablas de negocio + `_prisma_migrations` (28) | 29 tablas base | La tabla adicional es `refresh_token` (decisión 12 del Anexo B para autenticación JWT segura con rotación). |
+| **Vistas Analíticas** | 5 vistas (`v_comparativo_parcela`, `v_costo_por_actividad`, `v_costo_por_categoria`, `v_merma_desglose`, `v_rentabilidad_ciclo`) | 5 vistas | 100% concordante con migración 3 (`vistas_indicadores`). |
+| **Foreign Keys (FK)** | 48 claves foráneas | 49 claves foráneas | La FK adicional es `refresh_token_usuarioId_fkey` (`usuarioId` -> `usuario.id`, RESTRICT/CASCADE) asociada a la tabla 29. 41 RESTRICT/CASCADE, 3 RESTRICT/RESTRICT, 1 SET NULL/CASCADE, 4 CASCADE/CASCADE. |
+| **Un solo ciclo activo por parcela (RN-009)** | Índice único condicional por parcela en ciclos activos | `ciclo_produccion_claveCicloActivo_key` UNIQUE | Implementado sobre columna STORED GENERATED `claveCicloActivo` (`case when estado='ACTIVO' and deletedAt is null then parcelaId end`). Rechaza concurrencia con errno 1062 / P2002. |
+| **CHECK Constraints Físicos** | 19 restricciones de integridad física | 19 CHECK constraints activos | Incluye `chk_gasto_total`, `chk_cosecha_cantidad`, `chk_merma_cantidad`, `chk_predio_superficie`, etc. Validado rechazo con MySQL errno 3819. |
+| **Aislamiento Multi-tenant (RN-003 / RN-068)** | Empresa A nunca ve ni muta recursos de Empresa B (404 estricto) | Filtros de tenant y políticas de dominio en servicios | Verificado en 21 pruebas E2E (`multiempresa-isolation.e2e-spec.ts`). Cero fugas. |
+| **Balance de Masa Concurrente (RN-032 / RN-070)** | Dos mermas poscosecha concurrentes no superan la cosecha disponible | `SELECT ... FOR UPDATE` sobre el ciclo + `CicloBalanceMasaPolicy` | Verificado en `concurrencia-balance-masa.e2e-spec.ts`. Exactamente 1 pasa (201) y 1 falla con 409 `MERMA_EXCEDE_COSECHA`. Cero deadlocks (1213). |
+| **Carrera de Cierre vs Captura (RN-010 / RN-012)** | Captura no se guarda si el ciclo se cerró concurrentemente | `bloquearCicloParaCaptura` serializa cierre y capturas | Verificado en `carrera-cierre-ciclo.e2e-spec.ts`: peticiones concurrentes se encolan y dan 409 `CICLO_CERRADO`. |
+| **Rollback de Auditoría (ADR-001 / RN-043)** | Falla en bitácora revierte toda la transacción | Transacción interactiva de Prisma `tx` | Verificado en 5 operaciones mutantes en `rollback-auditoria.e2e-spec.ts`. Cero registros huérfanos. |
 
 ---
 
