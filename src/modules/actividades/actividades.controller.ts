@@ -38,12 +38,23 @@ export class ActividadesController {
   @HttpCode(HttpStatus.CREATED)
   @RequirePermisos('actividad:crear')
   @ApiOperation({
-    summary: 'Registrar una nueva labor o actividad agrícola en el ciclo (F-08 / RN-010 / RN-015 / RN-044)',
+    summary:
+      'Registrar una nueva labor o actividad agrícola en el ciclo (F-08 / RN-010 / RN-015 / RN-044)',
   })
   @ApiResponse({ status: 201, type: ActividadResponseDto })
-  @ApiResponse({ status: 400, description: 'Fecha anterior al inicio del ciclo (RN-044) o datos inválidos' })
-  @ApiResponse({ status: 404, description: 'Ciclo o responsable no encontrado en su empresa (RN-068)' })
-  @ApiResponse({ status: 409, description: 'Ciclo cerrado (RN-015) o tipo/responsable inactivo' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Fecha anterior al inicio del ciclo (RN-044) o datos inválidos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Ciclo o responsable no encontrado en su empresa (RN-068)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Ciclo cerrado (RN-015) o tipo/responsable inactivo',
+  })
   async crearActividad(
     @CurrentUser() user: UsuarioAutenticado,
     @Body() dto: CreateActividadDto,
@@ -54,9 +65,13 @@ export class ActividadesController {
   @Get()
   @RequirePermisos('actividad:crear', 'registro:administrar')
   @ApiOperation({
-    summary: 'Listar actividades de la empresa con filtros opcionales y paginación (RN-068 / Contrato 3.23)',
+    summary:
+      'Listar actividades de la empresa con filtros opcionales y paginación (RN-068 / Contrato 3.23)',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto<ActividadResponseDto> })
+  @ApiResponse({
+    status: 200,
+    type: PaginatedResponseDto<ActividadResponseDto>,
+  })
   async listarActividades(
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroActividadDto,
@@ -67,10 +82,14 @@ export class ActividadesController {
   @Get(':id')
   @RequirePermisos('actividad:crear', 'registro:administrar')
   @ApiOperation({
-    summary: 'Obtener detalle enriquecido de una actividad por ID (incluye conteo de gastos vinculados)',
+    summary:
+      'Obtener detalle enriquecido de una actividad por ID (incluye conteo de gastos vinculados)',
   })
   @ApiResponse({ status: 200, type: ActividadDetalleResponseDto })
-  @ApiResponse({ status: 404, description: 'Actividad no encontrada en su empresa (RN-068)' })
+  @ApiResponse({
+    status: 404,
+    description: 'Actividad no encontrada en su empresa (RN-068)',
+  })
   async obtenerActividadPorId(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
@@ -81,19 +100,33 @@ export class ActividadesController {
   @Patch(':id')
   @RequirePermisos('actividad:crear', 'registro:administrar')
   @ApiOperation({
-    summary: 'Actualizar una actividad existente sujeta a ventana de 48h (RN-062) y ciclo abierto (RN-015)',
+    summary:
+      'Actualizar una actividad existente sujeta a ventana de 48h (RN-062) y ciclo abierto (RN-015)',
   })
   @ApiResponse({ status: 200, type: ActividadResponseDto })
-  @ApiResponse({ status: 400, description: 'Fecha incoherente con inicio de ciclo (RN-044)' })
-  @ApiResponse({ status: 403, description: 'No es el creador de la actividad (RN-062)' })
-  @ApiResponse({ status: 404, description: 'Actividad no encontrada en su empresa (RN-068)' })
-  @ApiResponse({ status: 409, description: 'Ventana de 48h vencida (RN-062) o ciclo cerrado (RN-015)' })
+  @ApiResponse({
+    status: 400,
+    description: 'Fecha incoherente con inicio de ciclo (RN-044)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No es el creador de la actividad (RN-062)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Actividad no encontrada en su empresa (RN-068)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Ventana de 48h vencida (RN-062) o ciclo cerrado (RN-015)',
+  })
   async actualizarActividad(
     @CurrentUser() user: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateActividadDto,
   ): Promise<ActividadResponseDto> {
-    const tienePermisoAdministrar = user.permisos?.includes('registro:administrar') ?? false;
+    const tienePermisoAdministrar =
+      user.permisos?.includes('registro:administrar') ?? false;
     return this.actividadesService.actualizarActividad(
       user.empresaId,
       user.id,
@@ -106,17 +139,32 @@ export class ActividadesController {
   @Delete(':id')
   @RequirePermisos('actividad:crear', 'registro:administrar')
   @ApiOperation({
-    summary: 'Baja lógica de una actividad bajo ventana de 48h (RN-062) e integridad con gastos (RN-046)',
+    summary:
+      'Baja lógica de una actividad bajo ventana de 48h (RN-062) e integridad con gastos (RN-046)',
   })
-  @ApiResponse({ status: 200, schema: { example: { message: 'Actividad eliminada exitosamente' } } })
-  @ApiResponse({ status: 403, description: 'No es el creador de la actividad (RN-062)' })
-  @ApiResponse({ status: 404, description: 'Actividad no encontrada en su empresa (RN-068)' })
-  @ApiResponse({ status: 409, description: 'Ventana de 48h vencida, ciclo cerrado o gastos activos vinculados' })
+  @ApiResponse({
+    status: 200,
+    schema: { example: { message: 'Actividad eliminada exitosamente' } },
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No es el creador de la actividad (RN-062)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Actividad no encontrada en su empresa (RN-068)',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Ventana de 48h vencida, ciclo cerrado o gastos activos vinculados',
+  })
   async eliminarActividad(
     @CurrentUser() user: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
-    const tienePermisoAdministrar = user.permisos?.includes('registro:administrar') ?? false;
+    const tienePermisoAdministrar =
+      user.permisos?.includes('registro:administrar') ?? false;
     return this.actividadesService.eliminarActividad(
       user.empresaId,
       user.id,

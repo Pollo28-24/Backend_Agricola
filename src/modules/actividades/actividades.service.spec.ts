@@ -113,7 +113,11 @@ describe('ActividadesService', () => {
         fechaInicio: new Date('2027-01-10T00:00:00.000Z'),
       });
       prisma.tipoActividad.findFirst.mockResolvedValue({ id: 2, activo: true });
-      prisma.usuario.findFirst.mockResolvedValue({ id: 5, empresaId, activo: true });
+      prisma.usuario.findFirst.mockResolvedValue({
+        id: 5,
+        empresaId,
+        activo: true,
+      });
 
       prisma.actividad.create.mockResolvedValue({
         id: 100,
@@ -161,7 +165,9 @@ describe('ActividadesService', () => {
       });
       prisma.tipoActividad.findFirst.mockResolvedValue({ id: 2, activo: true });
 
-      await expect(service.crearActividad(empresaId, usuarioId, dto)).rejects.toThrow(DomainError);
+      await expect(
+        service.crearActividad(empresaId, usuarioId, dto),
+      ).rejects.toThrow(DomainError);
       expect(prisma.actividad.create).not.toHaveBeenCalled();
       expect(auditService.registrar).not.toHaveBeenCalled();
     });
@@ -189,7 +195,9 @@ describe('ActividadesService', () => {
       prisma.cicloProduccion.findFirst.mockResolvedValue(null);
       prisma.tipoActividad.findFirst.mockResolvedValue({ id: 2, activo: true });
 
-      await expect(service.crearActividad(empresaId, usuarioId, dto)).rejects.toThrow(DomainError);
+      await expect(
+        service.crearActividad(empresaId, usuarioId, dto),
+      ).rejects.toThrow(DomainError);
       expect(prisma.actividad.create).not.toHaveBeenCalled();
     });
   });
@@ -273,7 +281,9 @@ describe('ActividadesService', () => {
     it('debe lanzar 404 si la actividad no existe en la empresa', async () => {
       prisma.actividad.findFirst.mockResolvedValue(null);
 
-      await expect(service.obtenerActividadPorId(empresaId, 999)).rejects.toThrow(DomainError);
+      await expect(
+        service.obtenerActividadPorId(empresaId, 999),
+      ).rejects.toThrow(DomainError);
     });
   });
 
@@ -309,10 +319,16 @@ describe('ActividadesService', () => {
         updatedAt: new Date(),
       });
 
-      const res = await service.actualizarActividad(empresaId, usuarioId, false, 100, {
-        descripcion: 'Actualizado',
-        horasTrabajadas: 7.0,
-      });
+      const res = await service.actualizarActividad(
+        empresaId,
+        usuarioId,
+        false,
+        100,
+        {
+          descripcion: 'Actualizado',
+          horasTrabajadas: 7.0,
+        },
+      );
 
       expect(res.descripcion).toBe('Actualizado');
       expect(res.horasTrabajadas).toBe('7.00');
@@ -355,9 +371,15 @@ describe('ActividadesService', () => {
         updatedAt: new Date(),
       });
 
-      const res = await service.actualizarActividad(empresaId, usuarioId, true, 100, {
-        descripcion: 'Admin Override',
-      });
+      const res = await service.actualizarActividad(
+        empresaId,
+        usuarioId,
+        true,
+        100,
+        {
+          descripcion: 'Admin Override',
+        },
+      );
 
       expect(res.descripcion).toBe('Admin Override');
       expect(prisma.actividad.update).toHaveBeenCalled();
@@ -381,7 +403,11 @@ describe('ActividadesService', () => {
     it('debe actualizar tipoActividad, responsable y fecha exitosamente', async () => {
       prisma.actividad.findFirst.mockResolvedValue(actividadExistente);
       prisma.tipoActividad.findFirst.mockResolvedValue({ id: 3, activo: true });
-      prisma.usuario.findFirst.mockResolvedValue({ id: 6, empresaId, activo: true });
+      prisma.usuario.findFirst.mockResolvedValue({
+        id: 6,
+        empresaId,
+        activo: true,
+      });
       prisma.actividad.update.mockResolvedValue({
         ...actividadExistente,
         tipoActividadId: 3,
@@ -389,11 +415,17 @@ describe('ActividadesService', () => {
         fecha: new Date('2027-01-18T00:00:00.000Z'),
       });
 
-      const res = await service.actualizarActividad(empresaId, usuarioId, false, 100, {
-        tipoActividadId: 3,
-        responsableId: 6,
-        fecha: '2027-01-18',
-      });
+      const res = await service.actualizarActividad(
+        empresaId,
+        usuarioId,
+        false,
+        100,
+        {
+          tipoActividadId: 3,
+          responsableId: 6,
+          fecha: '2027-01-18',
+        },
+      );
 
       expect(res.tipoActividadId).toBe(3);
       expect(res.responsableId).toBe(6);
@@ -446,7 +478,12 @@ describe('ActividadesService', () => {
       prisma.gasto.count.mockResolvedValue(0); // Cero gastos vigentes
       prisma.actividad.update.mockResolvedValue({});
 
-      const res = await service.eliminarActividad(empresaId, usuarioId, false, 100);
+      const res = await service.eliminarActividad(
+        empresaId,
+        usuarioId,
+        false,
+        100,
+      );
 
       expect(res.message).toContain('exitosamente');
       expect(prisma.actividad.update).toHaveBeenCalledWith(

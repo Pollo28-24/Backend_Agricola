@@ -50,6 +50,9 @@ export class ActividadDetalleResponseDto extends ActividadResponseDto {
   @ApiProperty({ type: UsuarioResumenDto })
   creadoPor: UsuarioResumenDto;
 
-  @ApiProperty({ example: 2, description: 'Cantidad de gastos activos vinculados a esta actividad' })
+  @ApiProperty({
+    example: 2,
+    description: 'Cantidad de gastos activos vinculados a esta actividad',
+  })
   gastosVinculadosCount: number;
 }

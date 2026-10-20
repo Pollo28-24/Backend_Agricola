@@ -22,12 +22,18 @@ export class UpdateActividadDto {
   @Min(1)
   tipoActividadId?: number;
 
-  @ApiPropertyOptional({ example: '2027-01-16', description: 'Fecha de la actividad (YYYY-MM-DD)' })
+  @ApiPropertyOptional({
+    example: '2027-01-16',
+    description: 'Fecha de la actividad (YYYY-MM-DD)',
+  })
   @IsOptional()
   @IsDateString({ strict: true })
   fecha?: string;
 
-  @ApiPropertyOptional({ example: 6, description: 'ID del usuario responsable (o null para desasignar)' })
+  @ApiPropertyOptional({
+    example: 6,
+    description: 'ID del usuario responsable (o null para desasignar)',
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -42,7 +48,10 @@ export class UpdateActividadDto {
   @MaxLength(500)
   descripcion?: string | null;
 
-  @ApiPropertyOptional({ example: 6.5, description: 'Horas trabajadas (máximo 2 decimales)' })
+  @ApiPropertyOptional({
+    example: 6.5,
+    description: 'Horas trabajadas (máximo 2 decimales)',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)

@@ -40,7 +40,12 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     if (typeof value === 'string' && value.trim() !== '') {
       return value.trim();
     }
-    if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string' && value[0].trim() !== '') {
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === 'string' &&
+      value[0].trim() !== ''
+    ) {
       return value[0].trim();
     }
     return null;

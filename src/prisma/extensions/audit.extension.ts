@@ -1,6 +1,9 @@
 import { AccionAuditoria } from '@prisma/client';
 
-import { sanitizeLog, CAMPOS_SENSIBLES } from '../../common/utils/sanitizer.util';
+import {
+  sanitizeLog,
+  CAMPOS_SENSIBLES,
+} from '../../common/utils/sanitizer.util';
 
 export const CAMPOS_EXCLUIDOS_AUDITORIA = CAMPOS_SENSIBLES;
 

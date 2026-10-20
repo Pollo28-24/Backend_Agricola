@@ -13,7 +13,9 @@ describe('ActividadWindowValidator', () => {
 
   it('debe permitir la modificación si el usuario es el creador y está dentro de las 48h', () => {
     // 47 horas y 59 minutos después
-    const ahoraDentroDeTiempo = new Date(baseCreatedAt.getTime() + 47 * 3600 * 1000 + 59 * 60 * 1000);
+    const ahoraDentroDeTiempo = new Date(
+      baseCreatedAt.getTime() + 47 * 3600 * 1000 + 59 * 60 * 1000,
+    );
 
     expect(() =>
       validator.assertEdicionPermitida({
@@ -47,7 +49,9 @@ describe('ActividadWindowValidator', () => {
 
   it('debe rechazar con VENTANA_EDICION_VENCIDA (409) si superó las 48h desde createdAt', () => {
     // 48 horas y 1 segundo después
-    const ahoraExpirado = new Date(baseCreatedAt.getTime() + 48 * 3600 * 1000 + 1000);
+    const ahoraExpirado = new Date(
+      baseCreatedAt.getTime() + 48 * 3600 * 1000 + 1000,
+    );
 
     try {
       validator.assertEdicionPermitida({

@@ -7,7 +7,10 @@ import { AuditService } from '../../prisma/audit.service';
 import { CicloCapturaPolicy } from './domain/policies/ciclo-captura.policy';
 import { ActividadWindowValidator } from './domain/validators/actividad-window.validator';
 import { ActividadOwnershipValidator } from './domain/validators/actividad-ownership.validator';
-import { ActividadMapper, ActividadConRelacionesDetalle } from './mappers/actividad.mapper';
+import {
+  ActividadMapper,
+  ActividadConRelacionesDetalle,
+} from './mappers/actividad.mapper';
 import { ACTIVIDAD_CONSTANTS } from './constants/actividad.constants';
 import { ACTIVIDAD_SELECTS } from './queries/actividad-selects.constant';
 import { CreateActividadDto } from './dto/create-actividad.dto';
@@ -81,7 +84,9 @@ export class ActividadesService {
           creadoPorId: usuarioId,
           fecha: fechaOperativa,
           descripcion: dto.descripcion ?? null,
-          horasTrabajadas: dto.horasTrabajadas ? new Prisma.Decimal(dto.horasTrabajadas) : null,
+          horasTrabajadas: dto.horasTrabajadas
+            ? new Prisma.Decimal(dto.horasTrabajadas)
+            : null,
         },
       });
 
@@ -118,7 +123,10 @@ export class ActividadesService {
     const page = filtro.page && filtro.page > 0 ? Number(filtro.page) : 1;
     const limit =
       filtro.limit && filtro.limit > 0
-        ? Math.min(Number(filtro.limit), ACTIVIDAD_CONSTANTS.PAGINACION_MAX_LIMIT)
+        ? Math.min(
+            Number(filtro.limit),
+            ACTIVIDAD_CONSTANTS.PAGINACION_MAX_LIMIT,
+          )
         : ACTIVIDAD_CONSTANTS.PAGINACION_DEFAULT_LIMIT;
     const skip = (page - 1) * limit;
 
@@ -190,7 +198,7 @@ export class ActividadesService {
     });
 
     return ActividadMapper.toDetalleResponseDto(
-      actividad as unknown as ActividadConRelacionesDetalle,
+      actividad,
       gastosVinculadosCount,
     );
   }
@@ -241,10 +249,18 @@ export class ActividadesService {
         select: ACTIVIDAD_SELECTS.TIPO_ACTIVIDAD_VALIDACION,
       });
       if (!tipo) {
-        throw new DomainError(CodigoError.RECURSO_NO_ENCONTRADO, 'El tipo de actividad especificado no existe', HttpStatus.NOT_FOUND);
+        throw new DomainError(
+          CodigoError.RECURSO_NO_ENCONTRADO,
+          'El tipo de actividad especificado no existe',
+          HttpStatus.NOT_FOUND,
+        );
       }
       if (!tipo.activo) {
-        throw new DomainError(CodigoError.CONFLICTO, 'El tipo de actividad especificado se encuentra inactivo', HttpStatus.CONFLICT);
+        throw new DomainError(
+          CodigoError.CONFLICTO,
+          'El tipo de actividad especificado se encuentra inactivo',
+          HttpStatus.CONFLICT,
+        );
       }
     }
 
@@ -254,30 +270,48 @@ export class ActividadesService {
         select: ACTIVIDAD_SELECTS.RESPONSABLE_VALIDACION,
       });
       if (!resp) {
-        throw new DomainError(CodigoError.RECURSO_NO_ENCONTRADO, 'El usuario responsable asignado no pertenece a su empresa (RN-068)', HttpStatus.NOT_FOUND);
+        throw new DomainError(
+          CodigoError.RECURSO_NO_ENCONTRADO,
+          'El usuario responsable asignado no pertenece a su empresa (RN-068)',
+          HttpStatus.NOT_FOUND,
+        );
       }
       if (!resp.activo) {
-        throw new DomainError(CodigoError.CONFLICTO, 'El usuario responsable asignado se encuentra inactivo', HttpStatus.CONFLICT);
+        throw new DomainError(
+          CodigoError.CONFLICTO,
+          'El usuario responsable asignado se encuentra inactivo',
+          HttpStatus.CONFLICT,
+        );
       }
     }
 
     let nuevaFecha: Date | undefined;
     if (dto.fecha) {
       nuevaFecha = this.parsearFecha(dto.fecha);
-      this.cyclePolicy.assertFechaCoherente(actividadActual.ciclo, nuevaFecha, 'actividad');
+      this.cyclePolicy.assertFechaCoherente(
+        actividadActual.ciclo,
+        nuevaFecha,
+        'actividad',
+      );
     }
 
     // PASO 3 Y 4: TRANSACCIONAR, PERSISTIR Y AUDITAR
     return this.prisma.$transaction(async (tx) => {
       const dataUpdate: Prisma.ActividadUpdateInput = {};
-      if (dto.tipoActividadId) dataUpdate.tipoActividad = { connect: { id: dto.tipoActividadId } };
+      if (dto.tipoActividadId)
+        dataUpdate.tipoActividad = { connect: { id: dto.tipoActividadId } };
       if (dto.responsableId !== undefined) {
-        dataUpdate.responsable = dto.responsableId ? { connect: { id: dto.responsableId } } : { disconnect: true };
+        dataUpdate.responsable = dto.responsableId
+          ? { connect: { id: dto.responsableId } }
+          : { disconnect: true };
       }
       if (nuevaFecha) dataUpdate.fecha = nuevaFecha;
-      if (dto.descripcion !== undefined) dataUpdate.descripcion = dto.descripcion;
+      if (dto.descripcion !== undefined)
+        dataUpdate.descripcion = dto.descripcion;
       if (dto.horasTrabajadas !== undefined) {
-        dataUpdate.horasTrabajadas = dto.horasTrabajadas ? new Prisma.Decimal(dto.horasTrabajadas) : null;
+        dataUpdate.horasTrabajadas = dto.horasTrabajadas
+          ? new Prisma.Decimal(dto.horasTrabajadas)
+          : null;
       }
 
       const actualizada = await tx.actividad.update({
@@ -296,7 +330,8 @@ export class ActividadesService {
             tipoActividadId: actividadActual.tipoActividadId,
             responsableId: actividadActual.responsableId,
             fecha: FechaUtil.toDateOnly(actividadActual.fecha),
-            horasTrabajadas: actividadActual.horasTrabajadas?.toString() ?? null,
+            horasTrabajadas:
+              actividadActual.horasTrabajadas?.toString() ?? null,
             descripcion: actividadActual.descripcion,
           },
           valoresNuevos: {

@@ -12,9 +12,15 @@ describe('CicloCapturaPolicy', () => {
 
   describe('assertCaptureAllowed (RN-015)', () => {
     it('debe permitir captura en ciclos PLANIFICADO, ACTIVO y SUSPENDIDO', () => {
-      expect(() => policy.assertCaptureAllowed({ estado: EstadoCiclo.PLANIFICADO })).not.toThrow();
-      expect(() => policy.assertCaptureAllowed({ estado: EstadoCiclo.ACTIVO })).not.toThrow();
-      expect(() => policy.assertCaptureAllowed({ estado: EstadoCiclo.SUSPENDIDO })).not.toThrow();
+      expect(() =>
+        policy.assertCaptureAllowed({ estado: EstadoCiclo.PLANIFICADO }),
+      ).not.toThrow();
+      expect(() =>
+        policy.assertCaptureAllowed({ estado: EstadoCiclo.ACTIVO }),
+      ).not.toThrow();
+      expect(() =>
+        policy.assertCaptureAllowed({ estado: EstadoCiclo.SUSPENDIDO }),
+      ).not.toThrow();
     });
 
     it('debe rechazar con CICLO_CERRADO (409) si el ciclo está FINALIZADO', () => {
@@ -45,16 +51,25 @@ describe('CicloCapturaPolicy', () => {
 
     it('debe permitir fechas iguales o posteriores a fechaInicio', () => {
       expect(() =>
-        policy.assertFechaCoherente({ fechaInicio }, new Date('2027-01-10T00:00:00.000Z')),
+        policy.assertFechaCoherente(
+          { fechaInicio },
+          new Date('2027-01-10T00:00:00.000Z'),
+        ),
       ).not.toThrow();
       expect(() =>
-        policy.assertFechaCoherente({ fechaInicio }, new Date('2027-01-15T00:00:00.000Z')),
+        policy.assertFechaCoherente(
+          { fechaInicio },
+          new Date('2027-01-15T00:00:00.000Z'),
+        ),
       ).not.toThrow();
     });
 
     it('debe rechazar con FECHA_ANTERIOR_AL_INICIO (400) si la fecha es anterior', () => {
       try {
-        policy.assertFechaCoherente({ fechaInicio }, new Date('2027-01-09T23:59:59.000Z'));
+        policy.assertFechaCoherente(
+          { fechaInicio },
+          new Date('2027-01-09T23:59:59.000Z'),
+        );
         fail('Debió lanzar DomainError');
       } catch (e: any) {
         expect(e).toBeInstanceOf(DomainError);

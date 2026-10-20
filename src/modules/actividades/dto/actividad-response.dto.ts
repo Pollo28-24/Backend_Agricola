@@ -16,13 +16,23 @@ export class ActividadResponseDto {
   @ApiProperty({ example: 1 })
   creadoPorId: number;
 
-  @ApiProperty({ example: '2027-01-15', description: 'Fecha en formato YYYY-MM-DD (3.23)' })
+  @ApiProperty({
+    example: '2027-01-15',
+    description: 'Fecha en formato YYYY-MM-DD (3.23)',
+  })
   fecha: string;
 
-  @ApiPropertyOptional({ example: 'Preparación de cama de siembra', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Preparación de cama de siembra',
+    nullable: true,
+  })
   descripcion: string | null;
 
-  @ApiPropertyOptional({ example: '8.50', description: 'Horas trabajadas como string decimal', nullable: true })
+  @ApiPropertyOptional({
+    example: '8.50',
+    description: 'Horas trabajadas como string decimal',
+    nullable: true,
+  })
   horasTrabajadas: string | null;
 
   @ApiProperty({ example: '2027-01-15T10:00:00.000Z' })

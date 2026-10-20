@@ -1,0 +1,4 @@
+export const GASTO_CONSTANTS = {
+  VENTANA_EDICION_HORAS: 48,
+  TOLERANCIA_CENTAVOS: '0.05',
+} as const;

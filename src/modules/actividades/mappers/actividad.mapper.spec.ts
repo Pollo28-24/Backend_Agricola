@@ -1,5 +1,8 @@
 import { Prisma } from '@prisma/client';
-import { ActividadMapper, ActividadConRelacionesDetalle } from './actividad.mapper';
+import {
+  ActividadMapper,
+  ActividadConRelacionesDetalle,
+} from './actividad.mapper';
 
 describe('ActividadMapper', () => {
   it('toResponseDto debe mapear campos correctamente y formatear fecha y horasTrabajadas', () => {

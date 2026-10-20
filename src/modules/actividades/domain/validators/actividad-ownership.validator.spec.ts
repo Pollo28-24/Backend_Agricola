@@ -53,12 +53,12 @@ describe('ActividadOwnershipValidator', () => {
 
   it('debe rechazar con 409 si el tipoActividad está inactivo', () => {
     try {
-      validator.assertPertenenciaEmpresa({
+      (validator.assertPertenenciaEmpresa({
         empresaIdToken,
         ciclo: cicloValido,
         tipoActividad: { id: 2, activo: false },
       }),
-      fail('Debió lanzar DomainError');
+        fail('Debió lanzar DomainError'));
     } catch (e: any) {
       expect(e).toBeInstanceOf(DomainError);
       expect(e.code).toBe(CodigoError.CONFLICTO);

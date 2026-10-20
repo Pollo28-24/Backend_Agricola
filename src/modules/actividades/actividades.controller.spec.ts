@@ -57,16 +57,29 @@ describe('ActividadesController', () => {
 
     const res = await controller.crearActividad(userMock, dto);
 
-    expect(service.crearActividad).toHaveBeenCalledWith(userMock.empresaId, userMock.id, dto);
+    expect(service.crearActividad).toHaveBeenCalledWith(
+      userMock.empresaId,
+      userMock.id,
+      dto,
+    );
     expect(res.id).toBe(100);
   });
 
   it('listarActividades debe delegar en service.listarActividades', async () => {
-    service.listarActividades.mockResolvedValue({ data: [], meta: { total: 0 } });
+    service.listarActividades.mockResolvedValue({
+      data: [],
+      meta: { total: 0 },
+    });
 
-    const res = await controller.listarActividades(userMock.empresaId, { page: 1, limit: 10 });
+    const res = await controller.listarActividades(userMock.empresaId, {
+      page: 1,
+      limit: 10,
+    });
 
-    expect(service.listarActividades).toHaveBeenCalledWith(userMock.empresaId, { page: 1, limit: 10 });
+    expect(service.listarActividades).toHaveBeenCalledWith(userMock.empresaId, {
+      page: 1,
+      limit: 10,
+    });
     expect(res.data).toEqual([]);
   });
 
@@ -75,13 +88,19 @@ describe('ActividadesController', () => {
 
     const res = await controller.obtenerActividadPorId(userMock.empresaId, 100);
 
-    expect(service.obtenerActividadPorId).toHaveBeenCalledWith(userMock.empresaId, 100);
+    expect(service.obtenerActividadPorId).toHaveBeenCalledWith(
+      userMock.empresaId,
+      100,
+    );
     expect(res.id).toBe(100);
   });
 
   it('actualizarActividad debe detectar tienePermisoAdministrar = true para ADMIN', async () => {
     const dto: UpdateActividadDto = { descripcion: 'Cambio' };
-    service.actualizarActividad.mockResolvedValue({ id: 100, descripcion: 'Cambio' });
+    service.actualizarActividad.mockResolvedValue({
+      id: 100,
+      descripcion: 'Cambio',
+    });
 
     const res = await controller.actualizarActividad(userMock, 100, dto);
 
@@ -102,7 +121,10 @@ describe('ActividadesController', () => {
       permisos: ['actividad:crear'], // sin registro:administrar
     };
     const dto: UpdateActividadDto = { descripcion: 'Cambio' };
-    service.actualizarActividad.mockResolvedValue({ id: 100, descripcion: 'Cambio' });
+    service.actualizarActividad.mockResolvedValue({
+      id: 100,
+      descripcion: 'Cambio',
+    });
 
     await controller.actualizarActividad(capturistaUser, 100, dto);
 
@@ -116,7 +138,9 @@ describe('ActividadesController', () => {
   });
 
   it('eliminarActividad debe delegar en service.eliminarActividad', async () => {
-    service.eliminarActividad.mockResolvedValue({ message: 'Actividad eliminada exitosamente' });
+    service.eliminarActividad.mockResolvedValue({
+      message: 'Actividad eliminada exitosamente',
+    });
 
     const res = await controller.eliminarActividad(userMock, 100);
 

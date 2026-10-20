@@ -40,10 +40,16 @@ export function sanitizeLog(datos: unknown): Record<string, unknown> | null {
     if (!CAMPOS_SENSIBLES.has(keyLower)) {
       if (typeof value === 'bigint') {
         sanitizado[key] = value.toString();
-      } else if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
+      } else if (
+        value !== null &&
+        typeof value === 'object' &&
+        !(value instanceof Date)
+      ) {
         if (Array.isArray(value)) {
           sanitizado[key] = value.map((item) =>
-            typeof item === 'object' && item !== null ? sanitizeLog(item) : item,
+            typeof item === 'object' && item !== null
+              ? sanitizeLog(item)
+              : item,
           );
         } else {
           sanitizado[key] = sanitizeLog(value);

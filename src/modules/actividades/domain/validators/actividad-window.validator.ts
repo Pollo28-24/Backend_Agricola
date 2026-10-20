@@ -18,7 +18,8 @@ export interface ValidarVentanaEdicionParams {
  */
 @Injectable()
 export class ActividadWindowValidator {
-  public static readonly VENTANA_HORAS = ACTIVIDAD_CONSTANTS.VENTANA_EDICION_HORAS;
+  public static readonly VENTANA_HORAS =
+    ACTIVIDAD_CONSTANTS.VENTANA_EDICION_HORAS;
 
   assertEdicionPermitida(params: ValidarVentanaEdicionParams): void {
     // 1. Bypass institucional: ADMIN con 'registro:administrar' edita/elimina sin restricción temporal ni de autoría
