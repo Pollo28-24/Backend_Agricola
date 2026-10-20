@@ -245,9 +245,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, validCreateDto),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.CICLO_NO_ACTIVO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.CICLO_NO_ACTIVO });
     });
 
     it('rechaza ciclo en estado FINALIZADO y CANCELADO (CICLO_CERRADO)', async () => {
@@ -262,9 +260,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, validCreateDto),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.CICLO_CERRADO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.CICLO_CERRADO });
     });
 
     it('rechaza fecha anterior a fechaInicio del ciclo (RN-044)', async () => {
@@ -281,9 +277,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, dtoFechaAnterior),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.FECHA_ANTERIOR_AL_INICIO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.FECHA_ANTERIOR_AL_INICIO });
     });
 
     it('rechaza unidad de medida que no sea de tipo PESO (RN-069)', async () => {
@@ -308,9 +302,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, validCreateDto),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.UNIDAD_NO_PESO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.UNIDAD_NO_PESO });
     });
 
     it('rechaza cliente inactivo (CLIENTE_NO_ACTIVO)', async () => {
@@ -329,9 +321,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, validCreateDto),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.CLIENTE_NO_ACTIVO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.CLIENTE_NO_ACTIVO });
     });
 
     it('rechaza cliente inexistente o ajeno (RECURSO_NO_ENCONTRADO 404)', async () => {
@@ -347,9 +337,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, validCreateDto),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.RECURSO_NO_ENCONTRADO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.RECURSO_NO_ENCONTRADO });
     });
 
     it('rechaza cosecha de otro ciclo (COSECHA_DE_OTRO_CICLO 400)', async () => {
@@ -379,9 +367,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, dtoConCosechaAjena),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.COSECHA_DE_OTRO_CICLO }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.COSECHA_DE_OTRO_CICLO });
     });
 
     it('rechaza sobreventa cuando kgVendidos excede kgNetos (RN-027, VENTA_EXCEDE_DISPONIBLE 409)', async () => {
@@ -430,9 +416,7 @@ describe('VentasService', () => {
 
       await expect(
         service.crearVenta(empresaId, usuarioId, validCreateDto),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.VENTA_EXCEDE_DISPONIBLE }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.VENTA_EXCEDE_DISPONIBLE });
     });
   });
 
@@ -588,9 +572,7 @@ describe('VentasService', () => {
 
       await expect(
         service.actualizarVenta(10, empresaId, usuarioId, {}),
-      ).rejects.toThrow(
-        expect.objectContaining({ code: CodigoError.VENTA_YA_CANCELADA }),
-      );
+      ).rejects.toMatchObject({ code: CodigoError.VENTA_YA_CANCELADA });
     });
   });
 

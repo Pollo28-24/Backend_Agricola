@@ -1,11 +1,15 @@
-import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { createTestApp } from '../setup/create-test-app';
+import { testRequest } from '../setup/http.util';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { getOrLoadSeedData, E2eSeedData } from '../setup/e2e-seed';
+import {
+  getOrLoadSeedData,
+  crearCicloAisladoParaConcurrencia,
+  E2eSeedData,
+} from '../setup/e2e-seed';
 import { generateTestJwt } from '../setup/test-tokens.util';
 import { AuditService } from '../../src/prisma/audit.service';
-import { Prisma } from '@prisma/client';
+import { CalidadCosecha, Prisma } from '@prisma/client';
 
 describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
   let app: INestApplication;
@@ -47,7 +51,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
         );
       });
 
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/gastos')
         .set('Authorization', adminToken)
         .send({
@@ -90,7 +94,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
         );
       });
 
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/cosechas')
         .set('Authorization', adminToken)
         .send({
@@ -131,7 +135,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
         );
       });
 
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/mermas')
         .set('Authorization', adminToken)
         .send({
@@ -187,7 +191,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
         );
       });
 
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .patch(`/api/v1/gastos/${gastoOriginal.id}`)
         .set('Authorization', adminToken)
         .send({
@@ -224,7 +228,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
         );
       });
 
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .delete(`/api/v1/cosechas/${cosechaOriginal.id}`)
         .set('Authorization', adminToken);
 
@@ -237,6 +241,215 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
       expect(cosechaReleida).not.toBeNull();
       expect(cosechaReleida?.deletedAt).toBeNull();
     });
+
+    it('(f) POST /api/v1/ventas: si auditoría falla, no queda venta ni renglones y no hay bitácora', async () => {
+      const cicloDed = await crearCicloAisladoParaConcurrencia(
+        prisma,
+        seed.empresaA.id,
+        seed.empresaA.usuarios.admin.id,
+        seed.global.variedadId,
+      );
+
+      // Cosecha previa de 200 kg para permitir la venta
+      await prisma.cosecha.create({
+        data: {
+          cicloId: cicloDed.cicloId,
+          unidadId: seed.global.unidadKgId,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-02-01'),
+          cantidad: new Prisma.Decimal('200.000'),
+          calidad: CalidadCosecha.PRIMERA,
+        },
+      });
+
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(
+          new Error('FALLO_CRITICO_FORZADO_AUDITORIA_POST_VENTA'),
+        );
+      });
+
+      const res = await testRequest(app)
+        .post('/api/v1/ventas')
+        .set('Authorization', adminToken)
+        .send({
+          cicloId: cicloDed.cicloId,
+          clienteId: seed.empresaA.cliente.id,
+          fecha: '2026-03-01',
+          total: '500.00',
+          renglones: [
+            {
+              unidadId: seed.global.unidadKgId,
+              calidad: CalidadCosecha.PRIMERA,
+              cantidad: '20.000',
+              precioUnitario: '25.00',
+            },
+          ],
+        });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+
+      // Verificar que NUNCA se persistió la venta en BD
+      const ventaEnDb = await prisma.venta.findFirst({
+        where: { cicloId: cicloDed.cicloId },
+      });
+      expect(ventaEnDb).toBeNull();
+
+      // Verificar que tampoco quedaron renglones huérfanos
+      const renglonesEnDb = await prisma.detalleVenta.findMany({
+        where: {
+          venta: { cicloId: cicloDed.cicloId },
+        },
+      });
+      expect(renglonesEnDb.length).toBe(0);
+
+      // Verificar que no hay bitácora de la venta
+      const bitacoras = await prisma.bitacoraAuditoria.findMany({
+        where: {
+          empresaId: seed.empresaA.id,
+          entidad: 'Venta',
+        },
+      });
+      expect(
+        bitacoras.some((b) =>
+          JSON.stringify(b.valoresNuevos).includes(String(cicloDed.cicloId)),
+        ),
+      ).toBe(false);
+    });
+
+    it('(g) PATCH /api/v1/ventas/:id con reemplazo de renglones: si auditoría falla, quedan renglones originales intactos y cabecera sin cambios', async () => {
+      const cicloDed = await crearCicloAisladoParaConcurrencia(
+        prisma,
+        seed.empresaA.id,
+        seed.empresaA.usuarios.admin.id,
+        seed.global.variedadId,
+      );
+
+      await prisma.cosecha.create({
+        data: {
+          cicloId: cicloDed.cicloId,
+          unidadId: seed.global.unidadKgId,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-02-01'),
+          cantidad: new Prisma.Decimal('300.000'),
+          calidad: CalidadCosecha.PRIMERA,
+        },
+      });
+
+      // Crear venta original directamente
+      const ventaOriginal = await prisma.venta.create({
+        data: {
+          cicloId: cicloDed.cicloId,
+          clienteId: seed.empresaA.cliente.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-03-01'),
+          total: new Prisma.Decimal('1000.00'),
+          estado: 'REGISTRADA',
+          detalles: {
+            create: [
+              {
+                unidadId: seed.global.unidadKgId,
+                calidad: CalidadCosecha.PRIMERA,
+                cantidad: new Prisma.Decimal('50.000'),
+                precioUnitario: new Prisma.Decimal('20.00'),
+              },
+            ],
+          },
+        },
+        include: { detalles: true },
+      });
+      const renglonOriginalId = ventaOriginal.detalles[0].id;
+
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(
+          new Error('FALLO_CRITICO_FORZADO_AUDITORIA_PATCH_VENTA'),
+        );
+      });
+
+      const res = await testRequest(app)
+        .patch(`/api/v1/ventas/${ventaOriginal.id}`)
+        .set('Authorization', adminToken)
+        .send({
+          total: '1500.00',
+          renglones: [
+            {
+              unidadId: seed.global.unidadKgId,
+              calidad: CalidadCosecha.PRIMERA,
+              cantidad: '60.000',
+              precioUnitario: '25.00',
+            },
+          ],
+        });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+
+      // Releer venta en BD: cabecera intacta
+      const ventaReleida = await prisma.venta.findUnique({
+        where: { id: ventaOriginal.id },
+        include: { detalles: true },
+      });
+      expect(Number(ventaReleida?.total)).toBe(1000.0);
+      expect(ventaReleida?.detalles.length).toBe(1);
+      expect(ventaReleida?.detalles[0].id).toBe(renglonOriginalId);
+      expect(Number(ventaReleida?.detalles[0].cantidad)).toBe(50.0);
+
+      // Verificar que no se generó bitácora de actualización
+      const bitacoras = await prisma.bitacoraAuditoria.findMany({
+        where: {
+          empresaId: seed.empresaA.id,
+          entidad: 'Venta',
+          entidadId: ventaOriginal.id,
+          accion: 'ACTUALIZAR',
+        },
+      });
+      expect(bitacoras.length).toBe(0);
+    });
+
+    it('(h) PATCH /api/v1/ventas/:id/cancelar: si auditoría falla, la venta sigue REGISTRADA', async () => {
+      const cicloDed = await crearCicloAisladoParaConcurrencia(
+        prisma,
+        seed.empresaA.id,
+        seed.empresaA.usuarios.admin.id,
+        seed.global.variedadId,
+      );
+
+      const ventaOriginal = await prisma.venta.create({
+        data: {
+          cicloId: cicloDed.cicloId,
+          clienteId: seed.empresaA.cliente.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-03-01'),
+          total: new Prisma.Decimal('500.00'),
+          estado: 'REGISTRADA',
+        },
+      });
+
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(
+          new Error('FALLO_CRITICO_FORZADO_AUDITORIA_CANCELAR_VENTA'),
+        );
+      });
+
+      const res = await testRequest(app)
+        .patch(`/api/v1/ventas/${ventaOriginal.id}/cancelar`)
+        .set('Authorization', adminToken);
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+
+      const ventaReleida = await prisma.venta.findUnique({
+        where: { id: ventaOriginal.id },
+      });
+      expect(ventaReleida?.estado).toBe('REGISTRADA');
+
+      const bitacoras = await prisma.bitacoraAuditoria.findMany({
+        where: {
+          empresaId: seed.empresaA.id,
+          entidad: 'Venta',
+          entidadId: ventaOriginal.id,
+          accion: 'ACTUALIZAR',
+        },
+      });
+      expect(bitacoras.length).toBe(0);
+    });
   });
 
   describe('2. Prueba de control: Auditoría real exitosa y exclusión de secretos (RN-074)', () => {
@@ -244,7 +457,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
       const descripcionExitosa = `Gasto Control Auditoria ${Date.now()}`;
 
       // Operación normal sin mocks
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/gastos')
         .set('Authorization', adminToken)
         .send({

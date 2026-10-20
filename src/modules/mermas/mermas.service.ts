@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { AccionAuditoria, EstadoCiclo, Prisma } from '@prisma/client';
+import { AccionAuditoria, Prisma } from '@prisma/client';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { PrismaService } from '../../prisma/prisma.service';

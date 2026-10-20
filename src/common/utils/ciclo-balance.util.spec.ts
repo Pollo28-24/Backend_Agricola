@@ -26,7 +26,10 @@ describe('ciclo-balance.util', () => {
       const resultado = await bloquearCicloParaCaptura(tx, 1, 10);
 
       expect(mockRaw).toHaveBeenCalledTimes(1);
-      const queryParam = mockRaw.mock.calls[0][0];
+      const mockCalls = mockRaw.mock.calls as unknown as Array<
+        [{ strings: string[] }]
+      >;
+      const queryParam = mockCalls[0][0];
       const sqlString = queryParam.strings.join('?');
       expect(sqlString).toContain('FROM ciclo_produccion');
       expect(sqlString).toContain('empresaId = ?');
@@ -167,15 +170,18 @@ describe('ciclo-balance.util', () => {
 
       const balance = await calcularBalanceMasaKg(tx, 1);
 
-      expect(mockFindMermas).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            cicloId: 1,
-            deletedAt: null,
-            etapa: { not: 'CAMPO' },
-          }),
-        }),
-      );
+      expect(mockFindMermas).toHaveBeenCalledTimes(1);
+      const mockCalls = mockFindMermas.mock.calls as unknown as Array<
+        [
+          {
+            where: { cicloId: number; deletedAt: null; etapa: { not: string } };
+          },
+        ]
+      >;
+      const mermasCall = mockCalls[0][0];
+      expect(mermasCall.where.cicloId).toBe(1);
+      expect(mermasCall.where.deletedAt).toBeNull();
+      expect(mermasCall.where.etapa).toEqual({ not: 'CAMPO' });
       expect(balance.kgNetos.toString()).toBe('84.5');
     });
 
@@ -211,17 +217,24 @@ describe('ciclo-balance.util', () => {
 
       const balance = await calcularBalanceMasaKg(tx, 1);
 
-      expect(mockFindDetalles).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            venta: {
-              cicloId: 1,
-              estado: { not: 'CANCELADA' },
-              deletedAt: null,
-            },
-          }),
-        }),
-      );
+      expect(mockFindDetalles).toHaveBeenCalledTimes(1);
+      const mockCalls = mockFindDetalles.mock.calls as unknown as Array<
+        [
+          {
+            where: {
+              venta: {
+                cicloId: number;
+                estado: { not: string };
+                deletedAt: null;
+              };
+            };
+          },
+        ]
+      >;
+      const detallesCall = mockCalls[0][0];
+      expect(detallesCall.where.venta.cicloId).toBe(1);
+      expect(detallesCall.where.venta.estado).toEqual({ not: 'CANCELADA' });
+      expect(detallesCall.where.venta.deletedAt).toBeNull();
 
       // kgCosechados: 100, kgMermaPoscosecha: 10 -> kgNetos: 90
       // kgVendidos: 30.250 -> kgDisponibles: 59.750

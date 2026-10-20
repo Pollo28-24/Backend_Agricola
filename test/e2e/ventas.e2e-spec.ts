@@ -1,6 +1,6 @@
-import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { createTestApp } from '../setup/create-test-app';
+import { testRequest } from '../setup/http.util';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import {
   getOrLoadSeedData,
@@ -64,7 +64,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
   // =========================================================================
   describe('1. Aislamiento multiempresa (404 estricto ante recursos de otra empresa)', () => {
     it('GET /api/v1/ventas/:id ajeno devuelve 404', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .get(`/api/v1/ventas/${seed.empresaB.venta.id}`)
         .set('Authorization', tokenA_Admin);
 
@@ -75,7 +75,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
     });
 
     it('PATCH /api/v1/ventas/:id ajeno devuelve 404 y no muta en BD', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .patch(`/api/v1/ventas/${seed.empresaB.venta.id}`)
         .set('Authorization', tokenA_Admin)
         .send({ total: '9999.00' });
@@ -92,7 +92,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
     });
 
     it('PATCH /api/v1/ventas/:id/cancelar ajeno devuelve 404', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .patch(`/api/v1/ventas/${seed.empresaB.venta.id}/cancelar`)
         .set('Authorization', tokenA_Admin);
 
@@ -103,7 +103,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
     });
 
     it('POST /api/v1/ventas con cliente ajeno devuelve 404', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -128,7 +128,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
     });
 
     it('POST /api/v1/ventas con ciclo ajeno devuelve 404', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -153,7 +153,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
     });
 
     it('POST /api/v1/ventas con cosecha ajena en renglón devuelve 404', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -179,7 +179,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
     });
 
     it('GET /api/v1/ventas de A nunca lista ventas de Empresa B', async () => {
-      const res = await request(app.getHttpServer())
+      const res = await testRequest(app)
         .get('/api/v1/ventas')
         .set('Authorization', tokenA_Admin);
 
@@ -195,7 +195,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
   // =========================================================================
   describe('2. Control de acceso RBAC (RN-064)', () => {
     it('CAPTURISTA recibe 403 PERMISO_DENEGADO en todos los endpoints de ventas', async () => {
-      const postRes = await request(app.getHttpServer())
+      const postRes = await testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Capturista)
         .send({});
@@ -204,35 +204,35 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
         CodigoError.PERMISO_DENEGADO,
       );
 
-      const getRes = await request(app.getHttpServer())
+      const getRes = await testRequest(app)
         .get('/api/v1/ventas')
         .set('Authorization', tokenA_Capturista);
       expect(getRes.status).toBe(403);
 
-      const getDetRes = await request(app.getHttpServer())
+      const getDetRes = await testRequest(app)
         .get(`/api/v1/ventas/${seed.empresaA.venta.id}`)
         .set('Authorization', tokenA_Capturista);
       expect(getDetRes.status).toBe(403);
 
-      const patchRes = await request(app.getHttpServer())
+      const patchRes = await testRequest(app)
         .patch(`/api/v1/ventas/${seed.empresaA.venta.id}`)
         .set('Authorization', tokenA_Capturista)
         .send({});
       expect(patchRes.status).toBe(403);
 
-      const cancelRes = await request(app.getHttpServer())
+      const cancelRes = await testRequest(app)
         .patch(`/api/v1/ventas/${seed.empresaA.venta.id}/cancelar`)
         .set('Authorization', tokenA_Capturista);
       expect(cancelRes.status).toBe(403);
     });
 
     it('CONTADOR y ADMIN están autorizados a consultar ventas', async () => {
-      const resContador = await request(app.getHttpServer())
+      const resContador = await testRequest(app)
         .get('/api/v1/ventas')
         .set('Authorization', tokenA_Contador);
       expect(resContador.status).toBe(200);
 
-      const resAdmin = await request(app.getHttpServer())
+      const resAdmin = await testRequest(app)
         .get('/api/v1/ventas')
         .set('Authorization', tokenA_Admin);
       expect(resAdmin.status).toBe(200);
@@ -281,12 +281,12 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
         ],
       };
 
-      const promVenta1 = request(app.getHttpServer())
+      const promVenta1 = testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send(ventaPayload);
 
-      const promVenta2 = request(app.getHttpServer())
+      const promVenta2 = testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send(ventaPayload);
@@ -359,7 +359,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
 
       const lockHolder = await holdCicloLock(cicloDed.cicloId);
 
-      const promVenta = request(app.getHttpServer())
+      const promVenta = testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -378,7 +378,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
           ],
         });
 
-      const promMerma = request(app.getHttpServer())
+      const promMerma = testRequest(app)
         .post('/api/v1/mermas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -454,12 +454,12 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
 
       const lockHolder = await holdCicloLock(cicloDed.cicloId);
 
-      const promPatchCosecha = request(app.getHttpServer())
+      const promPatchCosecha = testRequest(app)
         .patch(`/api/v1/cosechas/${cosecha.id}`)
         .set('Authorization', tokenA_Admin)
         .send({ cantidad: '700' });
 
-      const promVenta = request(app.getHttpServer())
+      const promVenta = testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -557,7 +557,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       });
 
       // Disparar POST venta nueva y PATCH cancelar simultáneos
-      const promPostVenta = request(app.getHttpServer())
+      const promPostVenta = testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -576,7 +576,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
           ],
         });
 
-      const promCancelar = request(app.getHttpServer())
+      const promCancelar = testRequest(app)
         .patch(`/api/v1/ventas/${ventaPrevia.id}/cancelar`)
         .set('Authorization', tokenA_Admin);
 
@@ -657,7 +657,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       });
 
       // Intentar eliminar la cosecha
-      const delRes = await request(app.getHttpServer())
+      const delRes = await testRequest(app)
         .delete(`/api/v1/cosechas/${cosecha.id}`)
         .set('Authorization', tokenA_Admin);
 
@@ -667,12 +667,12 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       );
 
       // Cancelar la venta: la venta cancelada no debe bloquear la eliminación
-      await request(app.getHttpServer())
+      await testRequest(app)
         .patch(`/api/v1/ventas/${venta.id}/cancelar`)
         .set('Authorization', tokenA_Admin)
         .expect(200);
 
-      const delRes2 = await request(app.getHttpServer())
+      const delRes2 = await testRequest(app)
         .delete(`/api/v1/cosechas/${cosecha.id}`)
         .set('Authorization', tokenA_Admin);
 
@@ -721,7 +721,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       });
 
       // Intentar reducir cosecha a 300 kg (< 400 kg vendidos)
-      const patchRes = await request(app.getHttpServer())
+      const patchRes = await testRequest(app)
         .patch(`/api/v1/cosechas/${cosecha.id}`)
         .set('Authorization', tokenA_Admin)
         .send({ cantidad: '300' });
@@ -757,7 +757,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       });
 
       // 1. Crear venta
-      const postRes = await request(app.getHttpServer())
+      const postRes = await testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', tokenA_Admin)
         .send({
@@ -779,7 +779,7 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       const ventaId = (postRes.body as { id: number }).id;
 
       // 2. Editar con reemplazo atómico de renglones
-      const patchRes = await request(app.getHttpServer())
+      const patchRes = await testRequest(app)
         .patch(`/api/v1/ventas/${ventaId}`)
         .set('Authorization', tokenA_Admin)
         .send({
