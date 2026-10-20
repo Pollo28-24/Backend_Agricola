@@ -8,7 +8,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { DomainError } from '../../common/errors/domain.error';
 import { CreateActividadDto } from './dto/create-actividad.dto';
-import { UpdateActividadDto } from './dto/update-actividad.dto';
 
 describe('ActividadesService', () => {
   let service: ActividadesService;
@@ -63,9 +62,17 @@ describe('ActividadesService', () => {
         count: jest.fn(),
       },
       $transaction: jest.fn(),
+      $queryRaw: jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          empresaId: 1,
+          estado: 'ACTIVO',
+          fechaInicio: new Date('2026-01-01'),
+        },
+      ]),
     };
 
-    prisma.$transaction.mockImplementation(async (callback) => {
+    prisma.$transaction.mockImplementation((callback) => {
       return callback(prisma);
     });
 

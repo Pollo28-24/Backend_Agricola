@@ -19,6 +19,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { DomainError } from '../../common/errors/domain.error';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { FechaUtil } from '../../common/utils/fechas';
+import { bloquearCicloParaCaptura } from '../../common/utils/ciclo-balance.util';
 
 dayjs.extend(utc);
 
@@ -165,20 +166,13 @@ export class GastosService {
 
     // Transaccionar: crear y auditar atómicamente
     return this.prisma.$transaction(async (tx) => {
-      // Re-verificar ciclo dentro de la transacción (A6)
-      const cicloTx = await tx.cicloProduccion.findFirst({
-        where: { id: dto.cicloId, empresaId, deletedAt: null },
-        select: GASTO_SELECTS.CICLO_VALIDACION,
-      });
-
-      if (!cicloTx) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'Ciclo de producción no encontrado en la transacción',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-      this.cyclePolicy.assertCaptureAllowed(cicloTx);
+      // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
+      const cicloTx = await bloquearCicloParaCaptura(
+        tx,
+        dto.cicloId,
+        empresaId,
+      );
+      this.cyclePolicy.assertCaptureAllowed({ estado: cicloTx.estado });
 
       const nuevoGasto = await tx.gasto.create({
         data: {
@@ -519,19 +513,25 @@ export class GastosService {
 
     // Persistir y auditar transaccionalmente
     return this.prisma.$transaction(async (tx) => {
-      // Re-verificar ciclo dentro de tx
-      const cicloTx = await tx.cicloProduccion.findFirst({
-        where: { id: gastoExistente.cicloId, empresaId, deletedAt: null },
-        select: GASTO_SELECTS.CICLO_VALIDACION,
+      // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
+      const cicloTx = await bloquearCicloParaCaptura(
+        tx,
+        gastoExistente.cicloId,
+        empresaId,
+      );
+
+      // Releer el gasto dentro de la transacción bajo el lock
+      const gastoTx = await tx.gasto.findFirst({
+        where: { id, deletedAt: null, ciclo: { empresaId, deletedAt: null } },
       });
-      if (!cicloTx) {
+      if (!gastoTx) {
         throw new DomainError(
           CodigoError.RECURSO_NO_ENCONTRADO,
-          'Ciclo de producción no encontrado en la transacción',
+          'Gasto no encontrado en su empresa (RN-068)',
           HttpStatus.NOT_FOUND,
         );
       }
-      this.cyclePolicy.assertCaptureAllowed(cicloTx);
+      this.cyclePolicy.assertCaptureAllowed({ estado: cicloTx.estado });
 
       const dataToUpdate: Prisma.GastoUpdateInput = {};
       if (dto.categoriaId !== undefined) {
@@ -644,20 +644,25 @@ export class GastosService {
     this.cyclePolicy.assertCaptureAllowed(gasto.ciclo);
 
     return this.prisma.$transaction(async (tx) => {
-      // Re-verificar ciclo dentro de tx
-      const cicloTx = await tx.cicloProduccion.findFirst({
-        where: { id: gasto.cicloId, empresaId, deletedAt: null },
-        select: GASTO_SELECTS.CICLO_VALIDACION,
-      });
+      // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
+      const cicloTx = await bloquearCicloParaCaptura(
+        tx,
+        gasto.cicloId,
+        empresaId,
+      );
 
-      if (!cicloTx) {
+      // Releer el gasto dentro de la transacción bajo el lock
+      const gastoTx = await tx.gasto.findFirst({
+        where: { id, deletedAt: null, ciclo: { empresaId, deletedAt: null } },
+      });
+      if (!gastoTx) {
         throw new DomainError(
           CodigoError.RECURSO_NO_ENCONTRADO,
-          'Ciclo no encontrado en la transacción',
+          'Gasto no encontrado en su empresa (RN-068)',
           HttpStatus.NOT_FOUND,
         );
       }
-      this.cyclePolicy.assertCaptureAllowed(cicloTx);
+      this.cyclePolicy.assertCaptureAllowed({ estado: cicloTx.estado });
 
       await tx.gasto.update({
         where: { id },

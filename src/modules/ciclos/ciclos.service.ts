@@ -24,6 +24,7 @@ import { CicloDetalleResponseDto } from './dto/ciclo-detalle-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationUtil } from '../../common/utils/pagination.util';
 import { EntityValidationUtil } from '../../common/utils/entity-validation.util';
+import { bloquearCicloParaCaptura } from '../../common/utils/ciclo-balance.util';
 
 dayjs.extend(utc);
 
@@ -373,7 +374,10 @@ export class CiclosService {
   ): Promise<CicloResponseDto> {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // 1. Obtener ciclo con bloqueo lógico
+        // ORDEN DE BLOQUEO ÚNICO (RN-067 / C5): Ciclo primero (SELECT ... FOR UPDATE) y parcela después.
+        await bloquearCicloParaCaptura(tx, id, empresaId);
+
+        // 1. Obtener ciclo conservando empresaId y deletedAt: null
         const ciclo = await tx.cicloProduccion.findFirst({
           where: {
             id,
@@ -570,11 +574,15 @@ export class CiclosService {
       ) {
         const target = Array.isArray(error.meta?.target)
           ? error.meta.target.join(',')
-          : String(error.meta?.target ?? '');
+          : typeof error.meta?.target === 'string'
+            ? error.meta.target
+            : JSON.stringify(error.meta?.target ?? '');
 
         if (
           target.includes('claveCicloActivo') ||
-          target.includes('ciclo_produccion_claveCicloActivo_key')
+          target.includes('ciclo_produccion_claveCicloActivo_key') ||
+          accion === AccionCiclo.INICIAR ||
+          accion === AccionCiclo.REANUDAR
         ) {
           throw new DomainError(
             CodigoError.CICLO_YA_ACTIVO,

@@ -64,7 +64,7 @@ export class GastosController {
   }
 
   @Get()
-  @RequirePermisos('gasto:crear', 'gasto:editar_todos', 'registro:administrar')
+  @RequirePermisos('gasto:crear')
   @ApiOperation({
     summary:
       'Listar gastos operativos con scoped visibility (CAPTURISTA solo ve sus propios gastos) y paginación (Contrato 3.23)',
@@ -88,7 +88,7 @@ export class GastosController {
   }
 
   @Get(':id')
-  @RequirePermisos('gasto:crear', 'gasto:editar_todos', 'registro:administrar')
+  @RequirePermisos('gasto:crear')
   @ApiOperation({
     summary:
       'Obtener detalle de un gasto por ID con relaciones precargadas (404 si es ajeno a un CAPTURISTA)',

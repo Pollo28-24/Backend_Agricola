@@ -62,10 +62,18 @@ describe('CiclosService', () => {
         create: jest.fn(),
       },
       $transaction: jest.fn(),
+      $queryRaw: jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          empresaId: 1,
+          estado: 'ACTIVO',
+          fechaInicio: new Date('2026-01-01'),
+        },
+      ]),
     };
 
     // Por defecto $transaction ejecuta el callback pasándole el prisma mock como tx
-    prisma.$transaction.mockImplementation(async (callback) => {
+    prisma.$transaction.mockImplementation((callback) => {
       return callback(prisma);
     });
 

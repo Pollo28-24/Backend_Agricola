@@ -1,12 +1,12 @@
 import { HttpStatus } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { EstadoCiclo, Prisma } from '@prisma/client';
 import { DomainError } from '../errors/domain.error';
 import { CodigoError } from '../errors/codigos-error.enum';
 
 export interface BloqueoCicloResult {
   id: number;
   empresaId: number;
-  estado: string;
+  estado: EstadoCiclo;
   fechaInicio: Date;
 }
 
@@ -17,25 +17,27 @@ export interface BloqueoCicloResult {
  * - Filtra explícitamente por empresaId del token JWT y deletedAt IS NULL.
  * - Si no existe o no pertenece a la empresa, responde 404 RECURSO_NO_ENCONTRADO.
  */
+interface CicloRawRow {
+  id: number;
+  empresaId?: number;
+  empresa_id?: number;
+  estado: EstadoCiclo;
+  fechaInicio?: Date;
+  fecha_inicio?: Date;
+}
+
 export async function bloquearCicloParaCaptura(
   tx: Prisma.TransactionClient,
   cicloId: number,
   empresaId: number,
 ): Promise<BloqueoCicloResult> {
-  const filas = await tx.$queryRaw<
-    Array<{
-      id: number;
-      empresa_id: number;
-      estado: string;
-      fecha_inicio: Date;
-    }>
-  >(
+  const filas = await tx.$queryRaw<CicloRawRow[]>(
     Prisma.sql`
-      SELECT id, empresa_id, estado, fecha_inicio
+      SELECT id, empresaId, estado, fechaInicio
       FROM ciclo_produccion
       WHERE id = ${cicloId}
-        AND empresa_id = ${empresaId}
-        AND deleted_at IS NULL
+        AND empresaId = ${empresaId}
+        AND deletedAt IS NULL
       LIMIT 1
       FOR UPDATE
     `,
@@ -52,9 +54,9 @@ export async function bloquearCicloParaCaptura(
   const fila = filas[0];
   return {
     id: fila.id,
-    empresaId: fila.empresa_id,
+    empresaId: fila.empresaId ?? fila.empresa_id ?? empresaId,
     estado: fila.estado,
-    fechaInicio: fila.fecha_inicio,
+    fechaInicio: fila.fechaInicio ?? fila.fecha_inicio ?? new Date(),
   };
 }
 

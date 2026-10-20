@@ -7,10 +7,7 @@ import { AuditService } from '../../prisma/audit.service';
 import { CicloCapturaPolicy } from './domain/policies/ciclo-captura.policy';
 import { ActividadWindowValidator } from './domain/validators/actividad-window.validator';
 import { ActividadOwnershipValidator } from './domain/validators/actividad-ownership.validator';
-import {
-  ActividadMapper,
-  ActividadConRelacionesDetalle,
-} from './mappers/actividad.mapper';
+import { ActividadMapper } from './mappers/actividad.mapper';
 import { ACTIVIDAD_CONSTANTS } from './constants/actividad.constants';
 import { ACTIVIDAD_SELECTS } from './queries/actividad-selects.constant';
 import { CreateActividadDto } from './dto/create-actividad.dto';
@@ -22,6 +19,7 @@ import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { DomainError } from '../../common/errors/domain.error';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { FechaUtil } from '../../common/utils/fechas';
+import { bloquearCicloParaCaptura } from '../../common/utils/ciclo-balance.util';
 
 dayjs.extend(utc);
 
@@ -76,6 +74,14 @@ export class ActividadesService {
 
     // PASO 3 Y 4: TRANSACCIONAR, PERSISTIR Y AUDITAR
     return this.prisma.$transaction(async (tx) => {
+      // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
+      const cicloTx = await bloquearCicloParaCaptura(
+        tx,
+        dto.cicloId,
+        empresaId,
+      );
+      this.cyclePolicy.assertCaptureAllowed({ estado: cicloTx.estado });
+
       const actividad = await tx.actividad.create({
         data: {
           cicloId: dto.cicloId,
@@ -297,6 +303,25 @@ export class ActividadesService {
 
     // PASO 3 Y 4: TRANSACCIONAR, PERSISTIR Y AUDITAR
     return this.prisma.$transaction(async (tx) => {
+      // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
+      const cicloTx = await bloquearCicloParaCaptura(
+        tx,
+        actividadActual.cicloId,
+        empresaId,
+      );
+
+      // Releer la actividad dentro de la transacción bajo el lock
+      const actTx = await tx.actividad.findFirst({
+        where: { id, deletedAt: null, ciclo: { empresaId, deletedAt: null } },
+      });
+      if (!actTx) {
+        throw new DomainError(
+          CodigoError.RECURSO_NO_ENCONTRADO,
+          `Actividad con ID ${id} no encontrada en su empresa`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      this.cyclePolicy.assertCaptureAllowed({ estado: cicloTx.estado });
       const dataUpdate: Prisma.ActividadUpdateInput = {};
       if (dto.tipoActividadId)
         dataUpdate.tipoActividad = { connect: { id: dto.tipoActividadId } };
@@ -359,16 +384,41 @@ export class ActividadesService {
     tienePermisoAdministrar: boolean,
     id: number,
   ): Promise<{ message: string }> {
+    // Leer registro fuera para conocer cicloId
+    const actividadActual = await this.prisma.actividad.findFirst({
+      where: {
+        id,
+        ciclo: { empresaId, deletedAt: null },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        cicloId: true,
+      },
+    });
+
+    if (!actividadActual) {
+      throw new DomainError(
+        CodigoError.RECURSO_NO_ENCONTRADO,
+        `Actividad con ID ${id} no encontrada en su empresa`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // PASO 1: LEER
+      // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
+      const cicloTx = await bloquearCicloParaCaptura(
+        tx,
+        actividadActual.cicloId,
+        empresaId,
+      );
+
+      // Releer el registro dentro de la transacción bajo el lock
       const actividad = await tx.actividad.findFirst({
         where: {
           id,
           ciclo: { empresaId, deletedAt: null },
           deletedAt: null,
-        },
-        include: {
-          ciclo: { select: { id: true, estado: true } },
         },
       });
 
@@ -380,8 +430,8 @@ export class ActividadesService {
         );
       }
 
-      // PASO 2: VALIDAR DOMINIO PURO
-      this.cyclePolicy.assertCaptureAllowed(actividad.ciclo);
+      // Validar dominio con el ciclo bloqueado
+      this.cyclePolicy.assertCaptureAllowed({ estado: cicloTx.estado });
       this.windowValidator.assertEdicionPermitida({
         createdAt: actividad.createdAt,
         creadoPorId: actividad.creadoPorId,

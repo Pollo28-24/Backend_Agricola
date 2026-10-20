@@ -70,6 +70,14 @@ describe('GastosService', () => {
         findUnique: jest.fn(),
       },
       $transaction: jest.fn(),
+      $queryRaw: jest.fn().mockResolvedValue([
+        {
+          id: 1,
+          empresaId: 1,
+          estado: 'ACTIVO',
+          fechaInicio: new Date('2026-01-01'),
+        },
+      ]),
     };
 
     prisma.$transaction.mockImplementation(
