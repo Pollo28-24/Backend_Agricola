@@ -32,6 +32,6 @@ export class FechaUtil {
   }
 
   public static toDateOnly(fecha: Date | string): string {
-    return dayjs(fecha).format('YYYY-MM-DD');
+    return dayjs.utc(fecha).format('YYYY-MM-DD');
   }
 }

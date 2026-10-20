@@ -17,4 +17,9 @@ describe('FechaUtil', () => {
     expect(horas).toBeGreaterThanOrEqual(1.9);
     expect(horas).toBeLessThanOrEqual(2.1);
   });
+
+  it('debe formatear a YYYY-MM-DD sin desfasar por huso horario (3.23)', () => {
+    const fecha = new Date('2027-01-15T00:00:00.000Z');
+    expect(FechaUtil.toDateOnly(fecha)).toBe('2027-01-15');
+  });
 });

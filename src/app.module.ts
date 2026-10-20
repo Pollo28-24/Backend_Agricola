@@ -13,6 +13,7 @@ import { CatalogosModule } from './modules/catalogos/catalogos.module';
 import { EstructuraModule } from './modules/estructura/estructura.module';
 import { TercerosModule } from './modules/terceros/terceros.module';
 import { CiclosModule } from './modules/ciclos/ciclos.module';
+import { ActividadesModule } from './modules/actividades/actividades.module';
 import { envValidationSchema } from './config/env.validation';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AccesoVigenteGuard } from './common/guards/acceso-vigente.guard';
@@ -44,6 +45,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     EstructuraModule,
     TercerosModule,
     CiclosModule,
+    ActividadesModule,
   ],
   providers: [
     {
