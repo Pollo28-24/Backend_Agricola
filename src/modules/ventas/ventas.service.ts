@@ -191,26 +191,26 @@ export class VentasService {
     usuarioId: number,
     dto: UpdateVentaDto,
   ): Promise<VentaResponseDto> {
+    // 1. Obtener cicloId fuera de la transacción para no fijar snapshot MVCC en tx antes del lock
+    const ventaPrevia = await this.prisma.venta.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        ciclo: { empresaId, deletedAt: null },
+      },
+      select: { id: true, cicloId: true },
+    });
+
+    if (!ventaPrevia) {
+      throw new DomainError(
+        CodigoError.RECURSO_NO_ENCONTRADO,
+        'Venta no encontrada',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // 1. Verificar existencia y pertenencia inicial
-      const ventaPrevia = await tx.venta.findFirst({
-        where: {
-          id,
-          deletedAt: null,
-          ciclo: { empresaId, deletedAt: null },
-        },
-        select: { id: true, cicloId: true },
-      });
-
-      if (!ventaPrevia) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'Venta no encontrada',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      // 2. Bloqueo del ciclo (orden estricto: ciclo primero)
+      // 2. Bloqueo del ciclo (orden estricto institucional: ciclo primero)
       const ciclo = await bloquearCicloParaCaptura(
         tx,
         ventaPrevia.cicloId,
@@ -482,26 +482,26 @@ export class VentasService {
     empresaId: number,
     usuarioId: number,
   ): Promise<VentaResponseDto> {
+    // 1. Obtener cicloId fuera de la transacción para no fijar snapshot MVCC en tx antes del lock
+    const ventaPrevia = await this.prisma.venta.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        ciclo: { empresaId, deletedAt: null },
+      },
+      select: { id: true, cicloId: true },
+    });
+
+    if (!ventaPrevia) {
+      throw new DomainError(
+        CodigoError.RECURSO_NO_ENCONTRADO,
+        'Venta no encontrada',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // 1. Obtener cicloId inicial
-      const ventaPrevia = await tx.venta.findFirst({
-        where: {
-          id,
-          deletedAt: null,
-          ciclo: { empresaId, deletedAt: null },
-        },
-        select: { id: true, cicloId: true },
-      });
-
-      if (!ventaPrevia) {
-        throw new DomainError(
-          CodigoError.RECURSO_NO_ENCONTRADO,
-          'Venta no encontrada',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      // 2. Bloquear ciclo
+      // 2. Bloquear ciclo (orden institucional único: ciclo primero)
       const ciclo = await bloquearCicloParaCaptura(
         tx,
         ventaPrevia.cicloId,

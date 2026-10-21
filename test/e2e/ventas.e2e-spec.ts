@@ -609,6 +609,69 @@ describe('Hito 7: Módulo de Ventas y Control de Sobreventa (E2E)', () => {
       });
       expect(conteoVentas).toBe(1);
     });
+
+    it('dos cancelaciones simultáneas sobre la misma venta con compuerta de lock -> exactamente una da 200 y la otra 409 VENTA_YA_CANCELADA', async () => {
+      const cicloDed = await crearCicloAisladoParaConcurrencia(
+        prisma,
+        seed.empresaA.id,
+        seed.empresaA.usuarios.admin.id,
+        seed.global.variedadId,
+      );
+      const cosecha = await prisma.cosecha.create({
+        data: {
+          cicloId: cicloDed.cicloId,
+          unidadId: seed.global.unidadKgId,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-02-01'),
+          cantidad: new Prisma.Decimal('500.000'),
+          calidad: CalidadCosecha.PRIMERA,
+        },
+      });
+      const venta = await prisma.venta.create({
+        data: {
+          cicloId: cicloDed.cicloId,
+          clienteId: seed.empresaA.cliente.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-02-10'),
+          total: new Prisma.Decimal('2500.00'),
+          estado: EstadoVenta.REGISTRADA,
+          detalles: {
+            create: [
+              {
+                cosechaId: cosecha.id,
+                unidadId: seed.global.unidadKgId,
+                calidad: CalidadCosecha.PRIMERA,
+                cantidad: new Prisma.Decimal('100.000'),
+                precioUnitario: new Prisma.Decimal('25.00'),
+              },
+            ],
+          },
+        },
+      });
+
+      const lockHolder = await holdCicloLock(cicloDed.cicloId);
+
+      const promCancel1 = testRequest(app)
+        .patch(`/api/v1/ventas/${venta.id}/cancelar`)
+        .set('Authorization', tokenA_Admin);
+
+      const promCancel2 = testRequest(app)
+        .patch(`/api/v1/ventas/${venta.id}/cancelar`)
+        .set('Authorization', tokenA_Admin);
+
+      await waitUntilBlocked(prisma, 2, 5000);
+      await lockHolder.commit();
+
+      const [res1, res2] = await Promise.all([promCancel1, promCancel2]);
+
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([200, 409]);
+
+      const res409 = res1.status === 409 ? res1 : res2;
+      expect((res409.body as ApiResponseError).code).toBe(
+        CodigoError.VENTA_YA_CANCELADA,
+      );
+    });
   });
 
   // =========================================================================
