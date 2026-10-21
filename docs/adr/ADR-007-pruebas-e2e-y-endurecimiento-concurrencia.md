@@ -58,6 +58,19 @@ El análisis de carrera expuso que `GastosService` y `ActividadesService` no blo
 ### 5. Corrección de Semántica en Permisos de Gastos
 `PermisosGuard` implementa una semántica `AND`. En `GastosController`, los endpoints de lectura (`GET /` y `GET /:id`) estaban decorados con `@RequirePermisos('gasto:crear')`, impidiendo el acceso al rol `CAPTURISTA`. Se corrigió el decorador a un único permiso de lectura (`gasto:consultar` o equivalente del módulo), permitiendo la visibilidad acotada (scoped visibility) requerida por el negocio.
 
+### 6. Regla de Aislamiento de Snapshot en Transacciones REPEATABLE READ (MySQL InnoDB)
+En el nivel de aislamiento por defecto de MySQL InnoDB (`REPEATABLE READ`), la primera lectura no bloqueante (`SELECT` ordinario de Prisma) dentro de una transacción inicializa y fija de forma inmutable el snapshot MVCC (Read View) para toda la duración de dicha transacción.
+
+Si un servicio realiza una lectura preliminar dentro de `$transaction` para obtener el `cicloId` antes de invocar `bloquearCicloParaCaptura`, y la transacción entra en espera de lock pesimista (`FOR UPDATE`), cualquier mutación confirmada por la transacción que sostenía el lock quedará invisible para las consultas posteriores de la transacción en espera.
+
+**Regla Canónica Institucional:**
+1. **Lectura preliminar externa**: Toda lectura requerida para resolver `cicloId` o pre-validar pertenencia DEBE ejecutarse FUERA de la transacción utilizando `this.prisma` (conexión fuera de `tx`).
+2. **Primera sentencia en `tx`**: Dentro del callback `prisma.$transaction(async (tx) => { ... })`, la PRIMERA sentencia ejecutable DEBE ser el bloqueo pesimista `bloquearCicloParaCaptura(tx, cicloId, empresaId)`.
+3. **Orden jerárquico de locks**: Si la operación involucra una entidad secundaria con lock pesimista (ej. `bloquearVentaParaModificacion`), dicho lock se adquiere inmediatamente después del ciclo (orden institucional: Ciclo -> Venta).
+4. **Relectura bajo el lock**: La entidad se relee completamente bajo el lock pesimista para operar siempre sobre datos frescos confirmados.
+
+Esta regla elimina condiciones de carrera donde operaciones concurrentes (como dobles cancelaciones de venta o cobros contra cancelación) leían estados no actualizados y violaban la exclusividad de estados finales.
+
 ---
 
 ## Tabla de Garantías: Esperadas vs. Reales (MySQL 8.0.46)
