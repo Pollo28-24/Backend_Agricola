@@ -418,14 +418,32 @@ describe('Hito 8: Módulo de Cobros y Cuentas por Cobrar (E2E)', () => {
         promCancelar,
       ]);
 
-      // Si cancelación entró primero: cobro da 409 VENTA_YA_CANCELADA y cancelación 200
-      // Si cobro entró primero: cobro da 201 y cancelación 200 (cancelación permitida con cobros vigentes para conciliación)
-      expect([201, 409]).toContain(resCobro.status);
+      // Con la compuerta de lock, las únicas salidas válidas son:
+      // (a) Cancelación primero: cobro 409 VENTA_YA_CANCELADA, cancelación 200, venta CANCELADA y 0 cobros en BD
+      // (b) Cobro primero: cobro 201, cancelación 200, venta CANCELADA y 1 cobro vigente en BD
+      // Cualquier otra combinación falla.
       expect(resCancelar.status).toBe(200);
+
+      const ventaEnBD = await prisma.venta.findUnique({
+        where: { id: venta.id },
+      });
+      expect(ventaEnBD?.estado).toBe(EstadoVenta.CANCELADA);
+
+      const cobrosEnBD = await prisma.cobroVenta.findMany({
+        where: { ventaId: venta.id, deletedAt: null },
+      });
 
       if (resCobro.status === 409) {
         expect((resCobro.body as ApiResponseError).code).toBe(
           CodigoError.VENTA_YA_CANCELADA,
+        );
+        expect(cobrosEnBD.length).toBe(0);
+      } else if (resCobro.status === 201) {
+        expect(cobrosEnBD.length).toBe(1);
+        expect(cobrosEnBD[0].deletedAt).toBeNull();
+      } else {
+        throw new Error(
+          `Respuesta inesperada de cobro: status ${resCobro.status}`,
         );
       }
     });
