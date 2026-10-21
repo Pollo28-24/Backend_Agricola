@@ -609,6 +609,9 @@ export class CiclosService {
     id: number,
   ): Promise<{ message: string }> {
     return this.prisma.$transaction(async (tx) => {
+      // 1. Bloqueo pesimista del ciclo como primera sentencia de la transacción
+      await bloquearCicloParaCaptura(tx, id, empresaId);
+
       const ciclo = await tx.cicloProduccion.findFirst({
         where: {
           id,
