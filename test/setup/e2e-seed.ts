@@ -7,6 +7,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { randomUUID } from 'crypto';
 
 export interface E2eSeedData {
   empresaA: {
@@ -859,11 +860,11 @@ export async function crearCicloAisladoParaConcurrencia(
   variedadId: number,
   superficie = 10,
 ): Promise<{ predioId: number; parcelaId: number; cicloId: number }> {
-  const timestamp = Date.now() + Math.floor(Math.random() * 1000);
+  const uid = randomUUID().replace(/-/g, '').substring(0, 10);
   const predio = await prisma.predio.create({
     data: {
       empresaId,
-      nombre: `Predio Concurrencia ${timestamp}`,
+      nombre: `Predio Concurrencia ${uid}`,
       superficieTotal: new Prisma.Decimal(superficie * 2),
     },
   });
@@ -871,7 +872,7 @@ export async function crearCicloAisladoParaConcurrencia(
   const parcela = await prisma.parcela.create({
     data: {
       predioId: predio.id,
-      nombre: `Parcela Concurrencia ${timestamp}`,
+      nombre: `Parcela Concurrencia ${uid}`,
       superficie: new Prisma.Decimal(superficie),
       estado: EstadoParcela.EN_USO,
     },
@@ -883,7 +884,7 @@ export async function crearCicloAisladoParaConcurrencia(
       parcelaId: parcela.id,
       variedadId,
       creadoPorId: usuarioId,
-      nombre: `Ciclo Concurrencia ${timestamp}`,
+      nombre: `Ciclo Concurrencia ${uid}`,
       estado: EstadoCiclo.ACTIVO,
       fechaInicio: new Date('2026-01-01'),
       superficieSembrada: new Prisma.Decimal(superficie),
