@@ -45,6 +45,10 @@ describe('VentasService', () => {
     merma: {
       findMany: jest.Mock;
     };
+    cobroVenta: {
+      aggregate: jest.Mock;
+      groupBy: jest.Mock;
+    };
     $queryRaw: jest.Mock;
     $transaction: jest.Mock;
   };
@@ -114,6 +118,10 @@ describe('VentasService', () => {
       },
       merma: {
         findMany: jest.fn().mockResolvedValue([]),
+      },
+      cobroVenta: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { monto: null } }),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       $queryRaw: jest.fn(),
       $transaction: jest.fn(),
@@ -573,6 +581,145 @@ describe('VentasService', () => {
       await expect(
         service.actualizarVenta(10, empresaId, usuarioId, {}),
       ).rejects.toMatchObject({ code: CodigoError.VENTA_YA_CANCELADA });
+    });
+
+    it('rechaza actualizar venta si el nuevo total es menor a la suma de cobros vigentes (COBRO_EXCEDE_TOTAL 409)', async () => {
+      prisma.venta.findFirst.mockResolvedValue({ id: 10, cicloId: 1 });
+      prisma.$queryRaw.mockResolvedValueOnce([
+        {
+          id: 1,
+          empresa_id: empresaId,
+          estado: EstadoCiclo.ACTIVO,
+          fecha_inicio: new Date('2027-01-01'),
+        },
+      ]);
+      prisma.$queryRaw.mockResolvedValueOnce([{ id: 10, total: '1000.00' }]);
+      prisma.venta.findUnique.mockResolvedValue({
+        id: 10,
+        total: new Prisma.Decimal('1000.00'),
+        descuento: new Prisma.Decimal('0.00'),
+        impuesto: new Prisma.Decimal('0.00'),
+        fecha: new Date('2027-02-15'),
+        estado: EstadoVenta.REGISTRADA,
+        deletedAt: null,
+        ciclo: { empresaId },
+        detalles: [
+          {
+            id: 1,
+            cantidad: new Prisma.Decimal('10.000'),
+            precioUnitario: new Prisma.Decimal('100.00'),
+          },
+        ],
+      });
+
+      // Hay 800 cobrados vigentes
+      prisma.cobroVenta.aggregate.mockResolvedValueOnce({
+        _sum: { monto: new Prisma.Decimal('800.00') },
+      });
+      prisma.unidadMedida.findMany.mockResolvedValue([mockUnidadKg]);
+
+      // Intentar reducir el total a 700 (menor a los 800 cobrados)
+      await expect(
+        service.actualizarVenta(10, empresaId, usuarioId, {
+          total: '700.00',
+          renglones: [
+            {
+              unidadId: 1,
+              calidad: CalidadCosecha.PRIMERA,
+              cantidad: '7.000',
+              precioUnitario: '100.00',
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        code: CodigoError.COBRO_EXCEDE_TOTAL,
+      });
+    });
+
+    it('permite actualizar venta si el nuevo total es igual a la suma de cobros vigentes y retorna campos aditivos', async () => {
+      prisma.venta.findFirst.mockResolvedValue({ id: 10, cicloId: 1 });
+      prisma.$queryRaw.mockResolvedValueOnce([
+        {
+          id: 1,
+          empresa_id: empresaId,
+          estado: EstadoCiclo.ACTIVO,
+          fecha_inicio: new Date('2027-01-01'),
+        },
+      ]);
+      prisma.$queryRaw.mockResolvedValueOnce([{ id: 10, total: '1000.00' }]);
+      prisma.venta.findUnique.mockResolvedValue({
+        id: 10,
+        total: new Prisma.Decimal('1000.00'),
+        descuento: new Prisma.Decimal('0.00'),
+        impuesto: new Prisma.Decimal('0.00'),
+        fecha: new Date('2027-02-15'),
+        estado: EstadoVenta.REGISTRADA,
+        deletedAt: null,
+        ciclo: { empresaId },
+        detalles: [
+          {
+            id: 1,
+            cantidad: new Prisma.Decimal('10.000'),
+            precioUnitario: new Prisma.Decimal('100.00'),
+          },
+        ],
+      });
+
+      // 800 cobrados vigentes
+      prisma.cobroVenta.aggregate.mockResolvedValueOnce({
+        _sum: { monto: new Prisma.Decimal('800.00') },
+      });
+
+      prisma.detalleVenta.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.detalleVenta.createMany.mockResolvedValue({ count: 1 });
+      prisma.unidadMedida.findMany.mockResolvedValue([mockUnidadKg]);
+
+      const ventaActualizadaMock = {
+        id: 10,
+        cicloId: 1,
+        clienteId: 1,
+        total: new Prisma.Decimal('800.00'),
+        descuento: new Prisma.Decimal('0.00'),
+        impuesto: new Prisma.Decimal('0.00'),
+        fecha: new Date('2027-02-15'),
+        fechaLimitePago: new Date('2027-03-15'),
+        estado: EstadoVenta.REGISTRADA,
+        deletedAt: null,
+        cliente: { id: 1, nombre: 'Cliente A' },
+        detalles: [
+          {
+            id: 2,
+            ventaId: 10,
+            cosechaId: null,
+            unidadId: 1,
+            calidad: CalidadCosecha.PRIMERA,
+            cantidad: new Prisma.Decimal('8.000'),
+            precioUnitario: new Prisma.Decimal('100.00'),
+            unidad: { id: 1, nombre: 'Kilogramo', codigo: 'KG' },
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      prisma.venta.update.mockResolvedValue(ventaActualizadaMock);
+
+      const res = await service.actualizarVenta(10, empresaId, usuarioId, {
+        total: '800.00',
+        renglones: [
+          {
+            unidadId: 1,
+            calidad: CalidadCosecha.PRIMERA,
+            cantidad: '8.000',
+            precioUnitario: '100.00',
+          },
+        ],
+      });
+
+      expect(res.total).toBe('800');
+      expect(res.totalCobrado).toBe('800.00');
+      expect(res.saldoPendiente).toBe('0.00');
+      expect(res.estadoCobro).toBe('PAGADA');
+      expect(res.vencida).toBe(false);
     });
   });
 

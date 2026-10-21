@@ -12,6 +12,7 @@ import {
   bloquearCicloParaCaptura,
   calcularBalanceMasaKg,
 } from '../../common/utils/ciclo-balance.util';
+import { bloquearVentaParaModificacion } from '../../common/utils/venta-lock.util';
 import { VENTA_SELECTS } from './queries/venta-selects.constant';
 import { VentaMapper } from './mappers/venta.mapper';
 import { CreateVentaDto } from './dto/create-venta.dto';
@@ -217,7 +218,7 @@ export class VentasService {
       );
 
       // 3. Bloqueo pesimista de la venta con JOIN de ciclo y empresaId
-      await this.bloquearVentaParaModificacion(tx, id, empresaId);
+      await bloquearVentaParaModificacion(tx, id, empresaId);
 
       // 4. Releer la venta completa bajo el lock
       const ventaActual = await tx.venta.findUnique({
@@ -336,6 +337,23 @@ export class VentasService {
         renglones: renglonesParaCuadratura,
       });
 
+      // Validar que nuevoTotal >= Σ cobros vigentes (RN-054, RN-071)
+      const cobrosVigentesAgg = tx.cobroVenta
+        ? await tx.cobroVenta.aggregate({
+            where: { ventaId: id, deletedAt: null },
+            _sum: { monto: true },
+          })
+        : null;
+      const sumaCobrosVigentes =
+        cobrosVigentesAgg?._sum?.monto ?? new Prisma.Decimal('0.00');
+      if (totalFinal.lessThan(sumaCobrosVigentes)) {
+        throw new DomainError(
+          CodigoError.COBRO_EXCEDE_TOTAL,
+          'El total de la venta no puede ser menor a la suma de cobros vigentes registrados',
+          HttpStatus.CONFLICT,
+        );
+      }
+
       // Snapshot anterior completo para auditoría (cabecera + renglones)
       const snapshotAnterior = {
         id: ventaActual.id,
@@ -451,7 +469,7 @@ export class VentasService {
         tx,
       );
 
-      return VentaMapper.toResponseDto(ventaActualizada);
+      return VentaMapper.toResponseDto(ventaActualizada, sumaCobrosVigentes);
     });
   }
 
@@ -491,7 +509,7 @@ export class VentasService {
       );
 
       // 3. Bloquear venta
-      await this.bloquearVentaParaModificacion(tx, id, empresaId);
+      await bloquearVentaParaModificacion(tx, id, empresaId);
 
       // 4. Releer venta
       const ventaActual = await tx.venta.findUnique({
@@ -556,7 +574,17 @@ export class VentasService {
         tx,
       );
 
-      return VentaMapper.toResponseDto(ventaCancelada);
+      const cobrosCancelacionAgg = tx.cobroVenta
+        ? await tx.cobroVenta.aggregate({
+            where: { ventaId: id, deletedAt: null },
+            _sum: { monto: true },
+          })
+        : null;
+
+      return VentaMapper.toResponseDto(
+        ventaCancelada,
+        cobrosCancelacionAgg?._sum?.monto ?? new Prisma.Decimal('0.00'),
+      );
     });
   }
 
@@ -592,7 +620,17 @@ export class VentasService {
       );
     }
 
-    return VentaMapper.toResponseDto(venta);
+    const cobrosDetalleAgg = this.prisma.cobroVenta
+      ? await this.prisma.cobroVenta.aggregate({
+          where: { ventaId: id, deletedAt: null },
+          _sum: { monto: true },
+        })
+      : null;
+
+    return VentaMapper.toResponseDto(
+      venta,
+      cobrosDetalleAgg?._sum?.monto ?? new Prisma.Decimal('0.00'),
+    );
   }
 
   // =====================================================================
@@ -653,8 +691,35 @@ export class VentasService {
       }),
     ]);
 
+    const ventaIds = registros.map((v) => v.id);
+    const cobrosPorVenta =
+      ventaIds.length > 0 && this.prisma.cobroVenta
+        ? await this.prisma.cobroVenta.groupBy({
+            by: ['ventaId'],
+            where: {
+              ventaId: { in: ventaIds },
+              deletedAt: null,
+            },
+            _sum: {
+              monto: true,
+            },
+          })
+        : [];
+
+    const cobrosMap = new Map<number, Prisma.Decimal>();
+    for (const c of cobrosPorVenta) {
+      if (c._sum.monto) {
+        cobrosMap.set(c.ventaId, c._sum.monto);
+      }
+    }
+
     return {
-      data: registros.map((v) => VentaMapper.toResponseDto(v)),
+      data: registros.map((v) =>
+        VentaMapper.toResponseDto(
+          v,
+          cobrosMap.get(v.id) ?? new Prisma.Decimal('0.00'),
+        ),
+      ),
       meta: {
         total,
         page,
@@ -667,32 +732,6 @@ export class VentasService {
   // =====================================================================
   // MÉTODOS AUXILIARES Y PRIVADOS
   // =====================================================================
-
-  private async bloquearVentaParaModificacion(
-    tx: Prisma.TransactionClient,
-    id: number,
-    empresaId: number,
-  ): Promise<void> {
-    const rows = await tx.$queryRaw<{ id: number }[]>(
-      Prisma.sql`
-        SELECT v.id
-        FROM venta v
-        INNER JOIN ciclo_produccion c ON v.cicloId = c.id
-        WHERE v.id = ${id}
-          AND c.empresaId = ${empresaId}
-          AND v.deletedAt IS NULL
-        FOR UPDATE
-      `,
-    );
-
-    if (!rows || rows.length === 0) {
-      throw new DomainError(
-        CodigoError.RECURSO_NO_ENCONTRADO,
-        'Venta no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-  }
 
   private async validarRenglones(
     tx: Prisma.TransactionClient,

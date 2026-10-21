@@ -2,6 +2,7 @@ import { Prisma, Venta, DetalleVenta } from '@prisma/client';
 import { VentaResponseDto } from '../dto/venta-response.dto';
 import { VentaDetalleResponseDto } from '../dto/venta-detalle-response.dto';
 import { FechaUtil } from '../../../common/utils/fechas';
+import { VentaEstadoCobroPolicy } from '../../../common/domain/policies/venta-estado-cobro.policy';
 
 export type DetalleVentaConRelaciones = DetalleVenta & {
   unidad?: {
@@ -40,7 +41,27 @@ export class VentaMapper {
     };
   }
 
-  public static toResponseDto(venta: VentaConRelaciones): VentaResponseDto {
+  public static toResponseDto(
+    venta: VentaConRelaciones,
+    totalCobrado?: Prisma.Decimal | string | number,
+  ): VentaResponseDto {
+    const cobradoDec =
+      totalCobrado !== undefined && totalCobrado !== null
+        ? totalCobrado instanceof Prisma.Decimal
+          ? totalCobrado
+          : new Prisma.Decimal(totalCobrado.toString())
+        : new Prisma.Decimal('0.00');
+
+    const totalDec = new Prisma.Decimal(venta.total);
+
+    const { estadoCobro, saldoPendiente, vencida } =
+      VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: totalDec,
+        totalCobrado: cobradoDec,
+        estadoVenta: venta.estado,
+        fechaLimitePago: venta.fechaLimitePago,
+      });
+
     return {
       id: venta.id,
       cicloId: venta.cicloId,
@@ -51,7 +72,11 @@ export class VentaMapper {
       numeroFactura: venta.numeroFactura,
       descuento: new Prisma.Decimal(venta.descuento).toString(),
       impuesto: new Prisma.Decimal(venta.impuesto).toString(),
-      total: new Prisma.Decimal(venta.total).toString(),
+      total: totalDec.toString(),
+      totalCobrado: cobradoDec.toFixed(2),
+      saldoPendiente,
+      estadoCobro,
+      vencida,
       fechaLimitePago: venta.fechaLimitePago
         ? FechaUtil.toDateOnly(venta.fechaLimitePago)
         : null,

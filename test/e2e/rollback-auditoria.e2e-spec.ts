@@ -268,6 +268,8 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
         );
       });
 
+      const testNotas = `Venta Rollback Test ${Date.now()}`;
+
       const res = await testRequest(app)
         .post('/api/v1/ventas')
         .set('Authorization', adminToken)
@@ -276,6 +278,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
           clienteId: seed.empresaA.cliente.id,
           fecha: '2026-03-01',
           total: '500.00',
+          notas: testNotas,
           renglones: [
             {
               unidadId: seed.global.unidadKgId,
@@ -311,7 +314,7 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
       });
       expect(
         bitacoras.some((b) =>
-          JSON.stringify(b.valoresNuevos).includes(String(cicloDed.cicloId)),
+          JSON.stringify(b.valoresNuevos).includes(testNotas),
         ),
       ).toBe(false);
     });

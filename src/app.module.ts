@@ -18,6 +18,7 @@ import { GastosModule } from './modules/gastos/gastos.module';
 import { CosechasModule } from './modules/cosechas/cosechas.module';
 import { MermasModule } from './modules/mermas/mermas.module';
 import { VentasModule } from './modules/ventas/ventas.module';
+import { CobrosModule } from './modules/cobros/cobros.module';
 import { envValidationSchema } from './config/env.validation';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AccesoVigenteGuard } from './common/guards/acceso-vigente.guard';
@@ -54,6 +55,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     CosechasModule,
     MermasModule,
     VentasModule,
+    CobrosModule,
   ],
   providers: [
     {

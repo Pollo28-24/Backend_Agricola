@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EstadoVenta } from '@prisma/client';
+import { EstadoCobro } from '../../../common/domain/policies/venta-estado-cobro.policy';
 import { VentaDetalleResponseDto } from './venta-detalle-response.dto';
 
 export class VentaResponseDto {
@@ -41,6 +42,32 @@ export class VentaResponseDto {
 
   @ApiPropertyOptional({ example: 'Venta de cosecha de primera a granel' })
   notas: string | null;
+
+  @ApiProperty({
+    example: '0.00',
+    description: 'Monto total cobrado de cobros vigentes',
+  })
+  totalCobrado: string;
+
+  @ApiProperty({
+    example: '2550.00',
+    description: 'Saldo por cobrar pendiente',
+  })
+  saldoPendiente: string;
+
+  @ApiProperty({
+    enum: EstadoCobro,
+    example: EstadoCobro.PENDIENTE,
+    description: 'Estado de cobro derivado institucional (RN-055)',
+  })
+  estadoCobro: EstadoCobro;
+
+  @ApiProperty({
+    example: false,
+    description:
+      'Indica si la venta tiene saldo pendiente y venció su fecha límite de pago',
+  })
+  vencida: boolean;
 
   @ApiProperty({ type: [VentaDetalleResponseDto] })
   renglones: VentaDetalleResponseDto[];

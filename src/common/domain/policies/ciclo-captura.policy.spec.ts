@@ -111,6 +111,50 @@ describe('CicloCapturaPolicy', () => {
         }
       }
     });
+
+    describe('tipo "cobro" (Tabla 2.6)', () => {
+      it('permite registrar o anular cobros en ciclos ACTIVO, SUSPENDIDO y FINALIZADO', () => {
+        for (const estado of [
+          EstadoCiclo.ACTIVO,
+          EstadoCiclo.SUSPENDIDO,
+          EstadoCiclo.FINALIZADO,
+        ]) {
+          expect(() =>
+            policy.assertCaptureAllowed({ estado }, 'cobro'),
+          ).not.toThrow();
+        }
+      });
+
+      it('rechaza cobros en ciclo PLANIFICADO con CICLO_NO_ACTIVO (409)', () => {
+        expect(() =>
+          policy.assertCaptureAllowed(
+            { estado: EstadoCiclo.PLANIFICADO },
+            'cobro',
+          ),
+        ).toThrow(
+          new DomainError(
+            CodigoError.CICLO_NO_ACTIVO,
+            'No se permite registrar ni anular cobros en un ciclo en estado PLANIFICADO (Tabla 2.6)',
+            HttpStatus.CONFLICT,
+          ),
+        );
+      });
+
+      it('rechaza cobros en ciclo CANCELADO con CICLO_CERRADO (409)', () => {
+        expect(() =>
+          policy.assertCaptureAllowed(
+            { estado: EstadoCiclo.CANCELADO },
+            'cobro',
+          ),
+        ).toThrow(
+          new DomainError(
+            CodigoError.CICLO_CERRADO,
+            'No se permite registrar ni anular cobros en un ciclo en estado CANCELADO (Tabla 2.6)',
+            HttpStatus.CONFLICT,
+          ),
+        );
+      });
+    });
   });
 
   describe('assertFechaCoherente (RN-044)', () => {
