@@ -14,8 +14,14 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { IndicadoresService } from './services/indicadores.service';
+import { CuentasPorCobrarService } from './services/cuentas-por-cobrar.service';
+import { AlertasService } from './services/alertas.service';
 import { FiltroRentabilidadDto } from './dto/filtro-rentabilidad.dto';
 import { FiltroComparativoDto } from './dto/filtro-comparativo.dto';
+import { FiltroCuentasPorCobrarDto } from './dto/filtro-cuentas-por-cobrar.dto';
+import { CuentasPorCobrarResponseDto } from './dto/cuentas-por-cobrar-response.dto';
+import { FiltroAlertasDto } from './dto/filtro-alertas.dto';
+import { AlertasResponseDto } from './dto/alertas-response.dto';
 import { RentabilidadCicloItemDto } from './dto/rentabilidad-ciclo-response.dto';
 import { CostoPorCategoriaDto } from './dto/costo-categoria-response.dto';
 import { CostoPorActividadDto } from './dto/costo-actividad-response.dto';
@@ -30,7 +36,44 @@ import { RequirePermisos } from '../../common/decorators/require-permisos.decora
 @ApiBearerAuth('JWT-auth')
 @Controller('reportes')
 export class ReportesController {
-  constructor(private readonly indicadoresService: IndicadoresService) {}
+  constructor(
+    private readonly indicadoresService: IndicadoresService,
+    private readonly cuentasPorCobrarService: CuentasPorCobrarService,
+    private readonly alertasService: AlertasService,
+  ) {}
+
+  @Get('cuentas-por-cobrar')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermisos('reporte:ver')
+  @ApiOperation({
+    summary:
+      'Reporte financiero paginado de cuentas por cobrar y cartera vencida (RN-073 / ADR-010)',
+  })
+  @ApiResponse({ status: 200, type: CuentasPorCobrarResponseDto })
+  async obtenerCuentasPorCobrar(
+    @CurrentUser() usuario: UsuarioAutenticado,
+    @Query() filtro: FiltroCuentasPorCobrarDto,
+  ): Promise<CuentasPorCobrarResponseDto> {
+    return this.cuentasPorCobrarService.obtenerCuentasPorCobrar(
+      usuario.empresaId,
+      filtro,
+    );
+  }
+
+  @Get('alertas')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermisos('reporte:ver')
+  @ApiOperation({
+    summary:
+      'Tablero de alertas de rentabilidad, operación y riesgo de cobro (Hito 9B / ADR-010)',
+  })
+  @ApiResponse({ status: 200, type: AlertasResponseDto })
+  async obtenerAlertas(
+    @CurrentUser() usuario: UsuarioAutenticado,
+    @Query() filtro: FiltroAlertasDto,
+  ): Promise<AlertasResponseDto> {
+    return this.alertasService.obtenerAlertas(usuario.empresaId, filtro);
+  }
 
   @Get('rentabilidad')
   @HttpCode(HttpStatus.OK)

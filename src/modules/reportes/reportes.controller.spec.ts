@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ReportesController } from './reportes.controller';
 import { IndicadoresService } from './services/indicadores.service';
+import { CuentasPorCobrarService } from './services/cuentas-por-cobrar.service';
+import { AlertasService } from './services/alertas.service';
 import { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { EstadoCiclo } from '@prisma/client';
 
@@ -13,6 +15,12 @@ describe('ReportesController (Unitario)', () => {
     obtenerCostosPorActividad: jest.Mock;
     obtenerMermasDesglose: jest.Mock;
     obtenerComparativoParcela: jest.Mock;
+  };
+  let cuentasPorCobrarMock: {
+    obtenerCuentasPorCobrar: jest.Mock;
+  };
+  let alertasMock: {
+    obtenerAlertas: jest.Mock;
   };
 
   const mockUsuario: UsuarioAutenticado = {
@@ -35,6 +43,12 @@ describe('ReportesController (Unitario)', () => {
       obtenerMermasDesglose: jest.fn(),
       obtenerComparativoParcela: jest.fn(),
     };
+    cuentasPorCobrarMock = {
+      obtenerCuentasPorCobrar: jest.fn(),
+    };
+    alertasMock = {
+      obtenerAlertas: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReportesController],
@@ -42,6 +56,14 @@ describe('ReportesController (Unitario)', () => {
         {
           provide: IndicadoresService,
           useValue: serviceMock,
+        },
+        {
+          provide: CuentasPorCobrarService,
+          useValue: cuentasPorCobrarMock,
+        },
+        {
+          provide: AlertasService,
+          useValue: alertasMock,
         },
       ],
     }).compile();
@@ -108,6 +130,57 @@ describe('ReportesController (Unitario)', () => {
     expect(res).toBe(mockRes);
     expect(serviceMock.obtenerComparativoParcela).toHaveBeenCalledWith(10, 2, {
       incluirActivos: true,
+    });
+  });
+
+  it('GET /reportes/cuentas-por-cobrar delega a CuentasPorCobrarService', async () => {
+    const mockRes = {
+      data: [],
+      resumen: {
+        totalPorCobrar: '0.00',
+        totalVencido: '0.00',
+        totalVigente: '0.00',
+        totalClientesMorosos: 0,
+      },
+      meta: { total: 0, page: 1, limit: 10, totalPages: 1 },
+    };
+    cuentasPorCobrarMock.obtenerCuentasPorCobrar.mockResolvedValue(mockRes);
+
+    const res = await controller.obtenerCuentasPorCobrar(mockUsuario, {
+      page: 1,
+      limit: 10,
+    });
+
+    expect(res).toBe(mockRes);
+    expect(cuentasPorCobrarMock.obtenerCuentasPorCobrar).toHaveBeenCalledWith(
+      10,
+      { page: 1, limit: 10 },
+    );
+  });
+
+  it('GET /reportes/alertas delega a AlertasService', async () => {
+    const mockRes = {
+      data: [],
+      resumen: {
+        totalAltas: 0,
+        totalMedias: 0,
+        totalBajas: 0,
+        totalInformativas: 0,
+        total: 0,
+      },
+      meta: { total: 0, page: 1, limit: 10, totalPages: 1 },
+    };
+    alertasMock.obtenerAlertas.mockResolvedValue(mockRes);
+
+    const res = await controller.obtenerAlertas(mockUsuario, {
+      page: 1,
+      limit: 10,
+    });
+
+    expect(res).toBe(mockRes);
+    expect(alertasMock.obtenerAlertas).toHaveBeenCalledWith(10, {
+      page: 1,
+      limit: 10,
     });
   });
 });

@@ -1138,4 +1138,197 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       );
     });
   });
+
+  describe('Hito 9B: Cuentas por Cobrar y Alertas (E2E)', () => {
+    it('RBAC sobre cuentas-por-cobrar y alertas: CAPTURISTA 403, CONTADOR y ADMIN 200', async () => {
+      for (const ruta of [
+        '/api/v1/reportes/cuentas-por-cobrar',
+        '/api/v1/reportes/alertas',
+      ]) {
+        const resCap = await testRequest(app)
+          .get(ruta)
+          .set('Authorization', tokenA_Capturista);
+        expect(resCap.status).toBe(403);
+        expect((resCap.body as ApiResponseError).code).toBe(
+          CodigoError.PERMISO_DENEGADO,
+        );
+
+        const resCon = await testRequest(app)
+          .get(ruta)
+          .set('Authorization', tokenA_Contador);
+        expect(resCon.status).toBe(200);
+
+        const resAdm = await testRequest(app)
+          .get(ruta)
+          .set('Authorization', tokenA_Admin);
+        expect(resAdm.status).toBe(200);
+      }
+    });
+
+    it('GET /reportes/cuentas-por-cobrar devuelve ventas con saldo pendiente, resumen financiero y excluye canceladas', async () => {
+      // 1. Contar eventos de auditoría previos
+      const auditCountAntes = await prisma.bitacoraAuditoria.count({
+        where: { empresaId: seed.empresaA.id },
+      });
+
+      const res = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar')
+        .set('Authorization', tokenA_Admin);
+
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        data: Array<{
+          ventaId: number;
+          clienteId: number;
+          montoTotal: string;
+          montoCobrado: string;
+          montoPendiente: string;
+          estadoCobro: string;
+        }>;
+        resumen: {
+          totalPorCobrar: string;
+          totalVencido: string;
+          totalVigente: string;
+          totalClientesMorosos: number;
+        };
+        meta: {
+          total: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+        };
+      };
+
+      expect(body.data.length).toBeGreaterThanOrEqual(1);
+      expect(body.resumen).toBeDefined();
+      expect(body.meta.total).toBeGreaterThanOrEqual(body.data.length);
+      expect(body.data.length).toBeLessThanOrEqual(body.meta.limit);
+
+      // Verificar que los montos pendientes coinciden con saldo = total - cobrado
+      for (const item of body.data) {
+        const totalNum = parseFloat(item.montoTotal);
+        const cobradoNum = parseFloat(item.montoCobrado);
+        const pendienteNum = parseFloat(item.montoPendiente);
+        expect(pendienteNum).toBeCloseTo(totalNum - cobradoNum, 2);
+        expect(pendienteNum).toBeGreaterThan(0);
+      }
+
+      // Verificar idempotencia y ausencia de efectos secundarios en auditoría (solo lectura)
+      const auditCountDespues = await prisma.bitacoraAuditoria.count({
+        where: { empresaId: seed.empresaA.id },
+      });
+      expect(auditCountDespues).toBe(auditCountAntes);
+    });
+
+    it('GET /reportes/cuentas-por-cobrar: aislamiento multiempresa estricto', async () => {
+      const resA = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar')
+        .set('Authorization', tokenA_Admin);
+      expect(resA.status).toBe(200);
+
+      const resB = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar')
+        .set('Authorization', tokenB_Admin);
+      expect(resB.status).toBe(200);
+
+      const bodyA = resA.body as { data: Array<{ ventaId: number }> };
+      const bodyB = resB.body as { data: Array<{ ventaId: number }> };
+
+      const ventasAIds = new Set(bodyA.data.map((v) => v.ventaId));
+      for (const ventaB of bodyB.data) {
+        expect(ventasAIds.has(ventaB.ventaId)).toBe(false);
+      }
+    });
+
+    it('GET /reportes/alertas evalúa y devuelve alertas ordenadas por severidad con resumen', async () => {
+      const auditCountAntes = await prisma.bitacoraAuditoria.count({
+        where: { empresaId: seed.empresaA.id },
+      });
+
+      const res = await testRequest(app)
+        .get('/api/v1/reportes/alertas')
+        .set('Authorization', tokenA_Admin);
+
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        data: Array<{
+          codigo: string;
+          severidad: string;
+          mensaje: string;
+          observado: string;
+          umbral: string;
+        }>;
+        resumen: {
+          totalAltas: number;
+          totalMedias: number;
+          totalBajas: number;
+          totalInformativas: number;
+          total: number;
+        };
+        meta: { total: number };
+      };
+
+      expect(body.resumen).toBeDefined();
+      expect(body.meta).toBeDefined();
+      expect(body.meta.total).toBe(body.resumen.total);
+
+      // Si hay más de un elemento, verificar ordenamiento por severidad (ALTA antes que MEDIA/BAJA)
+      if (body.data.length >= 2) {
+        const severidades = body.data.map((a) => a.severidad);
+        const indiceMedia = severidades.indexOf('MEDIA');
+        const indiceBaja = severidades.indexOf('BAJA');
+        const indiceInfo = severidades.indexOf('INFORMATIVA');
+
+        severidades.forEach((sev, idx) => {
+          if (sev === 'ALTA') {
+            if (indiceMedia !== -1) expect(idx).toBeLessThan(indiceMedia);
+            if (indiceBaja !== -1) expect(idx).toBeLessThan(indiceBaja);
+            if (indiceInfo !== -1) expect(idx).toBeLessThan(indiceInfo);
+          }
+        });
+      }
+
+      // Idempotencia: sin mutación en auditoría
+      const auditCountDespues = await prisma.bitacoraAuditoria.count({
+        where: { empresaId: seed.empresaA.id },
+      });
+      expect(auditCountDespues).toBe(auditCountAntes);
+    });
+
+    it('GET /reportes/alertas: filtro por severidad y aislamiento multiempresa', async () => {
+      const resFiltro = await testRequest(app)
+        .get('/api/v1/reportes/alertas?severidad=ALTA')
+        .set('Authorization', tokenA_Admin);
+      expect(resFiltro.status).toBe(200);
+
+      const bodyFiltro = resFiltro.body as {
+        data: Array<{ severidad: string }>;
+      };
+      for (const alerta of bodyFiltro.data) {
+        expect(alerta.severidad).toBe('ALTA');
+      }
+
+      // Aislamiento: Empresa B
+      const resB = await testRequest(app)
+        .get('/api/v1/reportes/alertas')
+        .set('Authorization', tokenB_Admin);
+      expect(resB.status).toBe(200);
+
+      const bodyB = resB.body as {
+        data: Array<{ cicloId?: number | null }>;
+      };
+
+      const ciclosA = await prisma.cicloProduccion.findMany({
+        where: { empresaId: seed.empresaA.id },
+        select: { id: true },
+      });
+      const ciclosAIds = new Set(ciclosA.map((c) => c.id));
+
+      for (const alertaB of bodyB.data) {
+        if (alertaB.cicloId) {
+          expect(ciclosAIds.has(alertaB.cicloId)).toBe(false);
+        }
+      }
+    });
+  });
 });

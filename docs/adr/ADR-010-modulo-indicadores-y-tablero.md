@@ -1,7 +1,7 @@
 # ADR-010: Módulo de Reportes, Indicadores de Rentabilidad y Alertas (Hito 9)
 
 ## Estado
-Aceptado para 9A
+Aceptado e Implementado (9A, 9A.1 y 9B)
 
 ## Fecha
 2026-10-21
@@ -69,9 +69,9 @@ Ejecutado sobre MySQL 8.0.46 mediante `test/e2e/reportes-volumen.e2e-spec.ts` (`
 
 ---
 
-## Diseño Aprobado para 9B (Alertas y Cuentas por Cobrar)
+## Especificación e Implementación de 9B (Alertas y Cuentas por Cobrar)
 
-El Hito 9B se implementará bajo la siguiente especificación aprobada:
+El Hito 9B se encuentra implementado y verificado bajo la siguiente especificación:
 
 ### ALERTAS (`GET /reportes/alertas`, `reporte:ver`)
 Evaluadas en tiempo de consulta, no almacenadas en base de datos. Umbrales definidos en un único archivo de constantes (`src/modules/reportes/constants/alertas.constants.ts`). Valor exactamente igual al umbral NO dispara alerta.
