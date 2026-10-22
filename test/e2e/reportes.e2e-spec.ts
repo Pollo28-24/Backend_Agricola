@@ -122,6 +122,32 @@ interface ComparativoParcelaBody {
   };
 }
 
+interface ItemCuentaPorCobrarTest {
+  ventaId: number;
+  folio: string | null;
+  clienteId: number;
+  clienteNombre: string;
+  cicloId: number;
+  fechaVenta: string;
+  fechaVencimiento: string | null;
+  montoTotal: string;
+  montoCobrado: string;
+  montoPendiente: string;
+  diasVencimiento: number | null;
+  estadoCobro: string;
+  vencida: boolean;
+}
+
+interface AlertaItemTest {
+  codigo: string;
+  severidad: string;
+  observado: string;
+  umbral: string;
+  mensaje: string;
+  cicloId?: number | null;
+  metadata?: Record<string, unknown>;
+}
+
 interface RentabilidadVistaFila {
   costoTotal: Prisma.Decimal | number | string | null;
   kgCosechados: Prisma.Decimal | number | string | null;
@@ -1307,37 +1333,312 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       expect(bodyVacia.meta.total).toBe(body.meta.total);
     });
 
-    it('Cuentas por cobrar: paridad exhaustiva contra VentaEstadoCobroPolicy sobre la base de datos real', async () => {
-      const res = await testRequest(app)
-        .get('/api/v1/reportes/cuentas-por-cobrar?limit=100')
+    it('Cuentas por cobrar: paridad exhaustiva contra VentaEstadoCobroPolicy para las 8 combinaciones canónicas en BD', async () => {
+      const ded = await crearCicloAisladoParaConcurrencia(
+        prisma,
+        seed.empresaA.id,
+        seed.empresaA.usuarios.admin.id,
+        seed.global.variedadId,
+        1.0,
+      );
+      const cliente8 = await prisma.cliente.create({
+        data: {
+          empresaId: seed.empresaA.id,
+          nombre: `Cliente 8 Casos ${Date.now()}`,
+          rfc: `RFC${Date.now().toString().slice(-9)}`,
+          correo: `cli8_${Date.now()}@test.com`,
+        },
+      });
+
+      const hoyStr = '2026-10-21';
+      const fechaVenta = new Date('2026-10-01');
+
+      // 1. CANCELADA
+      const vCancelada = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-09-15'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.CANCELADA,
+        },
+      });
+
+      // 2. Σ=0 sin fecha límite
+      const vSinFecha = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: null,
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+
+      // 3. Σ=0 fecha límite futura
+      const vFechaFutura = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-11-01'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+
+      // 4. fecha igual a hoy
+      const vFechaHoy = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-10-21'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+
+      // 5. vencida (fecha pasada, sin cobros)
+      const vVencida = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-09-15'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+
+      // 6. parcial con fecha pasada
+      const vParcial = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-09-15'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+      await prisma.cobroVenta.create({
+        data: {
+          ventaId: vParcial.id,
+          registradoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-10-05'),
+          monto: new Prisma.Decimal('400.00'),
+          metodo: MetodoPago.TRANSFERENCIA,
+        },
+      });
+
+      // 7. pagada con excedente (fecha pasada)
+      const vPagadaExcedente = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-09-15'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+      await prisma.cobroVenta.create({
+        data: {
+          ventaId: vPagadaExcedente.id,
+          registradoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-10-05'),
+          monto: new Prisma.Decimal('1200.00'),
+          metodo: MetodoPago.TRANSFERENCIA,
+        },
+      });
+
+      // 8. Σ igual al total (fecha pasada)
+      const vPagadaExacta = await prisma.venta.create({
+        data: {
+          cicloId: ded.cicloId,
+          clienteId: cliente8.id,
+          creadoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: fechaVenta,
+          fechaLimitePago: new Date('2026-09-15'),
+          total: new Prisma.Decimal('1000.00'),
+          impuesto: new Prisma.Decimal('0.00'),
+          estado: EstadoVenta.REGISTRADA,
+        },
+      });
+      await prisma.cobroVenta.create({
+        data: {
+          ventaId: vPagadaExacta.id,
+          registradoPorId: seed.empresaA.usuarios.admin.id,
+          fecha: new Date('2026-10-05'),
+          monto: new Prisma.Decimal('1000.00'),
+          metodo: MetodoPago.TRANSFERENCIA,
+        },
+      });
+
+      // (a) Consulta por defecto: sólo ventas no canceladas con saldo > 0
+      const resDefecto = await testRequest(app)
+        .get(
+          `/api/v1/reportes/cuentas-por-cobrar?clienteId=${cliente8.id}&limit=100&hoy=${hoyStr}`,
+        )
         .set('Authorization', tokenA_Admin);
-      expect(res.status).toBe(200);
-      const body = res.body as {
-        data: Array<{
-          ventaId: number;
-          montoTotal: string;
-          montoCobrado: string;
-          montoPendiente: string;
-          estadoCobro: string;
-          vencida: boolean;
-          fechaVencimiento: string | null;
-        }>;
-      };
+      expect(resDefecto.status).toBe(200);
+      const itemsDefecto = (
+        resDefecto.body as { data: ItemCuentaPorCobrarTest[] }
+      ).data;
 
-      const hoy = VentaEstadoCobroPolicy.obtenerHoyMexico();
+      // vCancelada nunca debe aparecer en cuentas por cobrar
+      expect(
+        itemsDefecto.some(
+          (i: ItemCuentaPorCobrarTest) => i.ventaId === vCancelada.id,
+        ),
+      ).toBe(false);
 
-      for (const item of body.data) {
-        const esperado = VentaEstadoCobroPolicy.calcularEstadoCobro({
-          total: item.montoTotal,
-          totalCobrado: item.montoCobrado,
+      // Los que tienen saldo > 0 son: vSinFecha, vFechaFutura, vFechaHoy, vVencida, vParcial
+      const idsDefecto = itemsDefecto.map(
+        (i: ItemCuentaPorCobrarTest) => i.ventaId,
+      );
+      expect(idsDefecto).toContain(vSinFecha.id);
+      expect(idsDefecto).toContain(vFechaFutura.id);
+      expect(idsDefecto).toContain(vFechaHoy.id);
+      expect(idsDefecto).toContain(vVencida.id);
+      expect(idsDefecto).toContain(vParcial.id);
+
+      // (b) Consulta con estadoCobro=PAGADA para validar los casos saldados
+      const resPagadas = await testRequest(app)
+        .get(
+          `/api/v1/reportes/cuentas-por-cobrar?clienteId=${cliente8.id}&estadoCobro=PAGADA&limit=100&hoy=${hoyStr}`,
+        )
+        .set('Authorization', tokenA_Admin);
+      expect(resPagadas.status).toBe(200);
+      const itemsPagadas = (
+        resPagadas.body as { data: ItemCuentaPorCobrarTest[] }
+      ).data;
+      const idsPagadas = itemsPagadas.map(
+        (i: ItemCuentaPorCobrarTest) => i.ventaId,
+      );
+      expect(idsPagadas).toContain(vPagadaExcedente.id);
+      expect(idsPagadas).toContain(vPagadaExacta.id);
+
+      // (c) Paridad exhaustiva caso por caso contra VentaEstadoCobroPolicy
+      const todosLosItems: ItemCuentaPorCobrarTest[] = [
+        ...itemsDefecto,
+        ...itemsPagadas,
+      ];
+      const mapaItems = new Map<number, ItemCuentaPorCobrarTest>(
+        todosLosItems.map((i) => [i.ventaId, i]),
+      );
+
+      const casosEvaluacion = [
+        {
+          nombre: '1. CANCELADA (excluida de cuentas por cobrar en SQL)',
+          ventaId: vCancelada.id,
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'CANCELADA',
+          fechaLimitePago: '2026-09-15',
+          esperarEnLista: false,
+        },
+        {
+          nombre: '2. Σ=0 sin fecha límite',
+          ventaId: vSinFecha.id,
+          total: '1000.00',
+          cobrado: '0.00',
           estadoVenta: 'REGISTRADA',
-          fechaLimitePago: item.fechaVencimiento,
-          hoy,
+          fechaLimitePago: null,
+          esperarEnLista: true,
+        },
+        {
+          nombre: '3. Σ=0 fecha futura',
+          ventaId: vFechaFutura.id,
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-11-01',
+          esperarEnLista: true,
+        },
+        {
+          nombre: '4. fecha límite igual a hoy',
+          ventaId: vFechaHoy.id,
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-10-21',
+          esperarEnLista: true,
+        },
+        {
+          nombre: '5. vencida (cobrado 0, fecha pasada)',
+          ventaId: vVencida.id,
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-09-15',
+          esperarEnLista: true,
+        },
+        {
+          nombre: '6. parcial con fecha pasada',
+          ventaId: vParcial.id,
+          total: '1000.00',
+          cobrado: '400.00',
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-09-15',
+          esperarEnLista: true,
+        },
+        {
+          nombre: '7. pagada con excedente',
+          ventaId: vPagadaExcedente.id,
+          total: '1000.00',
+          cobrado: '1200.00',
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-09-15',
+          esperarEnLista: true,
+        },
+        {
+          nombre: '8. Σ igual al total',
+          ventaId: vPagadaExacta.id,
+          total: '1000.00',
+          cobrado: '1000.00',
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-09-15',
+          esperarEnLista: true,
+        },
+      ];
+
+      for (const caso of casosEvaluacion) {
+        const esperado = VentaEstadoCobroPolicy.calcularEstadoCobro({
+          total: caso.total,
+          totalCobrado: caso.cobrado,
+          estadoVenta: caso.estadoVenta,
+          fechaLimitePago: caso.fechaLimitePago,
+          hoy: hoyStr,
         });
 
-        expect(item.estadoCobro).toBe(esperado.estadoCobro);
-        expect(item.vencida).toBe(esperado.vencida);
-        expect(item.montoPendiente).toBe(esperado.saldoPendiente);
+        if (!caso.esperarEnLista) {
+          expect(mapaItems.has(caso.ventaId)).toBe(false);
+          expect(esperado.estadoCobro).toBe('CANCELADA');
+        } else {
+          const itemApi = mapaItems.get(caso.ventaId);
+          expect(itemApi).toBeDefined();
+          expect(itemApi!.estadoCobro).toBe(esperado.estadoCobro);
+          expect(itemApi!.vencida).toBe(esperado.vencida);
+          expect(itemApi!.montoPendiente).toBe(esperado.saldoPendiente);
+        }
       }
     });
 
@@ -1950,118 +2251,123 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
         }
       });
 
-      it('Las 10 alertas disparadas por API con valores observado y umbral validados', async () => {
-        const res = await testRequest(app)
-          .get('/api/v1/reportes/alertas?limit=100&hoy=2026-10-21')
-          .set('Authorization', tokenA_Admin);
-        expect(res.status).toBe(200);
-
-        const body = res.body as {
-          data: Array<{
-            codigo: string;
-            severidad: string;
-            observado: string;
-            umbral: string;
-            cicloId?: number | null;
-          }>;
-        };
-
-        const encontrarAlerta = (codigo: string, cicloId?: number) =>
-          body.data.find(
-            (a) => a.codigo === codigo && (!cicloId || a.cicloId === cicloId),
+      it.each([
+        {
+          num: 1,
+          codigo: CodigoAlerta.CICLO_EN_PERDIDA,
+          severidad: SeveridadAlerta.ALTA,
+          getCicloId: () => cicloPerdidaId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.umbral).toBe('$0.00');
+          },
+        },
+        {
+          num: 2,
+          codigo: CodigoAlerta.COSTO_SUPERA_PRECIO,
+          severidad: SeveridadAlerta.ALTA,
+          getCicloId: () => cicloCostoPrecioId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.observado).toContain('25.00');
+            expect(a.umbral).toContain('15.00');
+          },
+        },
+        {
+          num: 3,
+          codigo: CodigoAlerta.COBRO_VENCIDO,
+          severidad: SeveridadAlerta.ALTA,
+          getCicloId: () => cicloCobroId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.umbral).toBe('0.00');
+            const meta = a.metadata as
+              { fechaVencimiento?: string } | undefined;
+            expect(meta?.fechaVencimiento).toBe('2026-09-15');
+          },
+        },
+        {
+          num: 4,
+          codigo: CodigoAlerta.MERMA_ELEVADA,
+          severidad: SeveridadAlerta.MEDIA,
+          getCicloId: () => cicloMermaId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.observado).toContain('15.00%');
+            expect(a.umbral).toBe('10.00%');
+          },
+        },
+        {
+          num: 5,
+          codigo: CodigoAlerta.CATEGORIA_DOMINANTE,
+          severidad: SeveridadAlerta.MEDIA,
+          getCicloId: () => cicloDominanteId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.observado).toContain('100.00%');
+            expect(a.umbral).toBe('40.00%');
+          },
+        },
+        {
+          num: 6,
+          codigo: CodigoAlerta.COSTO_CRECIENTE,
+          severidad: SeveridadAlerta.MEDIA,
+          getCicloId: () => cicloCrecienteId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.umbral).toContain('11.50');
+            expect(a.observado).toContain('15.00');
+            expect(a.mensaje).toContain('15%');
+          },
+        },
+        {
+          num: 7,
+          codigo: CodigoAlerta.RENDIMIENTO_BAJO,
+          severidad: SeveridadAlerta.MEDIA,
+          getCicloId: () => cicloRendimientoId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.observado).toContain('60.00%');
+          },
+        },
+        {
+          num: 8,
+          codigo: CodigoAlerta.CICLO_SIN_CAPTURA,
+          severidad: SeveridadAlerta.BAJA,
+          getCicloId: () => cicloSinCapturaId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.umbral).toBe('15 días');
+          },
+        },
+        {
+          num: 9,
+          codigo: CodigoAlerta.CICLO_LARGO,
+          severidad: SeveridadAlerta.BAJA,
+          getCicloId: () => cicloLargoId,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.umbral).toContain('144 días');
+          },
+        },
+        {
+          num: 10,
+          codigo: CodigoAlerta.LIMITE_PLAN_CERCANO,
+          severidad: SeveridadAlerta.INFORMATIVA,
+          getCicloId: () => null,
+          verificar: (a: AlertaItemTest) => {
+            expect(a.umbral).toBe('90.0%');
+          },
+        },
+      ])(
+        'Alerta $num ($codigo) evaluada independientemente por API',
+        async ({ codigo, severidad, getCicloId, verificar }) => {
+          const res = await testRequest(app)
+            .get('/api/v1/reportes/alertas?limit=100&hoy=2026-10-21')
+            .set('Authorization', tokenA_Admin);
+          expect(res.status).toBe(200);
+          const cId = getCicloId();
+          const bodyAlertas = res.body as { data: AlertaItemTest[] };
+          const alerta = bodyAlertas.data.find(
+            (a: AlertaItemTest) =>
+              a.codigo === (codigo as string) && (!cId || a.cicloId === cId),
           );
-
-        // Regla 1: CICLO_EN_PERDIDA
-        const a1 = encontrarAlerta(
-          CodigoAlerta.CICLO_EN_PERDIDA,
-          cicloPerdidaId,
-        );
-        expect(a1).toBeDefined();
-        expect(a1!.severidad).toBe(SeveridadAlerta.ALTA);
-        expect(a1!.umbral).toBe('$0.00');
-
-        // Regla 2: COSTO_SUPERA_PRECIO
-        const a2 = encontrarAlerta(
-          CodigoAlerta.COSTO_SUPERA_PRECIO,
-          cicloCostoPrecioId,
-        );
-        expect(a2).toBeDefined();
-        expect(a2!.severidad).toBe(SeveridadAlerta.ALTA);
-        expect(a2!.observado).toContain('25.00');
-        expect(a2!.umbral).toContain('15.00');
-
-        // Regla 3: COBRO_VENCIDO
-        const a3 = body.data.find(
-          (a) =>
-            a.codigo === (CodigoAlerta.COBRO_VENCIDO as string) &&
-            a.cicloId === cicloCobroId,
-        );
-        expect(a3).toBeDefined();
-        expect(a3!.severidad).toBe(SeveridadAlerta.ALTA);
-        expect(a3!.umbral).toBe('0.00');
-        const metaA3 = a3!.metadata as { fechaVencimiento?: string };
-        expect(metaA3?.fechaVencimiento).toBe('2026-09-15');
-
-        // Regla 4: MERMA_ELEVADA
-        const a4 = encontrarAlerta(CodigoAlerta.MERMA_ELEVADA, cicloMermaId);
-        expect(a4).toBeDefined();
-        expect(a4!.severidad).toBe(SeveridadAlerta.MEDIA);
-        expect(a4!.observado).toContain('15.00%');
-        expect(a4!.umbral).toBe('10.00%');
-
-        // Regla 5: CATEGORIA_DOMINANTE
-        const a5 = encontrarAlerta(
-          CodigoAlerta.CATEGORIA_DOMINANTE,
-          cicloDominanteId,
-        );
-        expect(a5).toBeDefined();
-        expect(a5!.severidad).toBe(SeveridadAlerta.MEDIA);
-        expect(a5!.observado).toContain('100.00%');
-        expect(a5!.umbral).toBe('40.00%');
-
-        // Regla 6: COSTO_CRECIENTE
-        const a6 = encontrarAlerta(
-          CodigoAlerta.COSTO_CRECIENTE,
-          cicloCrecienteId,
-        );
-        expect(a6).toBeDefined();
-        expect(a6!.severidad).toBe(SeveridadAlerta.MEDIA);
-        expect(a6!.umbral).toContain('11.50');
-        expect(a6!.observado).toContain('15.00');
-        expect(a6!.mensaje).toContain('15%');
-
-        // Regla 7: RENDIMIENTO_BAJO
-        const a7 = encontrarAlerta(
-          CodigoAlerta.RENDIMIENTO_BAJO,
-          cicloRendimientoId,
-        );
-        expect(a7).toBeDefined();
-        expect(a7!.severidad).toBe(SeveridadAlerta.MEDIA);
-        expect(a7!.observado).toContain('60.00%');
-
-        // Regla 8: CICLO_SIN_CAPTURA
-        const a8 = encontrarAlerta(
-          CodigoAlerta.CICLO_SIN_CAPTURA,
-          cicloSinCapturaId,
-        );
-        expect(a8).toBeDefined();
-        expect(a8!.severidad).toBe(SeveridadAlerta.BAJA);
-        expect(a8!.umbral).toBe('15 días');
-
-        // Regla 9: CICLO_LARGO
-        const a9 = encontrarAlerta(CodigoAlerta.CICLO_LARGO, cicloLargoId);
-        expect(a9).toBeDefined();
-        expect(a9!.severidad).toBe(SeveridadAlerta.BAJA);
-        expect(a9!.umbral).toContain('144 días');
-
-        // Regla 10: LIMITE_PLAN_CERCANO
-        const a10 = body.data.find(
-          (a) => a.codigo === (CodigoAlerta.LIMITE_PLAN_CERCANO as string),
-        );
-        expect(a10).toBeDefined();
-        expect(a10!.severidad).toBe(SeveridadAlerta.INFORMATIVA);
-        expect(a10!.umbral).toBe('90.0%');
-      });
+          expect(alerta).toBeDefined();
+          expect(alerta!.severidad).toBe(severidad);
+          verificar(alerta!);
+        },
+      );
 
       it('Caso justo en el umbral NO alerta para merma (10%), categoría (40%) y rendimiento (80%)', async () => {
         const res = await testRequest(app)

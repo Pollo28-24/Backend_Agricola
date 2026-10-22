@@ -62,6 +62,53 @@ Medición real automatizada ejecutada con `scratch/run_benchmarks.js` sobre la b
 ```
 *(Búsqueda puntual por índice `cicloId=c.id`: exactamente 1,500 filas leídas por ciclo, 3,000 filas en total. Costo constante O(1) independiente del volumen total de gastos en la BD).*
 
+#### `v_comparativo_parcela` ANTES de la optimización (Escala N2 - Parcela 1 con 28 ciclos):
+```
+-> Table scan on v_comparativo_parcela_v1  (cost=2.5..2.5 rows=0) (actual time=2.09..2.1 rows=28 loops=1)
+    -> Materialize  (cost=0..0 rows=0) (actual time=2.09..2.09 rows=28 loops=1)
+        -> Window aggregate with buffering: lag(costoTotal) OVER w, ... (actual time=1.27..2.01 rows=28 loops=1)
+            -> Sort: r.parcelaId, r.fechaInicio, r.cicloId  (actual time=1.06..1.07 rows=28 loops=1)
+                -> Stream results  (cost=5.2 rows=0) (actual time=0.672..0.98 rows=28 loops=1)
+                    -> Left hash join (cb.cicloId = c.id)  (cost=5.2 rows=0) (actual time=0.632..0.749 rows=28 loops=1)
+                        ...
+                        -> Nested loop left join  (cost=2.77 rows=3.43) (actual time=0.121..0.199 rows=28 loops=1)
+                            -> Filter: (c.deletedAt is null)  (cost=1.03 rows=2.8) (actual time=0.0478..0.102 rows=28 loops=1)
+                                -> Index lookup on c using ciclo_produccion_parcelaId_idx (parcelaId=1)  (cost=1.03 rows=28) (actual time=0.0472..0.096 rows=28 loops=1)
+                            -> Index lookup on g using <auto_key0> (cicloId=c.id)  (cost=2.31..2.59 rows=2) (actual time=0.00318..0.0032 rows=0.0357 loops=28)
+                                -> Materialize  (cost=2.02..2.02 rows=1.22) (actual time=0.0713..0.0713 rows=12 loops=1)
+                                    -> Group aggregate: sum(gasto.total)  (cost=1.9 rows=1.22) (actual time=0.0248..0.0565 rows=12 loops=1)
+                                        -> Filter: (gasto.deletedAt is null)  (cost=1.75 rows=1.5) (actual time=0.0213..0.0502 rows=15 loops=1)
+                                            -> Index scan on gasto using gasto_cicloId_idx (escaneo global de gastos para materializar la tabla temporal)
+```
+*(Aunque filtra por `parcelaId=1` en los ciclos, la subconsulta de gastos se materializa de forma global escaneando gastos ajenos a la parcela).*
+
+#### `v_comparativo_parcela` DESPUÉS de la optimización con LATERAL (Escala N2 - Parcela 1 con 28 ciclos devueltos):
+```
+-> Table scan on v_comparativo_parcela  (cost=2.5..2.5 rows=0) (actual time=2.62..2.63 rows=28 loops=1)
+    -> Materialize  (cost=0..0 rows=0) (actual time=2.62..2.62 rows=28 loops=1)
+        -> Window aggregate with buffering: lag(ganancia) OVER (PARTITION BY r.parcelaId ORDER BY r.fechaInicio,r.cicloId ) (actual time=2.28..2.56 rows=28 loops=1)
+            -> Table scan on <temporary>  (cost=2.5..2.5 rows=0) (actual time=2.16..2.16 rows=28 loops=1)
+                -> Temporary table  (cost=0..0 rows=0) (actual time=2.16..2.16 rows=28 loops=1)
+                    -> Window aggregate with buffering: lag(costoPorKg) OVER (PARTITION BY r.parcelaId ORDER BY r.fechaInicio,r.cicloId ) (actual time=1.89..2.14 rows=28 loops=1)
+                        -> Table scan on <temporary>  (cost=2.5..2.5 rows=0) (actual time=1.76..1.77 rows=28 loops=1)
+                            -> Temporary table  (cost=0..0 rows=0) (actual time=1.76..1.76 rows=28 loops=1)
+                                -> Window aggregate with buffering: lag(margenPct) OVER (PARTITION BY r.parcelaId ORDER BY r.fechaInicio,r.cicloId ) (actual time=1.5..1.74 rows=28 loops=1)
+                                    -> Sort: r.parcelaId, r.fechaInicio, r.cicloId  (actual time=1.33..1.34 rows=28 loops=1)
+                                        -> Stream results  (cost=461 rows=171) (actual time=0.255..1.27 rows=28 loops=1)
+                                            -> Nested loop left join  (cost=461 rows=171) (actual time=0.232..0.993 rows=28 loops=1)
+                                                ...
+                                                -> Nested loop left join  (cost=8.94 rows=5.35) (actual time=0.0893..0.307 rows=28 loops=1)
+                                                    -> Invalidate materialized tables (row from c)  (cost=1.02 rows=2.67) (actual time=0.0546..0.145 rows=28 loops=1)
+                                                        -> Filter: ((c.estado in ('ACTIVO','SUSPENDIDO','FINALIZADO')) and (c.deletedAt is null))  (cost=1.02 rows=2.67) (actual time=0.0532..0.131 rows=28 loops=1)
+                                                            -> Index lookup on c using ciclo_produccion_parcelaId_idx (parcelaId=1)  (cost=1.02 rows=28) (actual time=0.049..0.106 rows=28 loops=1)
+                                                    -> Table scan on g  (cost=2.84..2.84 rows=1) (actual time=0.00528..0.00544 rows=1 loops=28)
+                                                        -> Materialize (invalidate on row from c)  (cost=0.538..0.538 rows=2) (actual time=0.00499..0.00499 rows=1 loops=28)
+                                                            -> Aggregate: sum(gasto.total)  (cost=0.338 rows=1) (actual time=0.00337..0.00341 rows=1 loops=28)
+                                                                -> Filter: (gasto.deletedAt is null)  (cost=0.325 rows=0.125) (actual time=0.0028..0.00289 rows=0.0714 loops=28)
+                                                                    -> Index lookup on gasto using gasto_cicloId_idx (cicloId=c.id)  (cost=0.325 rows=1.25) (actual time=0.00266..0.00274 rows=0.0714 loops=28)
+```
+*(Búsqueda acotada: `ciclo_produccion_parcelaId_idx (parcelaId=1)` retorna exactamente 28 filas reales en 2.62 ms. Para cada ciclo `c.id`, la subconsulta correlacionada `LATERAL` consulta únicamente los gastos de dicho ciclo por `gasto_cicloId_idx (cicloId=c.id)`, invalidando y recalculando el agregado puntual en memoria sin tocar ningún gasto de otras parcelas ni empresas).*
+
 ## Decisión
 1. Reemplazar las subconsultas derivadas con cláusulas `LEFT JOIN LATERAL (...)` correlacionadas con `c.id` (`cicloId = c.id`) en `v_rentabilidad_ciclo` y `v_costo_por_actividad`.
 2. Mantener exactamente las mismas 26 columnas, mismos tipos, mismo orden y fórmulas en `v_rentabilidad_ciclo`.

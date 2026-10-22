@@ -126,7 +126,87 @@ Evaluadas en tiempo de consulta, no almacenadas en base de datos. Umbrales defin
 - **Defectos Corregidos en 9B**:
   1. *Coerción implícita de string a booleano en `FiltroCuentasPorCobrarDto.vencida`*: La configuración `enableImplicitConversion: true` del `ValidationPipe` global convertía el query param string `'false'` en booleano `true` (`Boolean("false") === true`). Se corrigió mediante `@Transform(({ obj, key }) => ...)` evaluando el valor en crudo antes de coerción.
   2. *Negación incompleta en filtro SQL `vencida=false`*: La condición original `WHERE NOT (v.fechaLimitePago < hoy)` no contemplaba ventas totalmente saldadas ni la definición integral de `VentaEstadoCobroPolicy`. Se corrigió en `cuentas-por-cobrar.service.ts` a: `NOT (v.total > COALESCE(cb.totalCobrado, 0) AND v.fechaLimitePago IS NOT NULL AND v.fechaLimitePago < ${hoy})`.
-  3. *Retorno de 0 en lugar de `null` en `diasVencimiento`*: Cuando `fechaLimitePago` era nula o la venta no estaba vencida, el mapeador retornaba `0` por conversión numérica. Se corrigió en `cuentas-por-cobrar.mapper.ts` para retornar estrictamente `null`.
+### Contrato JSON real de 9B
+
+Para garantizar la estabilidad del contrato que consumirá la aplicación cliente (Flutter), se documentan los nombres exactos expuestos por la API en el Hito 9B:
+
+#### 1. Cuentas por Cobrar (`GET /reportes/cuentas-por-cobrar`)
+- **Query Params soportados**:
+  - `page` (número entero >= 1, default: 1)
+  - `limit` (número entero entre 1 y 100, default: 10)
+  - `estadoCobro` (enum: `PENDIENTE`, `PARCIAL`, `VENCIDA`, `PAGADA`)
+  - `vencida` (booleano: `true` / `false` con `@Transform` seguro contra coerción implícita)
+  - `clienteId` (número entero >= 1, filtro específico por cliente)
+  - `hoy` (string `YYYY-MM-DD`, fecha de corte del reloj de México, default: hoy)
+- **Estructura del Payload JSON**:
+```json
+{
+  "data": [
+    {
+      "ventaId": 101,
+      "folio": "VTA-001",
+      "clienteId": 5,
+      "clienteNombre": "Comercializadora Frutícola",
+      "cicloId": 12,
+      "fechaVenta": "2026-10-15",
+      "fechaVencimiento": "2026-10-20",
+      "montoTotal": "10000.00",
+      "montoCobrado": "4000.00",
+      "montoPendiente": "6000.00",
+      "diasVencimiento": 1,
+      "estadoCobro": "PARCIAL",
+      "vencida": true
+    }
+  ],
+  "resumen": {
+    "totalPorCobrar": "6000.00",
+    "totalVencido": "6000.00",
+    "totalVigente": "0.00",
+    "totalClientesMorosos": 1
+  },
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
+*Nota sobre el nombre del saldo*: El diseño conceptual original mencionaba `saldoPendiente`, pero la implementación consolidada en código y DTO expone `montoPendiente` para mantener consistencia con `montoTotal` y `montoCobrado`. Se preserva `montoPendiente` sin alteraciones para evitar romper integraciones.
+
+#### 2. Alertas de Rentabilidad (`GET /reportes/alertas`)
+- **Query Params soportados**:
+  - `page` (número entero >= 1, default: 1)
+  - `limit` (número entero entre 1 y 100, default: 10)
+  - `severidad` (enum: `ALTA`, `MEDIA`, `BAJA`, `INFORMATIVA`)
+  - `cicloId` (número entero >= 1, filtro opcional por ciclo específico)
+  - `hoy` (string `YYYY-MM-DD`, default: hoy)
+- **Estructura del Payload JSON**:
+```json
+{
+  "data": [
+    {
+      "codigo": "CICLO_EN_PERDIDA",
+      "severidad": "ALTA",
+      "cicloId": 12,
+      "ventaId": null,
+      "observado": "-$2500.00",
+      "umbral": "$0.00",
+      "mensaje": "El ciclo presenta pérdida financiera acumulada (-$2500.00)",
+      "metadata": {
+        "ganancia": "-2500.00",
+        "totalFacturado": "10000.00"
+      }
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1
+  }
+}
+```
 
 ---
 
