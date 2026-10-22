@@ -17,23 +17,50 @@ Medición sobre MySQL 8.0.46 con datos en lote: Empresa A fija (3 ciclos, 3,000 
 
 ### Tabla Comparativa: Antes (Vistas Base 9A) vs Después (Vistas Candidatas LATERAL 9A.1)
 
-| Vista / Consulta | Base N1 (ms) | Base N1 (Filas Leídas) | Base N2 (ms) | Base N2 (Filas Leídas) | Candidata N2 (ms) | Candidata N2 (Filas Leídas) | Reducción de Latencia |
-|---|---|---|---|---|---|---|---|
-| `v_rentabilidad_ciclo` | 242 ms | 45,004 (gasto) | 1,977 ms | 315,004 (gasto) | **37 ms** | **3,000** | **-98.1 %** |
-| `v_comparativo_parcela` | 248 ms | 45,004 (gasto) | 1,621 ms | 315,004 (gasto) | **38 ms** | **3,000** | **-97.7 %** |
-| `v_costo_por_actividad` | 131 ms | 45,004 (gasto) | 68 ms | 15,003 (gasto) | **15 ms** | **300** | **-77.9 %** |
-| `v_costo_por_categoria` | 32 ms | 3,000 (gasto) | 38 ms | 3,000 (gasto) | **38 ms** | **3,000** | 0 % (ya óptima por join directo) |
-| `v_merma_desglose` | 12 ms | 300 (merma) | 14 ms | 300 (merma) | **14 ms** | **300** | 0 % (ya óptima por join directo) |
+Medición real automatizada ejecutada con `scratch/run_benchmarks.js` sobre la base de pruebas MySQL 8.0.46:
 
-### Análisis del Plan de Ejecución (EXPLAIN ANALYZE FORMAT=TREE)
-- **Vistas Base 9A**:
-  `-> Index scan on gasto using gasto_cicloId_idx (actual time=0.312..1147 rows=315004 loops=1)`
-  Escaneaba todas las filas de la tabla `gasto` de todas las empresas para materializar `<auto_key0>`.
-- **Vistas Candidatas LATERAL 9A.1**:
-  `-> Table scan on g (cost=24.5..24.5 rows=1) (actual time=2.97..2.98 rows=1 loops=3)`
-  `-> Aggregate: sum(gasto.total)`
-  `-> Index lookup on gasto using gasto_cicloId_idx (cicloId=c.id) (actual time=0.03..2.4 rows=1000 loops=3)`
-  Solo lee exactamente las filas de los ciclos pertenecientes a la empresa consultada (1,000 filas por ciclo), aprovechando los índices por clave foránea.
+| Vista / Consulta | Base N1 (45k gastos) | Candidata N1 (45k gastos) | Base N2 (315k gastos) | Candidata N2 (315k gastos) | Filas Leídas en Gasto (Empresa A) | Reducción de Latencia (N2) |
+|---|---|---|---|---|---|---|
+| `v_rentabilidad_ciclo` | 148.7 ms | **10.4 ms** | 1,525.5 ms | **11.7 ms** | 1,500 por ciclo (3,000 tot.) | **-99.2 %** |
+| `v_comparativo_parcela` | 150.2 ms | **2.9 ms** | 1,533.3 ms | **2.6 ms** | 1,500 por ciclo (3,000 tot.) | **-99.8 %** |
+| `v_costo_por_actividad` | 1.4 ms | **1.0 ms** | 1.2 ms | **1.3 ms** | Acotada por actividadId | **Estable O(1)** |
+| `v_costo_por_categoria` | 10.4 ms | **10.4 ms** | 11.4 ms | **11.4 ms** | Acotada por cicloId | 0 % (ya óptima por join directo) |
+| `v_merma_desglose` | 1.4 ms | **1.4 ms** | 1.1 ms | **1.1 ms** | Acotada por cicloId | 0 % (ya óptima por join directo) |
+
+### Análisis del Plan de Ejecución (EXPLAIN ANALYZE FORMAT=TREE Literal)
+
+#### `v_rentabilidad_ciclo` ANTES de la optimización (Escala N2 - 315k gastos):
+```
+-> Left hash join (cb.cicloId = c.id) (actual time=2065..2065 rows=2 loops=1)
+    -> Left hash join (iv.cicloId = c.id) (actual time=2064..2064 rows=2 loops=1)
+        -> Left hash join (dv.cicloId = c.id) (actual time=2063..2063 rows=2 loops=1)
+            -> Left hash join (m.cicloId = c.id) (actual time=2062..2062 rows=2 loops=1)
+                -> Left hash join (h.cicloId = c.id) (actual time=2062..2062 rows=2 loops=1)
+                    -> Nested loop left join (actual time=2061..2061 rows=2 loops=1)
+                        -> Filter: (c.deletedAt is null) (actual time=0.107..0.126 rows=2 loops=1)
+                            -> Index lookup on c using ciclo_produccion_empresaId_estado_idx (empresaId=1), with index condition: (c.id in (2,1)) (actual time=0.106..0.123 rows=2 loops=1)
+                        -> Index lookup on g using <auto_key0> (cicloId=c.id) (actual time=1031..1031 rows=1 loops=2)
+                            -> Materialize (actual time=2061..2061 rows=200 loops=1)
+                                -> Group aggregate: sum(gasto.total) (actual time=9.2..2057 rows=200 loops=1)
+                                    -> Filter: (gasto.deletedAt is null) (actual time=1.44..1980 rows=315000 loops=1)
+                                        -> Index scan on gasto using gasto_cicloId_idx (actual time=1.44..1937 rows=315000 loops=1)
+```
+*(Escaneo completo de 315,000 filas de todas las empresas para materializar `<auto_key0>`).*
+
+#### `v_rentabilidad_ciclo` DESPUÉS de la optimización con LATERAL (Escala N2 - 315k gastos):
+```
+-> Nested loop left join (actual time=4.39..8.34 rows=2 loops=1)
+    ...
+    -> Invalidate materialized tables (row from c) (actual time=0.069..0.0789 rows=2 loops=1)
+        -> Filter: (c.deletedAt is null) (actual time=0.069..0.0789 rows=2 loops=1)
+            -> Index lookup on c using ciclo_produccion_empresaId_estado_idx (empresaId=1), with index condition: (c.id in (2,1))
+    -> Table scan on g (actual time=3.65..3.65 rows=1 loops=2)
+        -> Materialize (invalidate on row from c) (actual time=3.64..3.64 rows=1 loops=2)
+            -> Aggregate: sum(gasto.total) (actual time=3.62..3.62 rows=1 loops=2)
+                -> Filter: (gasto.deletedAt is null) (actual time=0.163..3.36 rows=1500 loops=2)
+                    -> Index lookup on gasto using gasto_cicloId_idx (cicloId=c.id) (actual time=0.163..3.18 rows=1500 loops=2)
+```
+*(Búsqueda puntual por índice `cicloId=c.id`: exactamente 1,500 filas leídas por ciclo, 3,000 filas en total. Costo constante O(1) independiente del volumen total de gastos en la BD).*
 
 ## Decisión
 1. Reemplazar las subconsultas derivadas con cláusulas `LEFT JOIN LATERAL (...)` correlacionadas con `c.id` (`cicloId = c.id`) en `v_rentabilidad_ciclo` y `v_costo_por_actividad`.

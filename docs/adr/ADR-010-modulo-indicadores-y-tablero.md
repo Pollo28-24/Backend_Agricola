@@ -120,6 +120,13 @@ Evaluadas en tiempo de consulta, no almacenadas en base de datos. Umbrales defin
   - `PAGADA`: cobrado >= total.
 - Orden: `fechaLimitePago ASC` (nulos al final) y `id DESC`.
 - Paginación: `COUNT(*)` con el mismo WHERE y cláusula `LIMIT / OFFSET` en SQL nativo.
+- **Campo Aditivo `diasVencimiento`**:
+  - Definición: Número entero de días naturales de atraso respecto a la fecha de corte `hoy` en zona horaria de México (`America/Mexico_City`).
+  - Regla: `Math.max(0, Math.floor((dateHoy - dateLimite) / 86400000))` cuando `fechaLimitePago < hoy` y existe saldo pendiente. Retorna `null` si la venta no tiene `fechaLimitePago` o si no presenta atraso (`fechaLimitePago >= hoy`).
+- **Defectos Corregidos en 9B**:
+  1. *Coerción implícita de string a booleano en `FiltroCuentasPorCobrarDto.vencida`*: La configuración `enableImplicitConversion: true` del `ValidationPipe` global convertía el query param string `'false'` en booleano `true` (`Boolean("false") === true`). Se corrigió mediante `@Transform(({ obj, key }) => ...)` evaluando el valor en crudo antes de coerción.
+  2. *Negación incompleta en filtro SQL `vencida=false`*: La condición original `WHERE NOT (v.fechaLimitePago < hoy)` no contemplaba ventas totalmente saldadas ni la definición integral de `VentaEstadoCobroPolicy`. Se corrigió en `cuentas-por-cobrar.service.ts` a: `NOT (v.total > COALESCE(cb.totalCobrado, 0) AND v.fechaLimitePago IS NOT NULL AND v.fechaLimitePago < ${hoy})`.
+  3. *Retorno de 0 en lugar de `null` en `diasVencimiento`*: Cuando `fechaLimitePago` era nula o la venta no estaba vencida, el mapeador retornaba `0` por conversión numérica. Se corrigió en `cuentas-por-cobrar.mapper.ts` para retornar estrictamente `null`.
 
 ---
 
