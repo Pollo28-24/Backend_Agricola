@@ -17,12 +17,13 @@ Medición sobre MySQL 8.0.46 con datos en lote: Empresa A fija (3 ciclos, 3,000 
 
 ### Tabla Comparativa: Antes (Vistas Base 9A) vs Después (Vistas Candidatas LATERAL 9A.1)
 
-| Vista / Consulta | Base N1 (ms) | Base N1 (Filas Leídas Gasto) | Base N2 (ms) | Base N2 (Filas Leídas Gasto) | Candidata N2 (ms) | Candidata N2 (Filas Leídas Gasto) | Reducción de Latencia |
+| Vista / Consulta | Base N1 (ms) | Base N1 (Filas Leídas) | Base N2 (ms) | Base N2 (Filas Leídas) | Candidata N2 (ms) | Candidata N2 (Filas Leídas) | Reducción de Latencia |
 |---|---|---|---|---|---|---|---|
-| `v_rentabilidad_ciclo` | 242 ms | 45,004 | 1,977 ms | 315,004 | **37 ms** | **3,000** | **-98.1 %** |
-| `v_comparativo_parcela` | 248 ms | 45,004 | 1,621 ms | 315,004 | **38 ms** | **3,000** | **-97.7 %** |
-| `v_costo_por_actividad` | 131 ms | 45,004 | 68 ms | 15,003 | **15 ms** | **300** | **-77.9 %** |
-| `v_costo_por_categoria` | 32 ms | 3,000 | 38 ms | 3,000 | **38 ms** | **3,000** | 0 % (ya óptima) |
+| `v_rentabilidad_ciclo` | 242 ms | 45,004 (gasto) | 1,977 ms | 315,004 (gasto) | **37 ms** | **3,000** | **-98.1 %** |
+| `v_comparativo_parcela` | 248 ms | 45,004 (gasto) | 1,621 ms | 315,004 (gasto) | **38 ms** | **3,000** | **-97.7 %** |
+| `v_costo_por_actividad` | 131 ms | 45,004 (gasto) | 68 ms | 15,003 (gasto) | **15 ms** | **300** | **-77.9 %** |
+| `v_costo_por_categoria` | 32 ms | 3,000 (gasto) | 38 ms | 3,000 (gasto) | **38 ms** | **3,000** | 0 % (ya óptima por join directo) |
+| `v_merma_desglose` | 12 ms | 300 (merma) | 14 ms | 300 (merma) | **14 ms** | **300** | 0 % (ya óptima por join directo) |
 
 ### Análisis del Plan de Ejecución (EXPLAIN ANALYZE FORMAT=TREE)
 - **Vistas Base 9A**:
