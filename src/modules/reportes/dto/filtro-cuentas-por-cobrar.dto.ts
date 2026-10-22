@@ -50,15 +50,26 @@ export class FiltroCuentasPorCobrarDto {
       'Filtrar por bandera de vencida (saldo > 0 y fechaLimitePago < hoy)',
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === 'true' || value === true || value === 1 || value === '1') {
-      return true;
-    }
-    if (value === 'false' || value === false || value === 0 || value === '0') {
-      return false;
-    }
-    return undefined;
-  })
+  @Transform(
+    ({
+      obj,
+      key,
+      value,
+    }: {
+      obj?: Record<string, unknown>;
+      key?: string;
+      value: unknown;
+    }) => {
+      const raw = obj && key ? obj[key] : value;
+      if (raw === 'true' || raw === true || raw === 1 || raw === '1') {
+        return true;
+      }
+      if (raw === 'false' || raw === false || raw === 0 || raw === '0') {
+        return false;
+      }
+      return undefined;
+    },
+  )
   @IsBoolean()
   vencida?: boolean;
 

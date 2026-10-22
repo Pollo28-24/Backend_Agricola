@@ -61,7 +61,7 @@ export class CuentasPorCobrarMapper {
       hoy,
     });
 
-    let diasVencimiento = 0;
+    let diasVencimiento: number | null = null;
     if (fechaVencimientoStr) {
       const msDia = 24 * 60 * 60 * 1000;
       const [yHoy, mHoy, dHoy] = hoy.split('-').map(Number);

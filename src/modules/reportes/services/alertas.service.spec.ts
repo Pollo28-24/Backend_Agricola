@@ -570,4 +570,176 @@ describe('AlertasService (Unitario)', () => {
     expect(resMedia.data[0].codigo).toBe(CodigoAlerta.MERMA_ELEVADA);
     expect(resMedia.data[0].severidad).toBe(SeveridadAlerta.MEDIA);
   });
+
+  describe('Estados de ciclo y ventas independientes', () => {
+    it('COBRO_VENCIDO se reporta incluso si el ciclo asociado está FINALIZADO hace más de 30 días', async () => {
+      // Universo de ciclos vacío (cerrado hace más de 30 días)
+      prismaMock.cicloProduccion.findMany.mockResolvedValueOnce([]);
+
+      // Query 5: Venta vencida de un ciclo antiguo
+      prismaMock.$queryRaw.mockResolvedValueOnce([
+        {
+          ventaId: 999,
+          folio: 'V-HISTORICA',
+          clienteId: 50,
+          clienteNombre: 'Cliente Histórico',
+          cicloId: 100,
+          fechaVencimiento: new Date('2026-08-01'),
+          saldoPendiente: '5000.00',
+        },
+      ]);
+
+      prismaMock.empresa.findUnique.mockResolvedValueOnce(null);
+      prismaMock.parcela.count.mockResolvedValueOnce(0);
+      prismaMock.usuario.count.mockResolvedValueOnce(0);
+
+      const res = await service.obtenerAlertas(empresaId, { hoy: hoyPrueba });
+
+      expect(res.data).toHaveLength(1);
+      expect(res.data[0].codigo).toBe(CodigoAlerta.COBRO_VENCIDO);
+      expect(res.data[0].severidad).toBe(SeveridadAlerta.ALTA);
+      expect(res.data[0].cicloId).toBe(100);
+      expect(res.data[0].ventaId).toBe(999);
+    });
+
+    it('tolera datos faltantes o nulos (sin duración de variedad, sin meta, cocientes null) sin error', async () => {
+      prismaMock.cicloProduccion.findMany.mockResolvedValueOnce([
+        {
+          id: 50,
+          nombre: 'Ciclo Sin Datos',
+          estado: EstadoCiclo.ACTIVO,
+          fechaInicio: new Date('2026-10-01'),
+          fechaFin: null,
+          cerradoEn: null,
+          superficieSembrada: null,
+          metaProduccionKg: null, // Sin meta
+          parcelaId: 50,
+          variedadId: 50,
+          variedad: null, // Sin duración de variedad
+        },
+      ]);
+
+      prismaMock.$queryRaw
+        .mockResolvedValueOnce([
+          {
+            cicloId: 50,
+            empresaId,
+            parcelaId: 50,
+            variedadId: 50,
+            estado: 'ACTIVO',
+            totalFacturado: null,
+            costoTotal: null,
+            ganancia: null,
+            costoPorKg: null,
+            precioPromedioKg: null,
+            mermaPct: null,
+            kgCosechados: null,
+          },
+        ])
+        .mockResolvedValueOnce([]) // Sin categorías
+        .mockResolvedValueOnce([]) // Sin comparativo
+        .mockResolvedValueOnce([]); // Sin ventas vencidas
+
+      prismaMock.gasto.groupBy.mockResolvedValueOnce([
+        {
+          cicloId: 50,
+          _max: { fecha: new Date('2026-10-18') }, // Actividad reciente (3 días)
+        },
+      ]);
+
+      prismaMock.empresa.findUnique.mockResolvedValueOnce({
+        plan: null, // Sin plan configurado
+      });
+
+      const res = await service.obtenerAlertas(empresaId, { hoy: hoyPrueba });
+
+      // No debe lanzar error ni generar alertas espurias de rendimiento/largo/merma/etc.
+      expect(res.data).toHaveLength(0);
+      expect(res.resumen.total).toBe(0);
+    });
+
+    it('ordena canónicamente por severidad (ALTA -> MEDIA -> BAJA -> INFORMATIVA) y cicloId asc', async () => {
+      prismaMock.cicloProduccion.findMany.mockResolvedValueOnce([
+        {
+          id: 2,
+          nombre: 'Ciclo B',
+          estado: EstadoCiclo.ACTIVO,
+          fechaInicio: new Date('2026-09-01'),
+          fechaFin: null,
+          cerradoEn: null,
+          superficieSembrada: 10,
+          metaProduccionKg: null,
+          parcelaId: 2,
+          variedadId: 1,
+          variedad: { duracionCicloDias: 90 },
+        },
+        {
+          id: 1,
+          nombre: 'Ciclo A',
+          estado: EstadoCiclo.ACTIVO,
+          fechaInicio: new Date('2026-09-01'),
+          fechaFin: null,
+          cerradoEn: null,
+          superficieSembrada: 10,
+          metaProduccionKg: null,
+          parcelaId: 1,
+          variedadId: 1,
+          variedad: { duracionCicloDias: 90 },
+        },
+      ]);
+
+      // Ciclo 1 genera MEDIA (merma 15%), Ciclo 2 genera ALTA (pérdida)
+      prismaMock.$queryRaw
+        .mockResolvedValueOnce([
+          {
+            cicloId: 1,
+            empresaId,
+            parcelaId: 1,
+            variedadId: 1,
+            estado: 'ACTIVO',
+            totalFacturado: '20000.00',
+            costoTotal: '15000.00',
+            ganancia: '5000.00',
+            costoPorKg: '10.00',
+            precioPromedioKg: '12.00',
+            mermaPct: '15.00', // MEDIA
+            kgCosechados: '2000.000',
+          },
+          {
+            cicloId: 2,
+            empresaId,
+            parcelaId: 2,
+            variedadId: 1,
+            estado: 'ACTIVO',
+            totalFacturado: '10000.00',
+            costoTotal: '25000.00',
+            ganancia: '-15000.00', // ALTA
+            costoPorKg: null,
+            precioPromedioKg: null,
+            mermaPct: null,
+            kgCosechados: null,
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      prismaMock.gasto.groupBy.mockResolvedValueOnce([
+        { cicloId: 1, _max: { fecha: new Date('2026-10-18') } },
+        { cicloId: 2, _max: { fecha: new Date('2026-10-18') } },
+      ]);
+
+      prismaMock.empresa.findUnique.mockResolvedValueOnce(null);
+      prismaMock.parcela.count.mockResolvedValueOnce(0);
+      prismaMock.usuario.count.mockResolvedValueOnce(0);
+
+      const res = await service.obtenerAlertas(empresaId, { hoy: hoyPrueba });
+
+      expect(res.data.length).toBeGreaterThanOrEqual(2);
+      expect(res.data[0].severidad).toBe(SeveridadAlerta.ALTA);
+      expect(res.data[0].cicloId).toBe(2);
+      expect(res.data[1].severidad).toBe(SeveridadAlerta.MEDIA);
+      expect(res.data[1].cicloId).toBe(1);
+    });
+  });
 });

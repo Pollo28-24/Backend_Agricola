@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CuentasPorCobrarService } from './cuentas-por-cobrar.service';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { EstadoCobro } from '../../../common/domain/policies/venta-estado-cobro.policy';
+import {
+  EstadoCobro,
+  VentaEstadoCobroPolicy,
+} from '../../../common/domain/policies/venta-estado-cobro.policy';
 
 describe('CuentasPorCobrarService (Unitario)', () => {
   let service: CuentasPorCobrarService;
@@ -184,5 +187,200 @@ describe('CuentasPorCobrarService (Unitario)', () => {
 
     // Verificar que se invocó a $queryRaw 3 veces
     expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(3);
+  });
+
+  describe('Paridad exhaustiva SQL contra VentaEstadoCobroPolicy (8 casos)', () => {
+    it('comprueba los 8 casos canónicos de estado de cobro, vencimiento y días de atraso', async () => {
+      prismaMock.$queryRaw.mockResolvedValueOnce([{ total: 7 }]);
+      prismaMock.$queryRaw.mockResolvedValueOnce([
+        {
+          totalPorCobrar: '7000.00',
+          totalVencido: '2500.00',
+          totalVigente: '4500.00',
+          totalClientesMorosos: 2,
+        },
+      ]);
+      prismaMock.$queryRaw.mockResolvedValueOnce([
+        // Caso 1: Cobrado = 0, fecha nula -> PENDIENTE, vencida = false, dias = null
+        {
+          ventaId: 1,
+          folio: 'V-001',
+          clienteId: 1,
+          clienteNombre: 'Cliente 1',
+          cicloId: 1,
+          fechaVenta: '2026-10-01',
+          fechaVencimiento: null,
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+        },
+        // Caso 2: Cobrado = 0, fecha futura -> PENDIENTE, vencida = false, dias = -5
+        {
+          ventaId: 2,
+          folio: 'V-002',
+          clienteId: 1,
+          clienteNombre: 'Cliente 1',
+          cicloId: 1,
+          fechaVenta: '2026-10-01',
+          fechaVencimiento: '2026-10-26',
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+        },
+        // Caso 3: Cobrado = 0, fecha igual a hoy -> PENDIENTE, vencida = false, dias = 0
+        {
+          ventaId: 3,
+          folio: 'V-003',
+          clienteId: 1,
+          clienteNombre: 'Cliente 1',
+          cicloId: 1,
+          fechaVenta: '2026-10-01',
+          fechaVencimiento: '2026-10-21',
+          total: '1000.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+        },
+        // Caso 4: Cobrado = 0, fecha pasada -> VENCIDA, vencida = true, dias = 6
+        {
+          ventaId: 4,
+          folio: 'V-004',
+          clienteId: 2,
+          clienteNombre: 'Cliente 2',
+          cicloId: 1,
+          fechaVenta: '2026-09-01',
+          fechaVencimiento: '2026-10-15',
+          total: '1500.00',
+          cobrado: '0.00',
+          estadoVenta: 'REGISTRADA',
+        },
+        // Caso 5: Parcial con fecha pasada -> PARCIAL, vencida = true, dias = 3
+        {
+          ventaId: 5,
+          folio: 'V-005',
+          clienteId: 2,
+          clienteNombre: 'Cliente 2',
+          cicloId: 1,
+          fechaVenta: '2026-09-15',
+          fechaVencimiento: '2026-10-18',
+          total: '2000.00',
+          cobrado: '1000.00',
+          estadoVenta: 'REGISTRADA',
+        },
+        // Caso 6: Parcial con fecha futura -> PARCIAL, vencida = false, dias = -10
+        {
+          ventaId: 6,
+          folio: 'V-006',
+          clienteId: 3,
+          clienteNombre: 'Cliente 3',
+          cicloId: 1,
+          fechaVenta: '2026-10-01',
+          fechaVencimiento: '2026-10-31',
+          total: '2000.00',
+          cobrado: '500.00',
+          estadoVenta: 'REGISTRADA',
+        },
+        // Caso 7: Pagada (cobrado >= total) -> PAGADA, vencida = false
+        {
+          ventaId: 7,
+          folio: 'V-007',
+          clienteId: 3,
+          clienteNombre: 'Cliente 3',
+          cicloId: 1,
+          fechaVenta: '2026-09-01',
+          fechaVencimiento: '2026-09-15',
+          total: '1000.00',
+          cobrado: '1000.00',
+          estadoVenta: 'REGISTRADA',
+        },
+      ]);
+
+      const res = await service.obtenerCuentasPorCobrar(empresaId, {
+        hoy: hoyPrueba,
+      });
+
+      // Comparación uno a uno con VentaEstadoCobroPolicy
+      const d0 = res.data[0];
+      const p0 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 1000,
+        totalCobrado: 0,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: null,
+        hoy: hoyPrueba,
+      });
+      expect(d0.estadoCobro).toBe(p0.estadoCobro);
+      expect(d0.vencida).toBe(p0.vencida);
+      expect(d0.diasVencimiento).toBeNull();
+
+      const d1 = res.data[1];
+      const p1 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 1000,
+        totalCobrado: 0,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: '2026-10-26',
+        hoy: hoyPrueba,
+      });
+      expect(d1.estadoCobro).toBe(p1.estadoCobro);
+      expect(d1.vencida).toBe(p1.vencida);
+      expect(d1.diasVencimiento).toBe(-5);
+
+      const d2 = res.data[2];
+      const p2 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 1000,
+        totalCobrado: 0,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: '2026-10-21',
+        hoy: hoyPrueba,
+      });
+      expect(d2.estadoCobro).toBe(p2.estadoCobro);
+      expect(d2.vencida).toBe(p2.vencida);
+      expect(d2.diasVencimiento).toBe(0);
+
+      const d3 = res.data[3];
+      const p3 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 1500,
+        totalCobrado: 0,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: '2026-10-15',
+        hoy: hoyPrueba,
+      });
+      expect(d3.estadoCobro).toBe(p3.estadoCobro);
+      expect(d3.vencida).toBe(p3.vencida);
+      expect(d3.diasVencimiento).toBe(6);
+
+      const d4 = res.data[4];
+      const p4 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 2000,
+        totalCobrado: 1000,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: '2026-10-18',
+        hoy: hoyPrueba,
+      });
+      expect(d4.estadoCobro).toBe(p4.estadoCobro);
+      expect(d4.vencida).toBe(p4.vencida);
+      expect(d4.diasVencimiento).toBe(3);
+
+      const d5 = res.data[5];
+      const p5 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 2000,
+        totalCobrado: 500,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: '2026-10-31',
+        hoy: hoyPrueba,
+      });
+      expect(d5.estadoCobro).toBe(p5.estadoCobro);
+      expect(d5.vencida).toBe(p5.vencida);
+      expect(d5.diasVencimiento).toBe(-10);
+
+      const d6 = res.data[6];
+      const p6 = VentaEstadoCobroPolicy.calcularEstadoCobro({
+        total: 1000,
+        totalCobrado: 1000,
+        estadoVenta: 'REGISTRADA',
+        fechaLimitePago: '2026-09-15',
+        hoy: hoyPrueba,
+      });
+      expect(d6.estadoCobro).toBe(p6.estadoCobro);
+      expect(d6.vencida).toBe(p6.vencida);
+    });
   });
 });

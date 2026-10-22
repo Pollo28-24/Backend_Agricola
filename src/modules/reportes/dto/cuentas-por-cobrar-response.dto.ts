@@ -83,10 +83,11 @@ export class CuentaPorCobrarItemDto {
 
   @ApiProperty({
     example: 15,
+    nullable: true,
     description:
-      'Días transcurridos desde el vencimiento (positivo: vencida hace N días; negativo: faltan N días; 0: vence hoy)',
+      'Días transcurridos desde el vencimiento (positivo: vencida hace N días; negativo: faltan N días; 0: vence hoy; null: sin fecha límite)',
   })
-  diasVencimiento!: number;
+  diasVencimiento!: number | null;
 
   @ApiProperty({
     example: 'VENCIDA',

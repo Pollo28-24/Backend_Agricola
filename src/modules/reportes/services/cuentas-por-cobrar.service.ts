@@ -90,7 +90,7 @@ export class CuentasPorCobrarService {
         );
       } else {
         whereConditions.push(
-          Prisma.sql`(v.fechaLimitePago IS NULL OR v.fechaLimitePago >= ${hoy} OR v.total <= COALESCE(cb.totalCobrado, 0))`,
+          Prisma.sql`NOT (v.total > COALESCE(cb.totalCobrado, 0) AND v.fechaLimitePago IS NOT NULL AND v.fechaLimitePago < ${hoy})`,
         );
       }
     }

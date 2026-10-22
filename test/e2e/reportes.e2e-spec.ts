@@ -19,6 +19,11 @@ import {
 } from '@prisma/client';
 import { ReporteFormatoUtil } from '../../src/common/utils/reporte-formato.util';
 import { calcularBalanceMasaKg } from '../../src/common/utils/ciclo-balance.util';
+import {
+  CodigoAlerta,
+  SeveridadAlerta,
+} from '../../src/modules/reportes/constants/alertas.constants';
+import { VentaEstadoCobroPolicy } from '../../src/common/domain/policies/venta-estado-cobro.policy';
 
 interface ApiResponseError {
   code?: string;
@@ -1139,7 +1144,10 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
     });
   });
 
-  describe('Hito 9B: Cuentas por Cobrar y Alertas (E2E)', () => {
+  describe('Hito 9B: Cuentas por Cobrar y Alertas de Rentabilidad (E2E)', () => {
+    // -------------------------------------------------------------------------
+    // 1. RBAC y Lecturas sin efectos secundarios
+    // -------------------------------------------------------------------------
     it('RBAC sobre cuentas-por-cobrar y alertas: CAPTURISTA 403, CONTADOR y ADMIN 200', async () => {
       for (const ruta of [
         '/api/v1/reportes/cuentas-por-cobrar',
@@ -1165,12 +1173,31 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       }
     });
 
-    it('GET /reportes/cuentas-por-cobrar devuelve ventas con saldo pendiente, resumen financiero y excluye canceladas', async () => {
-      // 1. Contar eventos de auditoría previos
+    it('Lecturas sin efectos: ni cuentas-por-cobrar ni alertas generan registros en bitacoraAuditoria', async () => {
       const auditCountAntes = await prisma.bitacoraAuditoria.count({
         where: { empresaId: seed.empresaA.id },
       });
 
+      const resCobros = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar')
+        .set('Authorization', tokenA_Admin);
+      expect(resCobros.status).toBe(200);
+
+      const resAlertas = await testRequest(app)
+        .get('/api/v1/reportes/alertas')
+        .set('Authorization', tokenA_Admin);
+      expect(resAlertas.status).toBe(200);
+
+      const auditCountDespues = await prisma.bitacoraAuditoria.count({
+        where: { empresaId: seed.empresaA.id },
+      });
+      expect(auditCountDespues).toBe(auditCountAntes);
+    });
+
+    // -------------------------------------------------------------------------
+    // 2. Cuentas por Cobrar (Filtros, Paridad, Orden, Paginación, Aislamiento)
+    // -------------------------------------------------------------------------
+    it('Cuentas por cobrar: valor por defecto devuelve cuentas vigentes y vencidas no canceladas con saldo > 0', async () => {
       const res = await testRequest(app)
         .get('/api/v1/reportes/cuentas-por-cobrar')
         .set('Authorization', tokenA_Admin);
@@ -1179,11 +1206,11 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       const body = res.body as {
         data: Array<{
           ventaId: number;
-          clienteId: number;
           montoTotal: string;
           montoCobrado: string;
           montoPendiente: string;
           estadoCobro: string;
+          vencida: boolean;
         }>;
         resumen: {
           totalPorCobrar: string;
@@ -1204,23 +1231,117 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       expect(body.meta.total).toBeGreaterThanOrEqual(body.data.length);
       expect(body.data.length).toBeLessThanOrEqual(body.meta.limit);
 
-      // Verificar que los montos pendientes coinciden con saldo = total - cobrado
       for (const item of body.data) {
-        const totalNum = parseFloat(item.montoTotal);
-        const cobradoNum = parseFloat(item.montoCobrado);
-        const pendienteNum = parseFloat(item.montoPendiente);
-        expect(pendienteNum).toBeCloseTo(totalNum - cobradoNum, 2);
-        expect(pendienteNum).toBeGreaterThan(0);
+        expect(Number(item.montoPendiente)).toBeGreaterThan(0);
+        expect(item.estadoCobro).not.toBe('CANCELADA');
       }
-
-      // Verificar idempotencia y ausencia de efectos secundarios en auditoría (solo lectura)
-      const auditCountDespues = await prisma.bitacoraAuditoria.count({
-        where: { empresaId: seed.empresaA.id },
-      });
-      expect(auditCountDespues).toBe(auditCountAntes);
     });
 
-    it('GET /reportes/cuentas-por-cobrar: aislamiento multiempresa estricto', async () => {
+    it('Cuentas por cobrar: filtros por estadoCobro (PENDIENTE, PARCIAL, VENCIDA, PAGADA) y vencida (true/false)', async () => {
+      for (const estado of ['PENDIENTE', 'PARCIAL', 'VENCIDA', 'PAGADA']) {
+        const res = await testRequest(app)
+          .get(`/api/v1/reportes/cuentas-por-cobrar?estadoCobro=${estado}`)
+          .set('Authorization', tokenA_Admin);
+        expect(res.status).toBe(200);
+        const body = res.body as { data: Array<{ estadoCobro: string }> };
+        for (const item of body.data) {
+          expect(item.estadoCobro).toBe(estado);
+        }
+      }
+
+      const resVencida = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar?vencida=true')
+        .set('Authorization', tokenA_Admin);
+      expect(resVencida.status).toBe(200);
+      const bodyVencida = resVencida.body as {
+        data: Array<{ vencida: boolean }>;
+      };
+      for (const item of bodyVencida.data) {
+        expect(item.vencida).toBe(true);
+      }
+
+      const resNoVencida = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar?vencida=false')
+        .set('Authorization', tokenA_Admin);
+      expect(resNoVencida.status).toBe(200);
+      const bodyNoVencida = resNoVencida.body as {
+        data: Array<{ vencida: boolean }>;
+      };
+      for (const item of bodyNoVencida.data) {
+        expect(item.vencida).toBe(false);
+      }
+    });
+
+    it('Cuentas por cobrar: orden con fechaLimitePago nula al final y paginación con página vacía', async () => {
+      const res = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar?limit=100')
+        .set('Authorization', tokenA_Admin);
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        data: Array<{ fechaVencimiento: string | null }>;
+        meta: { total: number };
+      };
+
+      if (body.data.length >= 2) {
+        let encontroNulo = false;
+        for (const item of body.data) {
+          if (item.fechaVencimiento === null) {
+            encontroNulo = true;
+          } else if (encontroNulo) {
+            expect(item.fechaVencimiento).toBeNull();
+          }
+        }
+      }
+
+      // Página vacía con skip fuera de rango
+      const resVacia = await testRequest(app)
+        .get(`/api/v1/reportes/cuentas-por-cobrar?page=9999&limit=10`)
+        .set('Authorization', tokenA_Admin);
+      expect(resVacia.status).toBe(200);
+      const bodyVacia = resVacia.body as {
+        data: any[];
+        meta: { total: number; page: number };
+      };
+      expect(bodyVacia.data).toEqual([]);
+      expect(bodyVacia.meta.page).toBe(9999);
+      expect(bodyVacia.meta.total).toBe(body.meta.total);
+    });
+
+    it('Cuentas por cobrar: paridad exhaustiva contra VentaEstadoCobroPolicy sobre la base de datos real', async () => {
+      const res = await testRequest(app)
+        .get('/api/v1/reportes/cuentas-por-cobrar?limit=100')
+        .set('Authorization', tokenA_Admin);
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        data: Array<{
+          ventaId: number;
+          montoTotal: string;
+          montoCobrado: string;
+          montoPendiente: string;
+          estadoCobro: string;
+          vencida: boolean;
+          fechaVencimiento: string | null;
+        }>;
+      };
+
+      const hoy = VentaEstadoCobroPolicy.obtenerHoyMexico();
+
+      for (const item of body.data) {
+        const esperado = VentaEstadoCobroPolicy.calcularEstadoCobro({
+          total: item.montoTotal,
+          totalCobrado: item.montoCobrado,
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: item.fechaVencimiento,
+          hoy,
+        });
+
+        expect(item.estadoCobro).toBe(esperado.estadoCobro);
+        expect(item.vencida).toBe(esperado.vencida);
+        expect(item.montoPendiente).toBe(esperado.saldoPendiente);
+      }
+    });
+
+    it('Cuentas por cobrar: aislamiento multiempresa estricto', async () => {
       const resA = await testRequest(app)
         .get('/api/v1/reportes/cuentas-por-cobrar')
         .set('Authorization', tokenA_Admin);
@@ -1240,95 +1361,949 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       }
     });
 
-    it('GET /reportes/alertas evalúa y devuelve alertas ordenadas por severidad con resumen', async () => {
-      const auditCountAntes = await prisma.bitacoraAuditoria.count({
-        where: { empresaId: seed.empresaA.id },
-      });
+    // -------------------------------------------------------------------------
+    // 3. Alertas de Rentabilidad (10 Reglas, Umbrales, Estados, Orden, O(1) Queries)
+    // -------------------------------------------------------------------------
+    describe('Evaluación de las 10 Reglas de Alerta por API', () => {
+      let cicloPerdidaId: number;
+      let cicloCostoPrecioId: number;
+      let cicloCobroId: number;
+      let cicloMermaId: number;
+      let cicloDominanteId: number;
+      let cicloCrecienteId: number;
+      let cicloRendimientoId: number;
+      let cicloSinCapturaId: number;
+      let cicloLargoId: number;
+      let cicloEnUmbralId: number;
+      let cicloPlanificadoId: number;
+      let cicloCanceladoId: number;
+      let cicloCerradoAntiguoId: number;
 
-      const res = await testRequest(app)
-        .get('/api/v1/reportes/alertas')
-        .set('Authorization', tokenA_Admin);
-
-      expect(res.status).toBe(200);
-      const body = res.body as {
-        data: Array<{
-          codigo: string;
-          severidad: string;
-          mensaje: string;
-          observado: string;
-          umbral: string;
-        }>;
-        resumen: {
-          totalAltas: number;
-          totalMedias: number;
-          totalBajas: number;
-          totalInformativas: number;
-          total: number;
-        };
-        meta: { total: number };
-      };
-
-      expect(body.resumen).toBeDefined();
-      expect(body.meta).toBeDefined();
-      expect(body.meta.total).toBe(body.resumen.total);
-
-      // Si hay más de un elemento, verificar ordenamiento por severidad (ALTA antes que MEDIA/BAJA)
-      if (body.data.length >= 2) {
-        const severidades = body.data.map((a) => a.severidad);
-        const indiceMedia = severidades.indexOf('MEDIA');
-        const indiceBaja = severidades.indexOf('BAJA');
-        const indiceInfo = severidades.indexOf('INFORMATIVA');
-
-        severidades.forEach((sev, idx) => {
-          if (sev === 'ALTA') {
-            if (indiceMedia !== -1) expect(idx).toBeLessThan(indiceMedia);
-            if (indiceBaja !== -1) expect(idx).toBeLessThan(indiceBaja);
-            if (indiceInfo !== -1) expect(idx).toBeLessThan(indiceInfo);
-          }
+      beforeAll(async () => {
+        // Regla 1: CICLO_EN_PERDIDA (ganancia < 0, facturado > 0)
+        const ded1 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloPerdidaId = ded1.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloPerdidaId },
+          data: {
+            nombre: 'Ciclo 9B Alerta Pérdida',
+            estado: EstadoCiclo.ACTIVO,
+          },
         });
-      }
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloPerdidaId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            descripcion: 'Gasto alto',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('20000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('20000.00'),
+          },
+        });
+        const venta1 = await prisma.venta.create({
+          data: {
+            cicloId: cicloPerdidaId,
+            clienteId: seed.empresaA.cliente.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('10000.00'),
+            estado: EstadoVenta.REGISTRADA,
+          },
+        });
+        const cosh1 = await prisma.cosecha.create({
+          data: {
+            cicloId: cicloPerdidaId,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            cantidad: new Prisma.Decimal('1000.000'),
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
+        await prisma.detalleVenta.create({
+          data: {
+            ventaId: venta1.id,
+            cosechaId: cosh1.id,
+            unidadId: seed.global.unidadKgId,
+            calidad: CalidadCosecha.PRIMERA,
+            cantidad: new Prisma.Decimal('1000.000'),
+            precioUnitario: new Prisma.Decimal('10.00'),
+          },
+        });
 
-      // Idempotencia: sin mutación en auditoría
-      const auditCountDespues = await prisma.bitacoraAuditoria.count({
-        where: { empresaId: seed.empresaA.id },
-      });
-      expect(auditCountDespues).toBe(auditCountAntes);
-    });
+        // Regla 2: COSTO_SUPERA_PRECIO (costo/kg 25 > precio/kg 15)
+        const ded2 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloCostoPrecioId = ded2.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloCostoPrecioId },
+          data: {
+            nombre: 'Ciclo 9B Costo Supera Precio',
+            estado: EstadoCiclo.ACTIVO,
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloCostoPrecioId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            descripcion: 'Gasto Costo Alto',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('25000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('25000.00'),
+          },
+        });
+        const cosh2 = await prisma.cosecha.create({
+          data: {
+            cicloId: cicloCostoPrecioId,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            cantidad: new Prisma.Decimal('1000.000'),
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
+        const venta2 = await prisma.venta.create({
+          data: {
+            cicloId: cicloCostoPrecioId,
+            clienteId: seed.empresaA.cliente.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('15000.00'),
+            estado: EstadoVenta.REGISTRADA,
+          },
+        });
+        await prisma.detalleVenta.create({
+          data: {
+            ventaId: venta2.id,
+            cosechaId: cosh2.id,
+            unidadId: seed.global.unidadKgId,
+            calidad: CalidadCosecha.PRIMERA,
+            cantidad: new Prisma.Decimal('1000.000'),
+            precioUnitario: new Prisma.Decimal('15.00'),
+          },
+        });
 
-    it('GET /reportes/alertas: filtro por severidad y aislamiento multiempresa', async () => {
-      const resFiltro = await testRequest(app)
-        .get('/api/v1/reportes/alertas?severidad=ALTA')
-        .set('Authorization', tokenA_Admin);
-      expect(resFiltro.status).toBe(200);
+        // Regla 3: COBRO_VENCIDO (saldo pendiente > 0, fecha límite pasada)
+        const ded3 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloCobroId = ded3.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloCobroId },
+          data: {
+            nombre: 'Ciclo 9B Cobro Vencido',
+            estado: EstadoCiclo.FINALIZADO,
+            cerradoEn: new Date('2026-08-01'), // Ciclo finalizado hace más de 30 días
+          },
+        });
+        await prisma.venta.create({
+          data: {
+            cicloId: cicloCobroId,
+            clienteId: seed.empresaA.cliente.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-08-01'),
+            fechaLimitePago: new Date('2026-09-15'), // Vencida
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('12000.00'),
+            estado: EstadoVenta.REGISTRADA,
+          },
+        });
 
-      const bodyFiltro = resFiltro.body as {
-        data: Array<{ severidad: string }>;
-      };
-      for (const alerta of bodyFiltro.data) {
-        expect(alerta.severidad).toBe('ALTA');
-      }
+        // Regla 4: MERMA_ELEVADA (mermaPct 15% > 10%)
+        const ded4 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloMermaId = ded4.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloMermaId },
+          data: { nombre: 'Ciclo 9B Merma Alta', estado: EstadoCiclo.ACTIVO },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloMermaId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            descripcion: 'Gasto base',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('1000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('1000.00'),
+          },
+        });
+        await prisma.cosecha.create({
+          data: {
+            cicloId: cicloMermaId,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            cantidad: new Prisma.Decimal('1000.000'),
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
+        await prisma.merma.create({
+          data: {
+            cicloId: cicloMermaId,
+            unidadId: seed.global.unidadKgId,
+            motivoId: seed.global.motivoMermaId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-19'),
+            cantidad: new Prisma.Decimal('150.000'), // 15% de 1000 kg
+            etapa: EtapaMerma.POSCOSECHA,
+          },
+        });
 
-      // Aislamiento: Empresa B
-      const resB = await testRequest(app)
-        .get('/api/v1/reportes/alertas')
-        .set('Authorization', tokenB_Admin);
-      expect(resB.status).toBe(200);
+        // Regla 5: CATEGORIA_DOMINANTE (100% en categoría raíz > 40%)
+        const ded5 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloDominanteId = ded5.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloDominanteId },
+          data: { nombre: 'Ciclo 9B Dominante', estado: EstadoCiclo.ACTIVO },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloDominanteId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            descripcion: 'Gasto único',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('5000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('5000.00'),
+          },
+        });
 
-      const bodyB = resB.body as {
-        data: Array<{ cicloId?: number | null }>;
-      };
+        // Regla 6: COSTO_CRECIENTE (+50% respecto al ciclo anterior de la misma parcela)
+        const ded6 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        const parcelaCreciente = ded6.parcelaId;
+        const cicloAnt = await prisma.cicloProduccion.create({
+          data: {
+            empresaId: seed.empresaA.id,
+            parcelaId: parcelaCreciente,
+            variedadId: seed.global.variedadId,
+            nombre: 'Ciclo 9B Parcela Ant',
+            superficieSembrada: new Prisma.Decimal('1.0'),
+            estado: EstadoCiclo.FINALIZADO,
+            fechaInicio: new Date('2026-01-01'),
+            fechaFin: new Date('2026-05-01'),
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloAnt.id,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-02-01'),
+            descripcion: 'Gasto anterior',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('10000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('10000.00'),
+          },
+        });
+        await prisma.cosecha.create({
+          data: {
+            cicloId: cicloAnt.id,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-03-01'),
+            cantidad: new Prisma.Decimal('1000.000'),
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
+        cicloCrecienteId = ded6.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloCrecienteId },
+          data: {
+            nombre: 'Ciclo 9B Costo Creciente',
+            estado: EstadoCiclo.ACTIVO,
+            fechaInicio: new Date('2026-06-01'),
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloCrecienteId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            descripcion: 'Gasto actual',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('15000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('15000.00'),
+          },
+        });
+        await prisma.cosecha.create({
+          data: {
+            cicloId: cicloCrecienteId,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            cantidad: new Prisma.Decimal('1000.000'),
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
 
-      const ciclosA = await prisma.cicloProduccion.findMany({
-        where: { empresaId: seed.empresaA.id },
-        select: { id: true },
-      });
-      const ciclosAIds = new Set(ciclosA.map((c) => c.id));
+        // Regla 7: RENDIMIENTO_BAJO (finalizado, meta 10,000 kg, cosechado 6,000 kg < 8,000 kg)
+        const ded7 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloRendimientoId = ded7.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloRendimientoId },
+          data: {
+            nombre: 'Ciclo 9B Rendimiento Bajo',
+            estado: EstadoCiclo.FINALIZADO,
+            cerradoEn: new Date('2026-10-10'),
+            metaProduccionKg: new Prisma.Decimal('10000.000'),
+            fechaInicio: new Date('2026-06-01'),
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloRendimientoId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-07-01'),
+            descripcion: 'Gasto base',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('1000.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('1000.00'),
+          },
+        });
+        await prisma.cosecha.create({
+          data: {
+            cicloId: cicloRendimientoId,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-08-01'),
+            cantidad: new Prisma.Decimal('6000.000'), // 60% < 80%
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
 
-      for (const alertaB of bodyB.data) {
-        if (alertaB.cicloId) {
-          expect(ciclosAIds.has(alertaB.cicloId)).toBe(false);
+        // Regla 8: CICLO_SIN_CAPTURA (activo, último gasto hace 31 días > 15)
+        const ded8 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloSinCapturaId = ded8.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloSinCapturaId },
+          data: {
+            nombre: 'Ciclo 9B Sin Captura',
+            estado: EstadoCiclo.ACTIVO,
+            fechaInicio: new Date('2026-09-01'),
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloSinCapturaId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-09-20'),
+            descripcion: 'Último gasto antiguo',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('500.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('500.00'),
+          },
+        });
+
+        // Regla 9: CICLO_LARGO (activo, duracionCicloDias = 90, activo hace 173 días > 108)
+        const ded9 = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloLargoId = ded9.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloLargoId },
+          data: {
+            nombre: 'Ciclo 9B Largo',
+            estado: EstadoCiclo.ACTIVO,
+            fechaInicio: new Date('2026-05-01'),
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloLargoId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-18'),
+            descripcion: 'Gasto reciente',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('100.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('100.00'),
+          },
+        });
+
+        // Caso justo en el umbral: merma = 10.00%, categoría = 40.00%, rendimiento = 80.00%
+        const dedUmbral = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloEnUmbralId = dedUmbral.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloEnUmbralId },
+          data: {
+            nombre: 'Ciclo 9B En Umbral',
+            estado: EstadoCiclo.FINALIZADO,
+            cerradoEn: new Date('2026-10-15'),
+            metaProduccionKg: new Prisma.Decimal('1000.000'),
+            fechaInicio: new Date('2026-09-01'),
+          },
+        });
+        const catExtraUmbral = await prisma.categoriaGasto.create({
+          data: {
+            empresaId: seed.empresaA.id,
+            nombre: 'Cat 9B Umbral Tercera',
+            activo: true,
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloEnUmbralId,
+            categoriaId: seed.global.categoriaSistemaId,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-10'),
+            descripcion: 'Gasto Cat 1 40%',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('400.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('400.00'),
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloEnUmbralId,
+            categoriaId: seed.empresaA.categoriaPropia.id,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-10'),
+            descripcion: 'Gasto Cat 2 40%',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('400.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('400.00'),
+          },
+        });
+        await prisma.gasto.create({
+          data: {
+            cicloId: cicloEnUmbralId,
+            categoriaId: catExtraUmbral.id,
+            proveedorId: seed.empresaA.proveedor.id,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-10'),
+            descripcion: 'Gasto Cat 3 20%',
+            cantidad: new Prisma.Decimal('1'),
+            costoUnitario: new Prisma.Decimal('200.00'),
+            impuesto: new Prisma.Decimal('0'),
+            total: new Prisma.Decimal('200.00'),
+          },
+        });
+        await prisma.cosecha.create({
+          data: {
+            cicloId: cicloEnUmbralId,
+            unidadId: seed.global.unidadKgId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-10'),
+            cantidad: new Prisma.Decimal('800.000'), // Exactamente 80.00%
+            calidad: CalidadCosecha.PRIMERA,
+          },
+        });
+        await prisma.merma.create({
+          data: {
+            cicloId: cicloEnUmbralId,
+            unidadId: seed.global.unidadKgId,
+            motivoId: seed.global.motivoMermaId,
+            creadoPorId: seed.empresaA.usuarios.admin.id,
+            fecha: new Date('2026-10-11'),
+            cantidad: new Prisma.Decimal('80.000'), // Exactamente 10.00%
+            etapa: EtapaMerma.POSCOSECHA,
+          },
+        });
+
+        // Ciclos PLANIFICADO y CANCELADO
+        const dedPlan = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloPlanificadoId = dedPlan.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloPlanificadoId },
+          data: {
+            nombre: 'Ciclo 9B Planificado',
+            estado: EstadoCiclo.PLANIFICADO,
+          },
+        });
+
+        const dedCanc = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloCanceladoId = dedCanc.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloCanceladoId },
+          data: { nombre: 'Ciclo 9B Cancelado', estado: EstadoCiclo.CANCELADO },
+        });
+
+        // Ciclo FINALIZADO cerrado hace más de 30 días
+        const dedCerr = await crearCicloAisladoParaConcurrencia(
+          prisma,
+          seed.empresaA.id,
+          seed.empresaA.usuarios.admin.id,
+          seed.global.variedadId,
+          1.0,
+        );
+        cicloCerradoAntiguoId = dedCerr.cicloId;
+        await prisma.cicloProduccion.update({
+          where: { id: cicloCerradoAntiguoId },
+          data: {
+            nombre: 'Ciclo 9B Cerrado Antiguo',
+            estado: EstadoCiclo.FINALIZADO,
+            cerradoEn: new Date('2026-08-01'),
+          },
+        });
+
+        // Asegurar que Empresa A tenga un plan con límite cercano para probar LIMITE_PLAN_CERCANO
+        // Asignar temporalmente el plan 'PRODUCTOR' (maxUsuarios = 3; la empresa tiene 3 usuarios -> 100% >= 80%)
+        const planProductor = await prisma.planSuscripcion.findFirst({
+          where: { codigo: 'PRODUCTOR' },
+        });
+        if (planProductor) {
+          await prisma.empresa.update({
+            where: { id: seed.empresaA.id },
+            data: { planId: planProductor.id },
+          });
         }
-      }
+      });
+
+      it('Las 10 alertas disparadas por API con valores observado y umbral validados', async () => {
+        const res = await testRequest(app)
+          .get('/api/v1/reportes/alertas?limit=100&hoy=2026-10-21')
+          .set('Authorization', tokenA_Admin);
+        expect(res.status).toBe(200);
+
+        const body = res.body as {
+          data: Array<{
+            codigo: string;
+            severidad: string;
+            observado: string;
+            umbral: string;
+            cicloId?: number | null;
+          }>;
+        };
+
+        const encontrarAlerta = (codigo: string, cicloId?: number) =>
+          body.data.find(
+            (a) => a.codigo === codigo && (!cicloId || a.cicloId === cicloId),
+          );
+
+        // Regla 1: CICLO_EN_PERDIDA
+        const a1 = encontrarAlerta(
+          CodigoAlerta.CICLO_EN_PERDIDA,
+          cicloPerdidaId,
+        );
+        expect(a1).toBeDefined();
+        expect(a1!.severidad).toBe(SeveridadAlerta.ALTA);
+        expect(a1!.umbral).toBe('$0.00');
+
+        // Regla 2: COSTO_SUPERA_PRECIO
+        const a2 = encontrarAlerta(
+          CodigoAlerta.COSTO_SUPERA_PRECIO,
+          cicloCostoPrecioId,
+        );
+        expect(a2).toBeDefined();
+        expect(a2!.severidad).toBe(SeveridadAlerta.ALTA);
+        expect(a2!.observado).toContain('25.00');
+        expect(a2!.umbral).toContain('15.00');
+
+        // Regla 3: COBRO_VENCIDO
+        const a3 = body.data.find(
+          (a) =>
+            a.codigo === (CodigoAlerta.COBRO_VENCIDO as string) &&
+            a.cicloId === cicloCobroId,
+        );
+        expect(a3).toBeDefined();
+        expect(a3!.severidad).toBe(SeveridadAlerta.ALTA);
+        expect(a3!.umbral).toBe('0.00');
+        const metaA3 = a3!.metadata as { fechaVencimiento?: string };
+        expect(metaA3?.fechaVencimiento).toBe('2026-09-15');
+
+        // Regla 4: MERMA_ELEVADA
+        const a4 = encontrarAlerta(CodigoAlerta.MERMA_ELEVADA, cicloMermaId);
+        expect(a4).toBeDefined();
+        expect(a4!.severidad).toBe(SeveridadAlerta.MEDIA);
+        expect(a4!.observado).toContain('15.00%');
+        expect(a4!.umbral).toBe('10.00%');
+
+        // Regla 5: CATEGORIA_DOMINANTE
+        const a5 = encontrarAlerta(
+          CodigoAlerta.CATEGORIA_DOMINANTE,
+          cicloDominanteId,
+        );
+        expect(a5).toBeDefined();
+        expect(a5!.severidad).toBe(SeveridadAlerta.MEDIA);
+        expect(a5!.observado).toContain('100.00%');
+        expect(a5!.umbral).toBe('40.00%');
+
+        // Regla 6: COSTO_CRECIENTE
+        const a6 = encontrarAlerta(
+          CodigoAlerta.COSTO_CRECIENTE,
+          cicloCrecienteId,
+        );
+        expect(a6).toBeDefined();
+        expect(a6!.severidad).toBe(SeveridadAlerta.MEDIA);
+        expect(a6!.umbral).toContain('11.50');
+        expect(a6!.observado).toContain('15.00');
+        expect(a6!.mensaje).toContain('15%');
+
+        // Regla 7: RENDIMIENTO_BAJO
+        const a7 = encontrarAlerta(
+          CodigoAlerta.RENDIMIENTO_BAJO,
+          cicloRendimientoId,
+        );
+        expect(a7).toBeDefined();
+        expect(a7!.severidad).toBe(SeveridadAlerta.MEDIA);
+        expect(a7!.observado).toContain('60.00%');
+
+        // Regla 8: CICLO_SIN_CAPTURA
+        const a8 = encontrarAlerta(
+          CodigoAlerta.CICLO_SIN_CAPTURA,
+          cicloSinCapturaId,
+        );
+        expect(a8).toBeDefined();
+        expect(a8!.severidad).toBe(SeveridadAlerta.BAJA);
+        expect(a8!.umbral).toBe('15 días');
+
+        // Regla 9: CICLO_LARGO
+        const a9 = encontrarAlerta(CodigoAlerta.CICLO_LARGO, cicloLargoId);
+        expect(a9).toBeDefined();
+        expect(a9!.severidad).toBe(SeveridadAlerta.BAJA);
+        expect(a9!.umbral).toContain('144 días');
+
+        // Regla 10: LIMITE_PLAN_CERCANO
+        const a10 = body.data.find(
+          (a) => a.codigo === (CodigoAlerta.LIMITE_PLAN_CERCANO as string),
+        );
+        expect(a10).toBeDefined();
+        expect(a10!.severidad).toBe(SeveridadAlerta.INFORMATIVA);
+        expect(a10!.umbral).toBe('90.0%');
+      });
+
+      it('Caso justo en el umbral NO alerta para merma (10%), categoría (40%) y rendimiento (80%)', async () => {
+        const res = await testRequest(app)
+          .get(
+            `/api/v1/reportes/alertas?cicloId=${cicloEnUmbralId}&hoy=2026-10-21`,
+          )
+          .set('Authorization', tokenA_Admin);
+        expect(res.status).toBe(200);
+
+        const body = res.body as { data: Array<{ codigo: string }> };
+        const codigos = body.data.map((a) => a.codigo);
+
+        expect(codigos).not.toContain(CodigoAlerta.MERMA_ELEVADA);
+        expect(codigos).not.toContain(CodigoAlerta.CATEGORIA_DOMINANTE);
+        expect(codigos).not.toContain(CodigoAlerta.RENDIMIENTO_BAJO);
+      });
+
+      it('PLANIFICADO y CANCELADO no generan alertas; FINALIZADO > 30 días no genera alertas de ciclo', async () => {
+        for (const cId of [
+          cicloPlanificadoId,
+          cicloCanceladoId,
+          cicloCerradoAntiguoId,
+        ]) {
+          const res = await testRequest(app)
+            .get(`/api/v1/reportes/alertas?cicloId=${cId}&hoy=2026-10-21`)
+            .set('Authorization', tokenA_Admin);
+          expect(res.status).toBe(200);
+          const body = res.body as { data: Array<{ codigo: string }> };
+          // Ninguna alerta asociada al ciclo directamente
+          const alertasDeCiclo = body.data.filter(
+            (a) => a.codigo !== (CodigoAlerta.COBRO_VENCIDO as string),
+          );
+          expect(alertasDeCiclo).toHaveLength(0);
+        }
+      });
+
+      it('COBRO_VENCIDO aparece aún con el ciclo asociado FINALIZADO hace más de 30 días', async () => {
+        const res = await testRequest(app)
+          .get('/api/v1/reportes/alertas?tipo=COBRO_VENCIDO&hoy=2026-10-21')
+          .set('Authorization', tokenA_Admin);
+        expect(res.status).toBe(200);
+
+        const body = res.body as {
+          data: Array<{ codigo: string; severidad: string }>;
+        };
+        expect(body.data.length).toBeGreaterThanOrEqual(1);
+        for (const item of body.data) {
+          expect(item.codigo).toBe(CodigoAlerta.COBRO_VENCIDO);
+          expect(item.severidad).toBe(SeveridadAlerta.ALTA);
+        }
+      });
+
+      it('Orden canónico (ALTA -> MEDIA -> BAJA -> INFORMATIVA y luego cicloId asc), filtros y paginación', async () => {
+        const res = await testRequest(app)
+          .get('/api/v1/reportes/alertas?limit=100&hoy=2026-10-21')
+          .set('Authorization', tokenA_Admin);
+        expect(res.status).toBe(200);
+
+        const body = res.body as {
+          data: Array<{ severidad: string; cicloId?: number | null }>;
+          resumen: {
+            totalAltas: number;
+            totalMedias: number;
+            totalBajas: number;
+            totalInformativas: number;
+            total: number;
+          };
+        };
+
+        const pesoSev: Record<string, number> = {
+          ALTA: 1,
+          MEDIA: 2,
+          BAJA: 3,
+          INFORMATIVA: 4,
+        };
+
+        for (let i = 0; i < body.data.length - 1; i++) {
+          const actual = body.data[i];
+          const siguiente = body.data[i + 1];
+          const pAct = pesoSev[actual.severidad] ?? 5;
+          const pSig = pesoSev[siguiente.severidad] ?? 5;
+          expect(pAct).toBeLessThanOrEqual(pSig);
+
+          if (pAct === pSig && actual.cicloId && siguiente.cicloId) {
+            expect(actual.cicloId).toBeLessThanOrEqual(siguiente.cicloId);
+          }
+        }
+
+        // Filtro por severidad ALTA
+        const resAlta = await testRequest(app)
+          .get('/api/v1/reportes/alertas?severidad=ALTA&hoy=2026-10-21')
+          .set('Authorization', tokenA_Admin);
+        expect(resAlta.status).toBe(200);
+        const bodyAlta = resAlta.body as { data: Array<{ severidad: string }> };
+        for (const item of bodyAlta.data) {
+          expect(item.severidad).toBe(SeveridadAlerta.ALTA);
+        }
+
+        // Paginación coherente
+        const resPagina = await testRequest(app)
+          .get('/api/v1/reportes/alertas?page=1&limit=2&hoy=2026-10-21')
+          .set('Authorization', tokenA_Admin);
+        expect(resPagina.status).toBe(200);
+        const bodyPag = resPagina.body as {
+          data: any[];
+          meta: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+          };
+        };
+        expect(bodyPag.data).toHaveLength(2);
+        expect(bodyPag.meta.page).toBe(1);
+        expect(bodyPag.meta.limit).toBe(2);
+        expect(bodyPag.meta.totalPages).toBe(Math.ceil(bodyPag.meta.total / 2));
+      });
+
+      it('Aislamiento multiempresa estricto: alertas de Empresa B no contienen referencias de Empresa A', async () => {
+        const resB = await testRequest(app)
+          .get('/api/v1/reportes/alertas?hoy=2026-10-21')
+          .set('Authorization', tokenB_Admin);
+        expect(resB.status).toBe(200);
+
+        const bodyB = resB.body as {
+          data: Array<{ cicloId?: number | null; ventaId?: number | null }>;
+        };
+
+        const ciclosA = await prisma.cicloProduccion.findMany({
+          where: { empresaId: seed.empresaA.id },
+          select: { id: true },
+        });
+        const ciclosAIds = new Set(ciclosA.map((c) => c.id));
+
+        for (const alertaB of bodyB.data) {
+          if (alertaB.cicloId) {
+            expect(ciclosAIds.has(alertaB.cicloId)).toBe(false);
+          }
+        }
+      });
+
+      it('Conteo constante de consultas en GET /reportes/alertas: exactamente el mismo número fijo de consultas SQL con 3 ciclos que con 30 ciclos', async () => {
+        let queryCount = 0;
+        const origQueryRaw = prisma.$queryRaw.bind(prisma);
+        const origCiclosFindMany = prisma.cicloProduccion.findMany.bind(
+          prisma.cicloProduccion,
+        );
+        const origGastoGroupBy = prisma.gasto.groupBy.bind(prisma.gasto);
+        const origEmpresaFind = prisma.empresa.findUnique.bind(prisma.empresa);
+        const origParcelaCount = prisma.parcela.count.bind(prisma.parcela);
+        const origUsuarioCount = prisma.usuario.count.bind(prisma.usuario);
+
+        /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call */
+        const spyQueryRaw = jest
+          .spyOn(prisma, '$queryRaw')
+          .mockImplementation(async (...args: any[]) => {
+            queryCount++;
+            return (origQueryRaw as any)(...args);
+          });
+
+        const spyCiclosFindMany = jest
+          .spyOn(prisma.cicloProduccion, 'findMany')
+          .mockImplementation(async (...args: any[]) => {
+            queryCount++;
+            return (origCiclosFindMany as any)(...args);
+          });
+
+        const spyGastoGroupBy = jest
+          .spyOn(prisma.gasto, 'groupBy')
+          .mockImplementation(async (...args: any[]) => {
+            queryCount++;
+            return (origGastoGroupBy as any)(...args);
+          });
+
+        const spyEmpresaFind = jest
+          .spyOn(prisma.empresa, 'findUnique')
+          .mockImplementation(async (...args: any[]) => {
+            queryCount++;
+            return (origEmpresaFind as any)(...args);
+          });
+
+        const spyParcelaCount = jest
+          .spyOn(prisma.parcela, 'count')
+          .mockImplementation(async (...args: any[]) => {
+            queryCount++;
+            return (origParcelaCount as any)(...args);
+          });
+
+        const spyUsuarioCount = jest
+          .spyOn(prisma.usuario, 'count')
+          .mockImplementation(async (...args: any[]) => {
+            queryCount++;
+            return (origUsuarioCount as any)(...args);
+          });
+        /* eslint-enable @typescript-eslint/require-await, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call */
+
+        try {
+          // Medición 1: Consulta normal sobre Empresa A
+          queryCount = 0;
+          const res1 = await testRequest(app)
+            .get('/api/v1/reportes/alertas?hoy=2026-10-21')
+            .set('Authorization', tokenA_Admin);
+          expect(res1.status).toBe(200);
+          const conteoConMenosCiclos = queryCount;
+
+          // Sembrar 27 ciclos adicionales en Empresa A para elevar a > 30 ciclos
+          const nuevosCiclos = [];
+          for (let i = 0; i < 27; i++) {
+            nuevosCiclos.push({
+              empresaId: seed.empresaA.id,
+              parcelaId: seed.empresaA.parcela.id,
+              variedadId: seed.global.variedadId,
+              nombre: `Ciclo Volumen Extra ${i}`,
+              estado: EstadoCiclo.FINALIZADO,
+              cerradoEn: new Date('2026-10-15'),
+              superficieSembrada: new Prisma.Decimal('1.00'),
+              fechaInicio: new Date('2026-09-01'),
+              creadoPorId: seed.empresaA.usuarios.admin.id,
+            });
+          }
+          await prisma.cicloProduccion.createMany({ data: nuevosCiclos });
+
+          // Medición 2: Consulta tras multiplicar el número de ciclos por 3
+          queryCount = 0;
+          const res2 = await testRequest(app)
+            .get('/api/v1/reportes/alertas?hoy=2026-10-21')
+            .set('Authorization', tokenA_Admin);
+          expect(res2.status).toBe(200);
+          const conteoConMasCiclos = queryCount;
+
+          // Demostración formal: el número de consultas a base de datos es IDÉNTICO
+          expect(conteoConMasCiclos).toBe(conteoConMenosCiclos);
+          expect(conteoConMasCiclos).toBeGreaterThanOrEqual(7);
+        } finally {
+          spyQueryRaw.mockRestore();
+          spyCiclosFindMany.mockRestore();
+          spyGastoGroupBy.mockRestore();
+          spyEmpresaFind.mockRestore();
+          spyParcelaCount.mockRestore();
+          spyUsuarioCount.mockRestore();
+        }
+      });
     });
   });
 });

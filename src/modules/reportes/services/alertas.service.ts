@@ -96,7 +96,7 @@ export class AlertasService {
         ],
       },
       select: {
-        id: numberAsNumber(),
+        id: true,
         nombre: true,
         estado: true,
         fechaInicio: true,
@@ -131,6 +131,23 @@ export class AlertasService {
     const maxFechaGastoMap = new Map<number, Date>();
 
     if (cicloIds.length > 0) {
+      const rentPromise = this.prisma.$queryRaw<RentabilidadRow[]>(Prisma.sql`
+        SELECT
+          cicloId, empresaId, parcelaId, variedadId, estado,
+          totalFacturado, costoTotal, ganancia, costoPorKg, precioPromedioKg,
+          mermaPct, kgCosechados
+        FROM v_rentabilidad_ciclo
+        WHERE empresaId = ${empresaId}
+          AND cicloId IN (${Prisma.join(cicloIds)})
+      `);
+
+      const catPromise = this.prisma.$queryRaw<CategoriaCostoRow[]>(Prisma.sql`
+        SELECT cicloId, categoriaRaizId, categoriaRaiz, porcentaje
+        FROM v_costo_por_categoria
+        WHERE empresaId = ${empresaId}
+          AND cicloId IN (${Prisma.join(cicloIds)})
+      `);
+
       const compPromise: Promise<ComparativoRow[]> =
         parcelaIds.length > 0
           ? this.prisma.$queryRaw<ComparativoRow[]>(Prisma.sql`
@@ -157,21 +174,8 @@ export class AlertasService {
             >([]);
 
       const [filasRent, filasCat, filasComp, gastosMax] = await Promise.all([
-        this.prisma.$queryRaw<RentabilidadRow[]>(Prisma.sql`
-          SELECT
-            cicloId, empresaId, parcelaId, variedadId, estado,
-            totalFacturado, costoTotal, ganancia, costoPorKg, precioPromedioKg,
-            mermaPct, kgCosechados
-          FROM v_rentabilidad_ciclo
-          WHERE empresaId = ${empresaId}
-            AND cicloId IN (${Prisma.join(cicloIds)})
-        `),
-        this.prisma.$queryRaw<CategoriaCostoRow[]>(Prisma.sql`
-          SELECT cicloId, categoriaRaizId, categoriaRaiz, porcentaje
-          FROM v_costo_por_categoria
-          WHERE empresaId = ${empresaId}
-            AND cicloId IN (${Prisma.join(cicloIds)})
-        `),
+        rentPromise,
+        catPromise,
         compPromise,
         gastosPromise,
       ]);
@@ -626,8 +630,4 @@ export class AlertasService {
       meta: PaginationUtil.crearMeta(page, limit, total),
     };
   }
-}
-
-function numberAsNumber(): true {
-  return true;
 }
