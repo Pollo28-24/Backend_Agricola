@@ -208,4 +208,47 @@ describe('C5: Carrera de Cierre vs Operaciones de Ciclo (E2E)', () => {
     });
     expect(cicloActualizado?.estado).toBe(EstadoCiclo.FINALIZADO);
   });
+
+  it('Eliminar ciclo con compuerta de lock mientras otra transacción retiene el lock y cambia de estado: debe esperar y rechazar tras liberar', async () => {
+    const cicloDed = await crearCicloAisladoParaConcurrencia(
+      prisma,
+      seed.empresaA.id,
+      seed.empresaA.usuarios.admin.id,
+      seed.global.variedadId,
+    );
+
+    await prisma.cicloProduccion.update({
+      where: { id: cicloDed.cicloId },
+      data: { estado: EstadoCiclo.PLANIFICADO },
+    });
+
+    const lockHolder = await holdCicloLock(cicloDed.cicloId, async (conn) => {
+      await conn.query(
+        "UPDATE ciclo_produccion SET estado = 'ACTIVO' WHERE id = ?",
+        [cicloDed.cicloId],
+      );
+    });
+
+    const promEliminar = request(app.getHttpServer())
+      .delete(`/api/v1/ciclos/${cicloDed.cicloId}`)
+      .set('Authorization', adminToken)
+      .then((res) => res);
+
+    const blockedCount = await waitUntilBlocked(prisma, 1, 5000);
+    expect(blockedCount).toBeGreaterThanOrEqual(1);
+
+    await lockHolder.commit();
+
+    const resEliminar = await promEliminar;
+
+    expect(resEliminar.status).toBe(409);
+    expect(resEliminar.body.code).toBe(CodigoError.CONFLICTO);
+
+    const cicloEnDb = await prisma.cicloProduccion.findUnique({
+      where: { id: cicloDed.cicloId },
+    });
+    expect(cicloEnDb?.deletedAt).toBeNull();
+    expect(cicloEnDb?.estado).toBe(EstadoCiclo.ACTIVO);
+  });
 });
+
