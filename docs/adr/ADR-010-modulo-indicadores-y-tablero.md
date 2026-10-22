@@ -64,8 +64,8 @@ Ejecutado sobre MySQL 8.0.46 mediante `test/e2e/reportes-volumen.e2e-spec.ts` (`
    - `ciclo_produccion c`: Utiliza `Index lookup on c using ciclo_produccion_empresaId_estado_idx (empresaId=1)`.
    - **Comportamiento del Optimizador**: MySQL **NO empuja** el predicado `empresaId` ni `cicloId IN (...)` hacia el interior de las subconsultas derivadas (`LEFT JOIN (SELECT cicloId, ... FROM gasto GROUP BY cicloId)`). En su lugar, materializa las subconsultas derivadas (`Materialize -> Aggregate using temporary table`) escaneando las tablas base y creando índices temporales automáticos (`<auto_key0> (cicloId=c.id)`), sobre los cuales realiza búsquedas por clave.
    - Tiempo de ejecución observado: 71 ms.
-2. **Propuesta Arquitectónica de Mejora (Hito 10 / Optimización Futura)**:
-   - Para escalas de alto volumen (millones de registros en múltiples empresas), las subconsultas derivadas de las vistas SQL deberán incluir explícitamente `empresaId` en el `GROUP BY` y en el join, o bien reemplazarse por vistas materializadas/tablas de resumen si el tiempo de respuesta supera los umbrales de SLA.
+2. **Resolución de Rendimiento Multi-Empresa (Hito 9A.1 / ADR-011)**:
+   - Resuelto formalmente en el ADR-011 mediante reescritura de las vistas con `LEFT JOIN LATERAL` (migración `vistas_indicadores_v2`), logrando aislamiento estricto de escaneo por ciclo y reducción de latencia en un 98 % en escalas de 300,000 registros.
 
 ---
 

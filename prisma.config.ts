@@ -8,5 +8,6 @@ export default defineConfig({
   },
   datasource: {
     url: process.env.DATABASE_URL!,
+    shadowDatabaseUrl: 'mysql://root:123456@localhost:3306/prisma_shadow',
   },
 });

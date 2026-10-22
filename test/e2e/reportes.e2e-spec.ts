@@ -669,13 +669,17 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       },
       {
         nombre: 'costos-por-categoria',
-        getRuta: () => `/api/v1/reportes/ciclos/${cicloAId}/costos-por-categoria`,
-        getRutaAjena: () => `/api/v1/reportes/ciclos/${cicloBId}/costos-por-categoria`,
+        getRuta: () =>
+          `/api/v1/reportes/ciclos/${cicloAId}/costos-por-categoria`,
+        getRutaAjena: () =>
+          `/api/v1/reportes/ciclos/${cicloBId}/costos-por-categoria`,
       },
       {
         nombre: 'costos-por-actividad',
-        getRuta: () => `/api/v1/reportes/ciclos/${cicloAId}/costos-por-actividad`,
-        getRutaAjena: () => `/api/v1/reportes/ciclos/${cicloBId}/costos-por-actividad`,
+        getRuta: () =>
+          `/api/v1/reportes/ciclos/${cicloAId}/costos-por-actividad`,
+        getRutaAjena: () =>
+          `/api/v1/reportes/ciclos/${cicloBId}/costos-por-actividad`,
       },
       {
         nombre: 'mermas',
@@ -685,7 +689,8 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       {
         nombre: 'comparativo',
         getRuta: () => `/api/v1/reportes/parcelas/${parcelaAId}/comparativo`,
-        getRutaAjena: () => `/api/v1/reportes/parcelas/${parcelaBId}/comparativo`,
+        getRutaAjena: () =>
+          `/api/v1/reportes/parcelas/${parcelaBId}/comparativo`,
       },
     ];
 
@@ -713,7 +718,11 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
       },
     );
 
-    it.each(rutasParam.filter((r) => r.getRutaAjena !== null && r.nombre !== 'rentabilidad (listado)'))(
+    it.each(
+      rutasParam.filter(
+        (r) => r.getRutaAjena !== null && r.nombre !== 'rentabilidad (listado)',
+      ),
+    )(
       'Aislamiento sobre $nombre: ciclo o parcela ajena responde 404',
       async ({ getRutaAjena }) => {
         const rutaAjena = getRutaAjena();

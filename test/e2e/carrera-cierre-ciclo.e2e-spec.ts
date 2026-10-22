@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { INestApplication } from '@nestjs/common';
 import { createTestApp } from '../setup/create-test-app';
+import { testRequest } from '../setup/http.util';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import {
   getOrLoadSeedData,
@@ -229,7 +230,7 @@ describe('C5: Carrera de Cierre vs Operaciones de Ciclo (E2E)', () => {
       );
     });
 
-    const promEliminar = request(app.getHttpServer())
+    const promEliminar = testRequest(app)
       .delete(`/api/v1/ciclos/${cicloDed.cicloId}`)
       .set('Authorization', adminToken)
       .then((res) => res);
@@ -242,7 +243,9 @@ describe('C5: Carrera de Cierre vs Operaciones de Ciclo (E2E)', () => {
     const resEliminar = await promEliminar;
 
     expect(resEliminar.status).toBe(409);
-    expect(resEliminar.body.code).toBe(CodigoError.CONFLICTO);
+    expect((resEliminar.body as { code?: string }).code).toBe(
+      CodigoError.CONFLICTO,
+    );
 
     const cicloEnDb = await prisma.cicloProduccion.findUnique({
       where: { id: cicloDed.cicloId },
@@ -251,4 +254,3 @@ describe('C5: Carrera de Cierre vs Operaciones de Ciclo (E2E)', () => {
     expect(cicloEnDb?.estado).toBe(EstadoCiclo.ACTIVO);
   });
 });
-
