@@ -93,6 +93,21 @@ export class DomainExceptionFilter implements ExceptionFilter {
         message = String(res);
         code = this.mapStatusToCode(statusCode);
       }
+    } else if (
+      exception instanceof Error &&
+      (exception.name === 'MulterError' ||
+        (exception as { code?: string }).code === 'LIMIT_FILE_SIZE')
+    ) {
+      const multerCode = (exception as { code?: string }).code;
+      if (multerCode === 'LIMIT_FILE_SIZE') {
+        statusCode = HttpStatus.PAYLOAD_TOO_LARGE;
+        code = CodigoError.ARCHIVO_DEMASIADO_GRANDE;
+        message = 'El archivo excede el tamaño máximo permitido de 10 MB';
+      } else {
+        statusCode = HttpStatus.BAD_REQUEST;
+        code = CodigoError.PETICION_INVALIDA;
+        message = exception.message || 'Error en la subida de archivo';
+      }
     } else if (exception instanceof Error) {
       this.logger.error({
         correlationId,
@@ -117,7 +132,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
     });
   }
 
-  private mapStatusToCode(status: number): CodigoError {
+  private mapStatusToCode(status: HttpStatus): CodigoError {
     switch (status) {
       case HttpStatus.BAD_REQUEST:
         return CodigoError.PETICION_INVALIDA;
@@ -129,6 +144,10 @@ export class DomainExceptionFilter implements ExceptionFilter {
         return CodigoError.RECURSO_NO_ENCONTRADO;
       case HttpStatus.CONFLICT:
         return CodigoError.CONFLICTO;
+      case HttpStatus.PAYLOAD_TOO_LARGE:
+        return CodigoError.ARCHIVO_DEMASIADO_GRANDE;
+      case HttpStatus.UNSUPPORTED_MEDIA_TYPE:
+        return CodigoError.TIPO_ARCHIVO_NO_PERMITIDO;
       default:
         return CodigoError.ERROR_INTERNO;
     }
