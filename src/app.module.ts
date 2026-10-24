@@ -21,6 +21,7 @@ import { VentasModule } from './modules/ventas/ventas.module';
 import { CobrosModule } from './modules/cobros/cobros.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { AdjuntosModule } from './modules/adjuntos/adjuntos.module';
+import { ExportacionModule } from './modules/exportacion/exportacion.module';
 import { envValidationSchema } from './config/env.validation';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AccesoVigenteGuard } from './common/guards/acceso-vigente.guard';
@@ -60,6 +61,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     CobrosModule,
     ReportesModule,
     AdjuntosModule,
+    ExportacionModule,
   ],
   providers: [
     {

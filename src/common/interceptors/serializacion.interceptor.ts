@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -19,6 +20,10 @@ export class SerializacionInterceptor implements NestInterceptor {
 
   private transform(value: unknown): unknown {
     if (value === null || value === undefined) {
+      return value;
+    }
+
+    if (value instanceof StreamableFile || Buffer.isBuffer(value)) {
       return value;
     }
 
