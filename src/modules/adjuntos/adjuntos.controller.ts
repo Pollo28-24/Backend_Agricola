@@ -5,6 +5,7 @@ import {
   Delete,
   Param,
   Query,
+  Req,
   Res,
   ParseIntPipe,
   UseInterceptors,
@@ -12,7 +13,7 @@ import {
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -268,9 +269,16 @@ export class AdjuntosController {
   async descargarArchivo(
     @Query('token') token: string,
     @Res() res: Response,
+    @Req() req: Request,
   ): Promise<void> {
+    const usuarioSolicitanteId = this.extraerUsuarioIdDeAuthHeader(req);
     const { stream, adjunto } =
-      await this.adjuntosService.descargarArchivo(token);
+      usuarioSolicitanteId !== undefined
+        ? await this.adjuntosService.descargarArchivo(
+            token,
+            usuarioSolicitanteId,
+          )
+        : await this.adjuntosService.descargarArchivo(token);
 
     const nombreSaneado = sanearNombreArchivo(adjunto.nombreArchivo);
     const nombreEncoded = encodeURIComponent(nombreSaneado);
@@ -285,6 +293,37 @@ export class AdjuntosController {
     res.setHeader('Content-Length', adjunto.tamanoBytes);
 
     stream.pipe(res);
+  }
+
+  private extraerUsuarioIdDeAuthHeader(req?: Request): number | undefined {
+    if (!req || !req.headers) {
+      return undefined;
+    }
+    const auth =
+      (req.headers['authorization'] as string | undefined) ||
+      (req.headers['Authorization'] as string | undefined);
+    if (typeof auth === 'string') {
+      const match = auth.match(
+        /^Bearer\s+([A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*)$/i,
+      );
+      if (match) {
+        try {
+          const parts = match[1].split('.');
+          if (parts.length >= 2) {
+            const payloadJson = Buffer.from(parts[1], 'base64url').toString(
+              'utf8',
+            );
+            const payload = JSON.parse(payloadJson) as { sub?: unknown };
+            if (payload && typeof payload.sub === 'number') {
+              return payload.sub;
+            }
+          }
+        } catch {
+          // Ignorar token no decodificable en endpoint público
+        }
+      }
+    }
+    return undefined;
   }
 
   // =========================================================================

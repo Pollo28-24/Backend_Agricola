@@ -235,9 +235,8 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
   // 3. CONTROL DE ACCESO (RBAC) Y MATRIZ DE PERMISOS
   // =========================================================================
   describe('RBAC y Matriz de Permisos', () => {
-    it('usuario sin permiso de crear en la entidad recibe 403', async () => {
-      // Capturista intentando adjuntar en cobro (capturista no tiene cobro:crear)
-      // Primero crear venta y cobro en empresaA
+    it('CAPTURISTA recibe 403 PERMISO_DENEGADO al subir y listar adjuntos de un cobro', async () => {
+      // Capturista intentando adjuntar y listar en cobro (capturista no tiene permisos de cobro)
       const cobro = await prisma.cobroVenta.create({
         data: {
           ventaId: seed.empresaA.venta.id,
@@ -248,14 +247,24 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
         },
       });
 
-      const res = await testRequest(app)
+      // 1. Subir adjunto -> 403 PERMISO_DENEGADO
+      const resPost = await testRequest(app)
         .post(`/api/v1/cobros/${cobro.id}/adjuntos`)
         .set('Authorization', `Bearer ${tokenCapturistaA}`)
         .attach('archivo', validPdfHeader, 'comprobante.pdf');
 
-      expect(res.status).toBe(403);
-      const body = res.body as ErrorResponseBody;
-      expect(body.code).toBe(CodigoError.PERMISO_DENEGADO);
+      expect(resPost.status).toBe(403);
+      const bodyPost = resPost.body as ErrorResponseBody;
+      expect(bodyPost.code).toBe(CodigoError.PERMISO_DENEGADO);
+
+      // 2. Listar adjuntos -> 403 PERMISO_DENEGADO
+      const resGet = await testRequest(app)
+        .get(`/api/v1/cobros/${cobro.id}/adjuntos`)
+        .set('Authorization', `Bearer ${tokenCapturistaA}`);
+
+      expect(resGet.status).toBe(403);
+      const bodyGet = resGet.body as ErrorResponseBody;
+      expect(bodyGet.code).toBe(CodigoError.PERMISO_DENEGADO);
     });
 
     it('CAPTURISTA recibe 403 al intentar adjuntar a una venta', async () => {
@@ -705,6 +714,71 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
         100, // expira hace 900s
       );
       tokenDescargaService.resetReloj();
+
+      const res = await testRequest(app).get(
+        `/api/v1/adjuntos/descarga?token=${token}`,
+      );
+
+      expect(res.status).toBe(403);
+      const body = res.body as ErrorResponseBody;
+      expect(body.code).toBe(CodigoError.ENLACE_DESCARGA_INVALIDO);
+    });
+
+    it('token de descarga emitido para U1 de Empresa A presentado por U2 de la misma empresa devuelve 403 ENLACE_DESCARGA_INVALIDO', async () => {
+      // 1. Token emitido para admin de Empresa A (U1)
+      const resToken = await testRequest(app)
+        .get(`/api/v1/adjuntos/${adjuntoTestId}/enlace-descarga`)
+        .set('Authorization', `Bearer ${tokenAdminA}`);
+      const bodyToken = resToken.body as EnlaceDescargaResponseBody;
+
+      // 2. Token JWT de otro usuario (U2 = contador) de la misma empresa A
+      const tokenContadorA = generateTestJwt(
+        seed.empresaA.usuarios.contador.id,
+        seed.empresaA.id,
+        'CONTADOR',
+      );
+
+      const res = await testRequest(app)
+        .get(`/api/v1/adjuntos/descarga?token=${bodyToken.token}`)
+        .set('Authorization', `Bearer ${tokenContadorA}`);
+
+      expect(res.status).toBe(403);
+      const body = res.body as ErrorResponseBody;
+      expect(body.code).toBe(CodigoError.ENLACE_DESCARGA_INVALIDO);
+    });
+
+    it('usuario desactivado tras emitir el token devuelve 403 ENLACE_DESCARGA_INVALIDO', async () => {
+      // Obtener rolId del usuario admin existente
+      const adminDb = await prisma.usuario.findUniqueOrThrow({
+        where: { id: seed.empresaA.usuarios.admin.id },
+        select: { rolId: true },
+      });
+
+      // Crear usuario efímero en Empresa A
+      const userTemp = await prisma.usuario.create({
+        data: {
+          empresaId: seed.empresaA.id,
+          rolId: adminDb.rolId,
+          nombre: 'Temp',
+          apellido: 'Desactivado',
+          correo: `temp.desactivado.${Date.now()}@campo.mx`,
+          contrasenaHash: '$argon2id$v=19$m=65536,t=3,p=4$dummy',
+          activo: true,
+        },
+      });
+
+      // Generar token firmado para este usuario
+      const { token } = tokenDescargaService.generarToken(
+        adjuntoTestId,
+        seed.empresaA.id,
+        userTemp.id,
+      );
+
+      // Desactivar el usuario en base de datos
+      await prisma.usuario.update({
+        where: { id: userTemp.id },
+        data: { activo: false },
+      });
 
       const res = await testRequest(app).get(
         `/api/v1/adjuntos/descarga?token=${token}`,

@@ -67,6 +67,7 @@ Antes de generar en memoria conjuntos de datos potencialmente gigantescos:
 - Se evalúa la primera página con `limite: 1` para obtener el metadato `total` de registros coincidentes.
 - Si `total > EXPORTACION_MAX_FILAS` (por defecto 5,000 filas), se interrumpe inmediatamente lanzando `HttpException` 400 con código `EXPORTACION_EXCEDE_LIMITE`.
 - Para volúmenes dentro del límite, la consulta solicita `limite: 5000`, evitando paginaciones en bucle y mitigando la latencia de red.
+- **Supuesto de prueba en suites E2E**: Para no sobrecargar los tiempos del pipeline sembrando más de 5,000 filas reales en cada corrida de pruebas, el rechazo por `EXPORTACION_EXCEDE_LIMITE` se verifica configurando un umbral reducido controlado mediante configuración/mock en la suite de pruebas e2e.
 
 ### 6. Streaming Idiomático en NestJS y Cabeceras de Seguridad
 Los controladores retornan instancias de `StreamableFile` con opciones declarativas (`type`, `disposition`, `length`).

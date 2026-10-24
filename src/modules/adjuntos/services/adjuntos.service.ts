@@ -534,7 +534,10 @@ export class AdjuntosService {
   /**
    * Descarga física del archivo validando token HMAC y vigencia del usuario en BD.
    */
-  public async descargarArchivo(token: string): Promise<{
+  public async descargarArchivo(
+    token: string,
+    usuarioSolicitanteId?: number,
+  ): Promise<{
     stream: NodeJS.ReadableStream;
     adjunto: {
       nombreArchivo: string;
@@ -544,6 +547,18 @@ export class AdjuntosService {
   }> {
     // 1. Validar token y firma
     const payload = this.tokenDescargaService.verificarToken(token);
+
+    // Si la petición incluyó credenciales de un usuario autenticado, debe ser el mismo para quien se emitió el token
+    if (
+      usuarioSolicitanteId !== undefined &&
+      usuarioSolicitanteId !== payload.usuarioId
+    ) {
+      throw new DomainError(
+        CodigoError.ENLACE_DESCARGA_INVALIDO,
+        'El enlace de descarga no corresponde al usuario que realiza la solicitud',
+        HttpStatus.FORBIDDEN,
+      );
+    }
 
     // 2. Revalidar usuario activo y empresa no eliminada (RN-072)
     const usuario = await this.prisma.usuario.findFirst({
