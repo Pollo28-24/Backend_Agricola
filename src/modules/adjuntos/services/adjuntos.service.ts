@@ -8,10 +8,8 @@ import { CodigoError } from '../../../common/errors/codigos-error.enum';
 import { bloquearCicloParaCaptura } from '../../../common/utils/ciclo-balance.util';
 import { CicloCapturaPolicy } from '../../../common/domain/policies/ciclo-captura.policy';
 import { RecordWindowValidator } from '../../../common/domain/validators/record-window.validator';
-import {
-  STORAGE_SERVICE,
-  IStorageService,
-} from '../interfaces/storage-service.interface';
+import { STORAGE_SERVICE } from '../interfaces/storage-service.interface';
+import type { IStorageService } from '../interfaces/storage-service.interface';
 import { TokenDescargaService } from './token-descarga.service';
 import {
   EntidadAdjunto,
