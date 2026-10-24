@@ -56,5 +56,8 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+storage_uploads/
+storage_uploads_test/
 storage_uploads*
+scratch/
 

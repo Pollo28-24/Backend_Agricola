@@ -93,3 +93,26 @@ La eliminación adquiere el lock del ciclo, valida que el ciclo no esté cancela
 - **Tolerancia a Fallos**: Cero archivos huérfanos gracias al patrón de compensación física en caso de aborto de transacciones.
 - **Aislamiento Multi-Tenant Completo**: Claves estructuradas por `empresaId`, verificación en todos los endpoints y tokens ligados a la empresa emisora.
 - **Preparado para la Nube**: Cambiar de almacenamiento local a AWS S3 o GCS solo requiere implementar `IStorageService` sin tocar controladores ni servicios de dominio.
+
+---
+
+## Deuda Técnica y Compromisos Futuros
+
+1. **Job Periódico de Reconciliación de Huérfanos**:
+   - Implementar un cron/worker nocturno que compare los archivos físicos presentes en `storage_uploads/` contra los registros activos en la tabla `adjunto` en MySQL para purgar cualquier residuo originado por crash o reinicio abrupto del contenedor en medio de una transacción.
+2. **Migración a Almacenamiento en Nube (AWS S3 / Cloudflare R2)**:
+   - Implementar `S3StorageService` bajo el contrato `IStorageService` para entornos de producción multi-instancia, eliminando la dependencia de discos compartidos (EFS o NFS) y aprovechando S3 Pre-signed URLs para descargas de alto tráfico.
+3. **Escaneo Antivirus y Sandbox de Archivos**:
+   - Incorporar un servicio de escaneo en streaming mediante ClamAV daemon o AWS GuardDuty para auditar archivos binarios antes de persistirlos en el storage definitivo.
+4. **Endurecimiento de Pruebas E2E de Auth (RN-072 y RN-038)**:
+   - Extender la suite e2e para validar la revocación inmediata de acceso ante cambios de rol/permisos (RN-072) y desconexión por inactividad/expiración de sesión (RN-038) en flujos de subida y descarga de archivos.
+
+---
+
+## Ficha Real de Dependencias y Seguridad
+
+| Dependencia | Versión Instalada | Licencia | Publicación | Estado de Cadena de Suministro |
+|-------------|-------------------|----------|-------------|--------------------------------|
+| `multer` (vía `@nestjs/platform-express`) | `2.4.0` | MIT | > 6 meses | `npm audit --omit=dev`: 0 vulnerabilidades directas en multer. Dependencias base del framework documentadas. |
+| `crypto` (Node.js nativo) | Node.js v22 LTS | Built-in | N/A | Firma HMAC-SHA256 y comparación en tiempo constante con `crypto.timingSafeEqual`. |
+

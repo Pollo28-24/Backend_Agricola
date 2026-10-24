@@ -581,7 +581,7 @@ describe('Módulo de Exportación de Reportes (E2E) - Hito 10B', () => {
   // 7. INYECCIÓN DE FÓRMULAS NEUTRALIZADA
   // =========================================================================
   describe('Seguridad contra Formula Injection (CSV / Excel Injection)', () => {
-    it('debe escapar nombres humanos maliciosos con comilla simple sin alterar importes negativos ni numéricos', async () => {
+    it('debe escapar nombres humanos maliciosos con comilla simple sin alterar importes negativos ni numéricos en CSV', async () => {
       const res = await testRequest(app)
         .get('/api/v1/reportes/exportaciones/cuentas-por-cobrar?formato=csv')
         .set('Authorization', `Bearer ${tokenAdminA}`);
@@ -593,6 +593,56 @@ describe('Módulo de Exportación de Reportes (E2E) - Hito 10B', () => {
       expect(csvStr).toContain("'=HYPERLINK");
       // El número de factura malicioso debe estar precedido por una comilla simple (')
       expect(csvStr).toContain("'=CMD_INJECTION");
+    });
+
+    it('debe escapar nombres humanos maliciosos en XLSX sin corromper celdas ni macros', async () => {
+      const res = await testRequest(app)
+        .get('/api/v1/reportes/exportaciones/cuentas-por-cobrar?formato=xlsx')
+        .set('Authorization', `Bearer ${tokenAdminA}`)
+        .buffer(true)
+        .parse(binaryParser);
+
+      expect(res.status).toBe(200);
+      const wb = new Workbook();
+      await wb.xlsx.load(res.body as Buffer);
+      const sheet = wb.getWorksheet('Cuentas por Cobrar');
+      expect(sheet).toBeDefined();
+
+      let encontroClienteEscapado = false;
+      sheet?.eachRow((row) => {
+        row.eachCell((cell) => {
+          if (
+            typeof cell.value === 'string' &&
+            cell.value.includes("'=HYPERLINK")
+          ) {
+            encontroClienteEscapado = true;
+          }
+        });
+      });
+      expect(encontroClienteEscapado).toBe(true);
+    });
+
+    it('las cifras numéricas (incluso pérdidas o márgenes negativos) se emiten como tipos numéricos puros en Excel sin comillas', async () => {
+      const res = await testRequest(app)
+        .get(
+          `/api/v1/reportes/exportaciones/ciclos/${cicloCanvasId}?formato=xlsx`,
+        )
+        .set('Authorization', `Bearer ${tokenAdminA}`)
+        .buffer(true)
+        .parse(binaryParser);
+
+      expect(res.status).toBe(200);
+      const wb = new Workbook();
+      await wb.xlsx.load(res.body as Buffer);
+      const sheet = wb.getWorksheet('Rentabilidad');
+      expect(sheet).toBeDefined();
+
+      const filaCanvas = sheet!.getRow(2);
+      // Ganancia, costo y margen deben ser de tipo number primitivo (no string)
+      expect(typeof filaCanvas.getCell(11).value).toBe('number');
+      expect(typeof filaCanvas.getCell(18).value).toBe('number');
+      expect(typeof filaCanvas.getCell(21).value).toBe('number');
+      expect(typeof filaCanvas.getCell(22).value).toBe('number');
     });
   });
 

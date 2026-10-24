@@ -80,3 +80,16 @@ Se ajustó `SerializacionInterceptor` para preservar instancias de `StreamableFi
 ## Deuda Técnica y Mejoras Futuras
 1. **Cola Asíncrona para Exportaciones Masivas**: Para conjuntos de datos que superen las 5,000 filas, diseñar un subsistema de colas en segundo plano (e.g. BullMQ / Redis) con almacenamiento temporal en `IStorageService` y notificación al usuario cuando el archivo esté listo para descarga.
 2. **Registro de Auditoría de Exportación**: Aunque las consultas no alteran el estado del negocio (RN-036), futuras normativas de privacidad o compliance empresarial podrían requerir una bitácora especializada de exportación de datos sensibles.
+3. **Endurecimiento de Pruebas E2E de Auth (RN-072 y RN-038)**: Extender suites e2e para verificar expiración de sesión y revocación en tiempo real durante descargas masivas.
+
+---
+
+## Ficha Real de Dependencias y Seguridad
+
+| Dependencia | Versión Instalada | Licencia | Publicación | Estado de Cadena de Suministro |
+|-------------|-------------------|----------|-------------|--------------------------------|
+| `exceljs` | `4.4.0` | MIT | 2023-10-19 (> 3 años) | `npm audit --omit=dev`: 0 vulnerabilidades directas en exceljs. Dependencias transitivas: `tmp`, `uuid`, `jszip`, `fast-csv`. |
+| `pdfkit` | `0.17.2` | MIT | 2025-08-30 (> 1 año) | `npm audit --omit=dev`: 0 vulnerabilidades directas en pdfkit. Dependencias transitivas: `fontkit`, `linebreak`, `crypto-js`, `png-js`. |
+
+*Nota de Seguridad*: La auditoría global de producción (`npm audit --omit=dev`) arroja 14 vulnerabilidades previas heredadas de la base del framework (`@nestjs/platform-express`, `body-parser`, `mysql2`, `mariadb`, `js-yaml`). Ninguna es introducida por `exceljs` o `pdfkit`. Su saneamiento está programado en la fase de endurecimiento del Hito 11.
+
