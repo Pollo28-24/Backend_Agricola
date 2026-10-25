@@ -16,6 +16,7 @@ Documento de verdad técnica y arquitectura viva para el sistema backend de Rent
   - `@nestjs/jwt`: `12.0.3` (declarado: `^12.0.3`)
   - `@nestjs/passport`: `12.0.0` (declarado: `^12.0.0`)
   - `@nestjs/swagger`: `11.4.7` (declarado: `^11.4.7`)
+  - `@nestjs/throttler`: `6.7.1` (versión fija exacta)
   - `@nestjs/testing`: `11.2.7` (declarado: `^11.0.1`)
   - `@nestjs/cli`: `11.0.6` (declarado: `^11.0.0`)
 
@@ -77,7 +78,8 @@ Documento de verdad técnica y arquitectura viva para el sistema backend de Rent
 | **Hito 8** | Cobros y Cuentas por Cobrar | `8560074d7d45f2af17d7d4982b4dadb6967255d5`<br>`b415e35b2fb6fa2c0cd7bb4c1637688fa0406eb3`<br>`42434ea99245c26f7cccb6a5eb5d716963921b8f`<br>`482f75d7b2d16bf10be1e4d0f8b932931d9bdbaa` | `feat(cobros): cobros con anulación lógica`<br>`fix(ciclos): anteponer bloqueo pesimista`<br>`test(cobros): endurecer aserciones cobro vs cancelacion` | Anulación lógica de cobros (RN-063) y estado derivado. |
 | **Hito 9A / 9A.1 / 9B** | Indicadores, Vistas LATERAL y Alertas | `e209d9ccda339b4a53c804dd99a3e7c9a7eea5e9`<br>`60b29f741459b8ab0a31673bdd9e4bf3bd49ac41`<br>`c05f71e2abab2adc5ec76b3ec5950f7f468bebcd`<br>`466d813cf24fc45f8b8b475d0a509a097d9813ad` | `feat(reportes): indicadores de rentabilidad`<br>`perf(reportes): vistas de indicadores con LEFT JOIN LATERAL`<br>`feat(reportes): alertas de rentabilidad y cuentas por cobrar` | Vistas SQL analíticas optimizadas (5.6 ms) y alertas por caso. |
 | **Hito 10A** | Archivos Adjuntos Desacoplados | `fa42bcc40696e1147e36fa1e4191047b547c940f`<br>`bbaf7997d8d9cf1ce2e3694859b6fedbee359709` | `feat(adjuntos): adjuntos con almacenamiento desacoplado y descarga firmada`<br>`fix(adjuntos): usar import type para Response e IStorageService` | Almacenamiento local desacoplado, Magic Bytes, token temporal. |
-| **Hito 10B** | Exportación a Excel, PDF y CSV | `d7cef4940ca8baa91c619fb3ca035d8a05db32b9`<br>`bcb990a9a690e31855afc11503d56fdd0f885011`<br>`c0795a00ad3ce3945566b38c5ce4617ec86aae7b` | `feat(exportacion): exportación de reportes a Excel, PDF y CSV`<br>`test(calidad): completar cobertura e2e y pruebas unitarias`<br>`test(adjuntos): token de otro usuario, usuario desactivado y capturista` | **Línea base actual**: Build exit 0, Lint 393 errores / 85 warnings (0/0 en nuevos), 581 tests unitarios pasados (86 suites), 178 tests e2e pasados (12 suites, 1 skipped). |
+| **Hito 10B** | Exportación a Excel, PDF y CSV | `d7cef4940ca8baa91c619fb3ca035d8a05db32b9`<br>`bcb990a9a690e31855afc11503d56fdd0f885011`<br>`c0795a00ad3ce3945566b38c5ce4617ec86aae7b` | `feat(exportacion): exportación de reportes a Excel, PDF y CSV`<br>`test(calidad): completar cobertura e2e y pruebas unitarias`<br>`test(adjuntos): token de otro usuario, usuario desactivado y capturista` | Línea base cierre Fase 4: Build exit 0, Lint 393 errores / 85 warnings, 581 tests unitarios, 178 tests e2e. |
+| **Hito 11A** | Seguridad, Sesiones por Familia y Throttling | `f8c703016a8614cdb398fcdae691f1861144303e`<br>`c01f33729ede18e1793b3f9f498d4b15988c5587`<br>`e287ad6a4f8457d81550553cbf26e6752843f6fe` | `fix(auth): rotación atómica de refresh tokens con detección de reuso por familia`<br>`feat(seguridad): throttling de login, validación de secretos y Argon2id (hito 11A)`<br>`test(seguridad): e2e de RN-072, RN-038, RN-037 y RN-074` | **Línea base actual**: Build exit 0, Lint 327 errores / 84 warnings (0/0 en nuevos y modificados), 597 tests unitarios pasados (88 suites), 188 tests e2e pasados en 2 corridas seguidas (13 suites, 1 skipped). |
 
 ---
 
@@ -94,7 +96,7 @@ Documento de verdad técnica y arquitectura viva para el sistema backend de Rent
 8. `cosechas`: Registro de cosechas por calidad y lote, validación de unidades de peso y base para balance de masa productiva (RN-024, RN-026, RN-069).
 9. `empresas`: Administración de tenants, registro atómico de empresa con usuario administrador y control de suscripción/límites de plan (F-01, RN-003, RN-068).
 10. `estructura`: Modelado físico del campo agrícola (predios y parcelas) con control de superficies y estados de uso (DISPONIBLE, EN_USO, DESCANSO, INACTIVA).
-11. `exportacion`: Generación y descarga síncrona de reportes tabulares y ejecutivos en formatos Excel (.xlsx), PDF y CSV (.csv) con límites de seguridad (RN-073).
+11. `exportacion`: Generación y descarga síncrona de reportes tabulares y ejecutivos en formatos Excel (.xlsx), PDF y CSV (.csv) con límites de seguridad *(Errata Hito 11A: la regla de plan para exportación corresponde a `plan_suscripcion.incluyeReportes` sin número de RN en el docx; la verdadera RN-073 del docx §2.9 regula comparaciones de "hoy" en `America/Mexico_City`)*.
 12. `gastos`: Costos operativos directos e indirectos vinculados al ciclo o actividades, control de proveedores y ventanas de edición temporal (RN-062).
 13. `health`: Verificación de salud y liveness del servicio HTTP para orquestadores y monitoreo.
 14. `mermas`: Registro de pérdidas de cosecha (campo, poscosecha, transporte, almacén) con aplicación de balance de masa estricto (RN-031, RN-032, RN-049).
@@ -113,7 +115,7 @@ Documento de verdad técnica y arquitectura viva para el sistema backend de Rent
 5. `permiso`: Catálogo inmutable de los 19 permisos funcionales granulares.
 6. `rol_permiso`: Tabla intermedia de asignación de permisos a roles.
 7. `usuario`: Cuentas de acceso asociadas a una empresa y un rol, con hash de contraseña Argon2.
-8. `refresh_token`: Tokens de refresco rotatorios con UUID (`jti`), hash y estado de revocación.
+8. `refresh_token`: Tokens de refresco rotatorios con familia (`familiaId`), UUID (`jti`), hash y estado de revocación.
 9. `predio`: Extensiones o ranchos pertenecientes a una empresa.
 10. `tipo_suelo`: Catálogo maestro de tipos de suelo agrícola.
 11. `parcela`: Divisiones productivas de un predio con superficie, coordenadas y estado.
@@ -366,6 +368,7 @@ Tabla exhaustiva del enum `CodigoError` (`src/common/errors/codigos-error.enum.t
 | `ENLACE_DESCARGA_INVALIDO` | 403 | Forbidden | El token de descarga es inválido, expiró, pertenece a otro usuario o el emisor fue desactivado. |
 | `LIMITE_ADJUNTOS_ALCANZADO` | 400 | Bad Request | Se alcanzó el límite máximo de 5 adjuntos por entidad. |
 | `EXPORTACION_EXCEDE_LIMITE` | 400 | Bad Request | El conjunto de datos a exportar síncronamente supera el límite de seguridad de 5,000 filas. |
+| `DEMASIADAS_PETICIONES` | 429 | Too Many Requests | Se excedió el límite de peticiones permitido por ventana de tiempo o bloqueo de fuerza bruta (incluye cabecera `Retry-After`). |
 | `CONFLICTO` | 409 | Conflict | Conflicto de unicidad o clave foránea capturado por Prisma (códigos P2002 / P2003). |
 | `ERROR_INTERNO` | 500 | Internal Server Error | Falla no controlada en el servidor o error no mapeado en base de datos. |
 
@@ -395,7 +398,7 @@ Tabla exhaustiva del enum `CodigoError` (`src/common/errors/codigos-error.enum.t
 - git add selectivo, nunca git add .; sin scratch/, .env ni logs.
 - Informes: máximo de líneas indicado, hashes COMPLETOS, salidas CRUDAS de comandos; si no se ejecutó algo, decirlo.
 - Dependencias: versión exacta, más de 14 días, ficha y npm audit.
-- Línea base de calidad: lint 393 errores y 85 avisos (solo puede bajar; 0 y 0 en archivos nuevos), 581 tests unitarios, 178 e2e (dos corridas seguidas).
+- Línea base de calidad: lint 327 errores y 84 avisos (solo puede bajar; 0 y 0 en archivos nuevos y modificados), 597 tests unitarios, 188 e2e (dos corridas seguidas).
 
 ---
 
@@ -411,14 +414,15 @@ Tabla exhaustiva del enum `CodigoError` (`src/common/errors/codigos-error.enum.t
 | **DT-06** | Job periódico de reconciliación de huérfanos en almacenamiento | ADR-012 (Archivos Adjuntos) | Si el servidor se apaga abruptamente tras escribir en disco y antes del commit de BD, queda un archivo huérfano. Requiere un cron nocturno de reconciliación. |
 | **DT-07** | Driver de almacenamiento para nube (S3 / Google Cloud Storage) | ADR-012 (Archivos Adjuntos) | La interfaz `IStorageService` está desacoplada pero solo cuenta con `LocalStorageService`. Para despliegues elásticos multi-instancia se requiere el adaptador S3. |
 | **DT-08** | Cola asíncrona (BullMQ / Redis) para exportaciones masivas (>5,000 filas) | ADR-013 (Exportación de Reportes) | Exportaciones síncronas están acotadas a 5,000 registros para proteger la memoria del proceso Node.js. Volúmenes mayores requieren procesamiento background con streaming. |
-| **DT-09** | Validación estricta de plan de suscripción para exportación (RN-073) | ADR-013 (Exportación de Reportes) | Pendiente compuerta de validación de `incluyeReportes` en el middleware de exportación; diferida formalmente para Fase 5. |
+| **DT-09** | Gating por `incluyeReportes` del plan de suscripción (sin número de RN, pendiente decisión de producto) | ADR-013 (Exportación de Reportes — Errata 11A) | Pendiente definición de producto sobre si `plan_suscripcion.incluyeReportes` restringe solo `/reportes/exportaciones/*` o todo `/reportes/*` para planes BASICO y PRODUCTOR. |
+| **DT-10** | Almacenamiento distribuido (Redis) para `@nestjs/throttler` en despliegues multi-instancia | ADR-014 (Seguridad y Throttling) | El limitador de tasa opera en memoria local del proceso Node.js. Al escalar horizontalmente a múltiples instancias se debe inyectar storage Redis compartido. |
 
 ---
 
-## H. Siguiente Paso: Hito 11
+## H. Siguiente Paso: Hito 11 (En curso)
 
-El siguiente paso es la ejecución estructurada del **Hito 11** (sin código de implementación en esta etapa de planificación), desglosado en:
-- **11A: Seguridad y Auth**: Auditoría del modelo de refresh tokens (tabla 28 en Prisma: `RefreshToken`), rotación estricta con detección automática de reuso/robo (invalidación de familia de tokens), rate limiting granular con `@nestjs/throttler`, robustecimiento con Argon2id, validación de payloads y suite e2e para RN-072, RN-038 y RN-037.
-- **11B: Saneamiento de Deuda de Lint**: Plan sistemático de resolución de los 393 errores de `@typescript-eslint` por lotes (capa de dominio, servicios y controladores) sin alterar la lógica de negocio, buscando alcanzar 0 errores y 0 warnings.
+Estado de ejecución de los sub-hitos del **Hito 11**:
+- **11A: Seguridad y Auth (Completado)**: Rotación atómica condicional de refresh tokens con detección de reuso y revocación por familia (`familiaId`), rate limiting con `@nestjs/throttler@6.7.1` (`default`, `login-ip`, `login-correo` con tracker `IP + sha256(correo)` y `DEMASIADAS_PETICIONES` 429 + `Retry-After`), Argon2id (`m=19456, t=2, p=1`) con rehash transparente y `dummy verify`, secretos JWT $\ge 64$ caracteres y suite e2e integral de RN-072, RN-038 (con `DiscoveryService`), RN-037, RN-074 y prueba de frontera horaria RN-073 (`America/Mexico_City`).
+- **11B: Saneamiento de Deuda de Lint (Siguiente)**: Plan sistemático de resolución de los 327 errores restantes de `@typescript-eslint` por lotes sin alterar la lógica de negocio, buscando alcanzar 0 errores y 0 warnings.
 - **11C: Verificación de Base de Datos (Anexo D y Especificación 3.25)**: Adaptación y ejecución del script de verificación de las 29 tablas, 49 claves foráneas, 5 vistas analíticas y constraints CHECK; automatización vía comando `npm run db:verify` y redacción de la guía operativa de respaldo y restauración (Especificación 3.24).
 - **11D: Congelación del Contrato API para Flutter (Fase 5)**: Decoración exhaustiva de DTOs para Swagger/OpenAPI, test de regresión/snapshot de `openapi.json`, matrices de permisos/errores, documentación `docs/contrato-api-flutter.md` y soporte para header `X-App-Version` con respuesta HTTP 426 Upgrade Required.

@@ -94,3 +94,10 @@ Se ajustó `SerializacionInterceptor` para preservar instancias de `StreamableFi
 
 *Nota de Seguridad*: La auditoría global de producción (`npm audit --omit=dev`) arroja 14 vulnerabilidades previas heredadas de la base del framework (`@nestjs/platform-express`, `body-parser`, `mysql2`, `mariadb`, `js-yaml`). Ninguna es introducida por `exceljs` o `pdfkit`. Su saneamiento está programado en la fase de endurecimiento del Hito 11.
 
+---
+
+## Errata (Hito 11A — Atribución de RN-073 y Reformulación de DT-09)
+- **Aclaración normativa de RN-073**: En el documento maestro (`Rentabilidad_Agricola_3.docx` v3.2, §2.9), **RN-073** corresponde a la regla temporal: *"DATETIME en UTC; las comparaciones con 'hoy' (cobro vencido, ciclo sin captura) usan America/Mexico_City"* (implementada en `VentaEstadoCobroPolicy.obtenerHoyMexico()` y verificada con pruebas de frontera horaria en el Hito 11A).
+- **Reformulación de DT-09**: La referencia previa a "RN-073" en la sección de contexto y en la deuda técnica **DT-09** para describir el bloqueo o gating de exportación según la bandera `plan_suscripcion.incluyeReportes` carece de número de RN en el documento maestro. En consecuencia, **DT-09** queda registrada como: *"Gating por `incluyeReportes` del plan de suscripción (sin número de RN en el documento maestro, pendiente decisión de producto sobre si restringe solo `/reportes/exportaciones/*` o todo `/reportes/*`)"*.
+
+
