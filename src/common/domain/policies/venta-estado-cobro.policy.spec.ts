@@ -203,5 +203,39 @@ describe('VentaEstadoCobroPolicy (RN-055, RN-056, RN-073)', () => {
       const hoy = VentaEstadoCobroPolicy.obtenerHoyMexico();
       expect(hoy).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
+
+    it('frontera RN-073 con reloj falso: 2026-11-01T03:30:00Z (CDMX 2026-10-31) no vence venta de 2026-10-31; 2026-11-01T06:00:00Z (CDMX 2026-11-01) sí la vence', () => {
+      jest.useFakeTimers();
+      try {
+        // 1. 2026-11-01T03:30:00Z = 2026-10-31 21:30:00 en America/Mexico_City (UTC-6)
+        jest.setSystemTime(new Date('2026-11-01T03:30:00Z'));
+        expect(VentaEstadoCobroPolicy.obtenerHoyMexico()).toBe('2026-10-31');
+
+        const antesDeMedianocheCdmx =
+          VentaEstadoCobroPolicy.calcularEstadoCobro({
+            total: total100,
+            totalCobrado: cero,
+            estadoVenta: 'REGISTRADA',
+            fechaLimitePago: '2026-10-31',
+          });
+        expect(antesDeMedianocheCdmx.vencida).toBe(false);
+        expect(antesDeMedianocheCdmx.estadoCobro).toBe(EstadoCobro.PENDIENTE);
+
+        // 2. 2026-11-01T06:00:00Z = 2026-11-01 00:00:00 en America/Mexico_City (UTC-6)
+        jest.setSystemTime(new Date('2026-11-01T06:00:00Z'));
+        expect(VentaEstadoCobroPolicy.obtenerHoyMexico()).toBe('2026-11-01');
+
+        const enMedianocheCdmx = VentaEstadoCobroPolicy.calcularEstadoCobro({
+          total: total100,
+          totalCobrado: cero,
+          estadoVenta: 'REGISTRADA',
+          fechaLimitePago: '2026-10-31',
+        });
+        expect(enMedianocheCdmx.vencida).toBe(true);
+        expect(enMedianocheCdmx.estadoCobro).toBe(EstadoCobro.VENCIDA);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 });

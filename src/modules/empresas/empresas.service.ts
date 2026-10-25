@@ -198,6 +198,7 @@ export class EmpresasService {
     const parcelasActivas = await this.prisma.parcela.count({
       where: {
         predio: { empresaId },
+        estado: { not: 'INACTIVA' },
         deletedAt: null,
       },
     });

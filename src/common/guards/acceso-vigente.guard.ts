@@ -49,10 +49,12 @@ export class AccesoVigenteGuard implements CanActivate {
       const metodo = request.method.toUpperCase();
       const esLectura = this.metodosLectura.has(metodo);
 
-      // Permitir logout aunque la suscripción esté vencida
-      const esLogout = request.url.includes('/auth/logout');
+      // Permitir logout y generación de enlace temporal de descarga (lectura sin mutación)
+      const esRutaPermitidaEnSoloLectura =
+        request.url.includes('/auth/logout') ||
+        request.url.includes('/enlace-descarga');
 
-      if (!esLectura && !esLogout) {
+      if (!esLectura && !esRutaPermitidaEnSoloLectura) {
         throw new DomainError(
           CodigoError.SUSCRIPCION_INACTIVA,
           'La suscripción de la empresa se encuentra vencida o cancelada. El acceso está restringido a solo lectura (RN-038).',

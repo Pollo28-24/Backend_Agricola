@@ -41,8 +41,9 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
-      cb(mockPrismaService),
+    mockPrismaService.$transaction.mockImplementation(
+      (cb: (tx: typeof mockPrismaService) => Promise<unknown>) =>
+        cb(mockPrismaService),
     );
     mockPrismaService.$queryRaw.mockResolvedValue([{ id: 10 }]);
 
@@ -109,6 +110,13 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     expect(res.tipoSueloNombre).toBe('Franco');
     expect(res.estado).toBe(EstadoParcela.DISPONIBLE);
     expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
+    expect(mockPrismaService.parcela.count).toHaveBeenCalledWith({
+      where: {
+        predio: { empresaId: 10 },
+        estado: { not: EstadoParcela.INACTIVA },
+        deletedAt: null,
+      },
+    });
     expect(mockAuditService.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
         empresaId: 10,
@@ -132,9 +140,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     );
     try {
       await service.crearParcela(10, dtoParcela);
-    } catch (e: any) {
-      expect(e.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
-      expect(e.getStatus()).toBe(409);
+    } catch (e) {
+      const err = e as DomainError;
+      expect(err.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
+      expect(err.getStatus()).toBe(409);
     }
   });
 
@@ -152,9 +161,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     );
     try {
       await service.crearParcela(10, dtoParcela);
-    } catch (e: any) {
-      expect(e.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
-      expect(e.getStatus()).toBe(404);
+    } catch (e) {
+      const err = e as DomainError;
+      expect(err.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
+      expect(err.getStatus()).toBe(404);
     }
   });
 
@@ -179,9 +189,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     );
     try {
       await service.crearParcela(10, dtoParcela);
-    } catch (e: any) {
-      expect(e.code).toBe(CodigoError.CONFLICTO);
-      expect(e.getStatus()).toBe(409);
+    } catch (e) {
+      const err = e as DomainError;
+      expect(err.code).toBe(CodigoError.CONFLICTO);
+      expect(err.getStatus()).toBe(409);
     }
   });
 
@@ -269,9 +280,10 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
     await expect(service.eliminarParcela(10, 10)).rejects.toThrow(DomainError);
     try {
       await service.eliminarParcela(10, 10);
-    } catch (e: any) {
-      expect(e.code).toBe(CodigoError.CONFLICTO);
-      expect(e.getStatus()).toBe(409);
+    } catch (e) {
+      const err = e as DomainError;
+      expect(err.code).toBe(CodigoError.CONFLICTO);
+      expect(err.getStatus()).toBe(409);
     }
   });
 
@@ -290,8 +302,8 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
       data: expect.objectContaining({
         nombre: 'Parcela A Borrar#baja10',
         estado: EstadoParcela.INACTIVA,
-        deletedAt: expect.any(Date),
-      }),
+        deletedAt: expect.any(Date) as unknown,
+      }) as unknown,
     });
     expect(mockAuditService.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -300,5 +312,25 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
         accion: AccionAuditoria.ELIMINAR,
       }),
     );
+  });
+
+  it('debe rechazar con 409 LIMITE_PLAN_EXCEDIDO al reactivar una parcela INACTIVA si el cupo ya está lleno (RN-037)', async () => {
+    mockPrismaService.parcela.findFirst.mockResolvedValue({
+      id: 10,
+      predioId: 1,
+      nombre: 'Parcela Inactiva',
+      superficie: 5.0,
+      estado: EstadoParcela.INACTIVA,
+    });
+    mockPrismaService.empresa.findUnique.mockResolvedValue({
+      id: 10,
+      deletedAt: null,
+      plan: { nombre: 'Básico', maxParcelas: 3 },
+    });
+    mockPrismaService.parcela.count.mockResolvedValue(3);
+
+    await expect(
+      service.actualizarParcela(10, 10, { estado: EstadoParcela.DISPONIBLE }),
+    ).rejects.toThrow(DomainError);
   });
 });

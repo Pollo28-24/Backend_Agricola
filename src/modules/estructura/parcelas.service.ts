@@ -49,11 +49,15 @@ export class ParcelasService {
       const parcelasActivas = await tx.parcela.count({
         where: {
           predio: { empresaId },
+          estado: { not: EstadoParcela.INACTIVA },
           deletedAt: null,
         },
       });
 
-      if (parcelasActivas >= empresa.plan.maxParcelas) {
+      if (
+        dto.estado !== EstadoParcela.INACTIVA &&
+        parcelasActivas >= empresa.plan.maxParcelas
+      ) {
         throw new DomainError(
           CodigoError.LIMITE_PLAN_EXCEDIDO,
           `Su plan comercial '${empresa.plan.nombre}' permite un máximo de ${empresa.plan.maxParcelas} parcelas activas. Actualice su plan para registrar más parcelas (RN-037).`,
@@ -215,6 +219,34 @@ export class ParcelasService {
 
     EntityValidationUtil.assertExists(parcelaActual, 'Parcela no encontrada');
 
+    if (
+      parcelaActual.estado === EstadoParcela.INACTIVA &&
+      dto.estado &&
+      dto.estado !== EstadoParcela.INACTIVA
+    ) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM empresa WHERE id = ${empresaId} FOR UPDATE`;
+        const empresa = await tx.empresa.findUnique({
+          where: { id: empresaId },
+          include: { plan: true },
+        });
+        const parcelasActivas = await tx.parcela.count({
+          where: {
+            predio: { empresaId },
+            estado: { not: EstadoParcela.INACTIVA },
+            deletedAt: null,
+          },
+        });
+        if (empresa && parcelasActivas >= empresa.plan.maxParcelas) {
+          throw new DomainError(
+            CodigoError.LIMITE_PLAN_EXCEDIDO,
+            `No se puede reactivar la parcela. Su plan permite un máximo de ${empresa.plan.maxParcelas} parcelas activas (RN-037).`,
+            HttpStatus.CONFLICT,
+          );
+        }
+      });
+    }
+
     const targetPredioId = dto.predioId ?? parcelaActual.predioId;
 
     if (dto.predioId && dto.predioId !== parcelaActual.predioId) {
@@ -369,7 +401,21 @@ export class ParcelasService {
   // FORMATEADOR PRIVADO
   // =====================================================================
 
-  private formatearParcela(parcela: any): ParcelaResponseDto {
+  private formatearParcela(parcela: {
+    id: number;
+    predioId: number;
+    predio?: { nombre: string } | null;
+    tipoSueloId: number | null;
+    tipoSuelo?: { nombre: string } | null;
+    nombre: string;
+    superficie: { toString(): string };
+    latitud: { toString(): string } | null;
+    longitud: { toString(): string } | null;
+    poligono: unknown;
+    estado: EstadoParcela;
+    createdAt: Date;
+    updatedAt: Date;
+  }): ParcelaResponseDto {
     return {
       id: parcela.id,
       predioId: parcela.predioId,
