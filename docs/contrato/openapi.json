@@ -1191,6 +1191,8 @@
           "LIMITE_ADJUNTOS_ALCANZADO",
           "EXPORTACION_EXCEDE_LIMITE",
           "DEMASIADAS_PETICIONES",
+          "VERSION_APP_OBSOLETA",
+          "VERSION_APP_INVALIDA",
           "CONFLICTO",
           "ERROR_INTERNO"
         ],

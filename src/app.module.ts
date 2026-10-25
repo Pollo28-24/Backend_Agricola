@@ -28,6 +28,7 @@ import {
   AppThrottlerGuard,
   crearThrottlerOptions,
 } from './modules/auth/guards/app-throttler.guard';
+import { AppVersionGuard } from './common/guards/app-version.guard';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AccesoVigenteGuard } from './common/guards/acceso-vigente.guard';
 import { PermisosGuard } from './common/guards/permisos.guard';
@@ -92,6 +93,10 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     ExportacionModule,
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AppVersionGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: AppThrottlerGuard,

@@ -53,4 +53,13 @@ export const envValidationSchema = Joi.object({
     .min(1)
     .default(300)
     .description('Tiempo de vida en segundos para enlace de descarga firmada'),
+  MIN_APP_VERSION: Joi.string()
+    .default('1.0.0')
+    .description('Versión mínima admitida de la app cliente móvil (SemVer)'),
+  APP_STORE_URL: Joi.string()
+    .uri()
+    .default(
+      'https://play.google.com/store/apps/details?id=com.rentabilidad.agricola',
+    )
+    .description('URL de descarga o actualización en tienda de aplicaciones'),
 });

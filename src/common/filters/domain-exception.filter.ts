@@ -156,26 +156,21 @@ export class DomainExceptionFilter implements ExceptionFilter {
     });
   }
 
-  private mapStatusToCode(status: HttpStatus): CodigoError {
-    switch (status) {
-      case HttpStatus.BAD_REQUEST:
-        return CodigoError.PETICION_INVALIDA;
-      case HttpStatus.UNAUTHORIZED:
-        return CodigoError.NO_AUTENTICADO;
-      case HttpStatus.FORBIDDEN:
-        return CodigoError.PERMISO_DENEGADO;
-      case HttpStatus.NOT_FOUND:
-        return CodigoError.RECURSO_NO_ENCONTRADO;
-      case HttpStatus.CONFLICT:
-        return CodigoError.CONFLICTO;
-      case HttpStatus.PAYLOAD_TOO_LARGE:
-        return CodigoError.ARCHIVO_DEMASIADO_GRANDE;
-      case HttpStatus.UNSUPPORTED_MEDIA_TYPE:
-        return CodigoError.TIPO_ARCHIVO_NO_PERMITIDO;
-      case HttpStatus.TOO_MANY_REQUESTS:
-        return CodigoError.DEMASIADAS_PETICIONES;
-      default:
-        return CodigoError.ERROR_INTERNO;
+  private mapStatusToCode(status: number): CodigoError {
+    if (status === 426) {
+      return CodigoError.VERSION_APP_OBSOLETA;
     }
+    const statusMap: Record<number, CodigoError> = {
+      [HttpStatus.BAD_REQUEST]: CodigoError.PETICION_INVALIDA,
+      [HttpStatus.UNAUTHORIZED]: CodigoError.NO_AUTENTICADO,
+      [HttpStatus.FORBIDDEN]: CodigoError.PERMISO_DENEGADO,
+      [HttpStatus.NOT_FOUND]: CodigoError.RECURSO_NO_ENCONTRADO,
+      [HttpStatus.CONFLICT]: CodigoError.CONFLICTO,
+      [HttpStatus.PAYLOAD_TOO_LARGE]: CodigoError.ARCHIVO_DEMASIADO_GRANDE,
+      [HttpStatus.UNSUPPORTED_MEDIA_TYPE]:
+        CodigoError.TIPO_ARCHIVO_NO_PERMITIDO,
+      [HttpStatus.TOO_MANY_REQUESTS]: CodigoError.DEMASIADAS_PETICIONES,
+    };
+    return statusMap[status] ?? CodigoError.ERROR_INTERNO;
   }
 }

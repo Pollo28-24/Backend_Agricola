@@ -8,7 +8,7 @@ export class DomainError extends HttpException {
   constructor(
     code: CodigoError,
     message: string,
-    status: HttpStatus = HttpStatus.BAD_REQUEST,
+    status: HttpStatus | number = HttpStatus.BAD_REQUEST,
     details?: unknown,
   ) {
     super(
