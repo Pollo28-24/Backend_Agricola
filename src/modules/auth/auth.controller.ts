@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -21,7 +22,6 @@ import { AuthResponseDto, UsuarioPerfilDto } from './dto/auth-response.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { UsuarioAutenticado } from './interfaces/jwt-payload.interface';
 
 @ApiTags('Autenticación')
 @Controller('auth')
@@ -49,6 +49,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ 'login-ip': { limit: 30, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

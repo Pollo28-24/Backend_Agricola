@@ -124,6 +124,30 @@ export class DomainExceptionFilter implements ExceptionFilter {
       message = 'Error interno del servidor';
     }
 
+    if (
+      statusCode === HttpStatus.TOO_MANY_REQUESTS &&
+      typeof response?.setHeader === 'function'
+    ) {
+      const existingRetryAfter =
+        typeof response.getHeader === 'function'
+          ? response.getHeader('Retry-After')
+          : undefined;
+      if (existingRetryAfter === undefined) {
+        const retryFromDetails =
+          typeof details === 'object' &&
+          details !== null &&
+          'retryAfter' in details
+            ? (details as { retryAfter?: unknown }).retryAfter
+            : undefined;
+        const retrySeconds =
+          typeof retryFromDetails === 'number' ||
+          typeof retryFromDetails === 'string'
+            ? String(retryFromDetails)
+            : '60';
+        response.setHeader('Retry-After', retrySeconds);
+      }
+    }
+
     response.status(statusCode).json({
       statusCode,
       code,
@@ -148,6 +172,8 @@ export class DomainExceptionFilter implements ExceptionFilter {
         return CodigoError.ARCHIVO_DEMASIADO_GRANDE;
       case HttpStatus.UNSUPPORTED_MEDIA_TYPE:
         return CodigoError.TIPO_ARCHIVO_NO_PERMITIDO;
+      case HttpStatus.TOO_MANY_REQUESTS:
+        return CodigoError.DEMASIADAS_PETICIONES;
       default:
         return CodigoError.ERROR_INTERNO;
     }

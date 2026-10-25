@@ -9,6 +9,21 @@ import { SerializacionInterceptor } from './common/interceptors/serializacion.in
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Configuración de confianza en proxy reverso (por defecto sin confianza)
+  const trustProxy = process.env.TRUST_PROXY;
+  const httpAdapter = app.getHttpAdapter().getInstance() as {
+    set?: (setting: string, val: unknown) => void;
+  };
+  if (typeof httpAdapter?.set === 'function') {
+    if (trustProxy === 'true' || trustProxy === '1') {
+      httpAdapter.set('trust proxy', 1);
+    } else if (trustProxy && trustProxy !== 'false' && trustProxy !== '0') {
+      httpAdapter.set('trust proxy', trustProxy);
+    } else {
+      httpAdapter.set('trust proxy', false);
+    }
+  }
+
   // Seguridad HTTP
   app.use(helmet());
 
@@ -65,4 +80,4 @@ async function bootstrap() {
   logger.log(`Swagger disponible en http://localhost:${port}/api/docs`);
 }
 
-bootstrap();
+void bootstrap();

@@ -62,7 +62,10 @@ describe('DomainExceptionFilter', () => {
         message: 'Ya existe un registro con los datos proporcionados',
       });
       // Verificar sanitización estricta: NO fugar meta
-      const jsonCall = mockResponse.json.mock.calls[0][0];
+      const calls = mockResponse.json.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      const jsonCall = calls[0][0];
       expect(jsonCall.meta).toBeUndefined();
       expect(jsonCall.target).toBeUndefined();
     });
@@ -132,9 +135,10 @@ describe('DomainExceptionFilter', () => {
 
   it('debe registrar en log estructurado el correlationId y contexto ante errores no controlados', () => {
     const errorGenerico = new Error('Fallo inesperado del sistema');
-    const loggerSpy = jest
-      .spyOn((filter as any).logger, 'error')
-      .mockImplementation();
+    const loggerObj = (
+      filter as unknown as { logger: { error: (...args: unknown[]) => void } }
+    ).logger;
+    const loggerSpy = jest.spyOn(loggerObj, 'error').mockImplementation();
 
     const mockHostConContexto = {
       switchToHttp: () => ({
@@ -161,6 +165,44 @@ describe('DomainExceptionFilter', () => {
         metodo: 'POST',
         codigo: CodigoError.ERROR_INTERNO,
         mensaje: 'Error no controlado: Fallo inesperado del sistema',
+      }),
+    );
+  });
+
+  it('debe mapear 429 Too Many Requests a DEMASIADAS_PETICIONES y fijar cabecera Retry-After', () => {
+    const setHeaderMock = jest.fn();
+    const getHeaderMock = jest.fn().mockReturnValue(undefined);
+    const mockHost429 = {
+      switchToHttp: () => ({
+        getResponse: () => ({
+          ...mockResponse,
+          setHeader: setHeaderMock,
+          getHeader: getHeaderMock,
+        }),
+        getRequest: () => ({
+          url: '/api/v1/auth/login',
+          method: 'POST',
+        }),
+      }),
+    } as unknown as ArgumentsHost;
+
+    const throttlerError = new DomainError(
+      'DEMASIADAS_PETICIONES' as CodigoError,
+      'Demasiadas peticiones. Intente más tarde.',
+      HttpStatus.TOO_MANY_REQUESTS,
+      { retryAfter: 900 },
+    );
+
+    filter.catch(throttlerError, mockHost429);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+    expect(setHeaderMock).toHaveBeenCalledWith('Retry-After', '900');
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: HttpStatus.TOO_MANY_REQUESTS,
+        code: 'DEMASIADAS_PETICIONES',
       }),
     );
   });

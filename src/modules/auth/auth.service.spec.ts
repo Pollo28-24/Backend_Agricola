@@ -51,6 +51,7 @@ describe('AuthService', () => {
   const mockPasswordService = {
     verify: jest.fn(),
     hash: jest.fn(),
+    needsRehash: jest.fn().mockReturnValue(false),
   };
 
   const mockAuditService = {
@@ -142,15 +143,75 @@ describe('AuthService', () => {
       );
     });
 
-    it('debe rechazar con 401 si el usuario no existe', async () => {
-      mockPrismaService.usuario.findUnique.mockResolvedValue(null);
+    it('debe ejecutar verify con hash ficticio si el usuario no existe y devolver la misma respuesta que con contraseña errónea', async () => {
+      mockPrismaService.usuario.findUnique.mockResolvedValueOnce(null);
+      mockPasswordService.verify.mockResolvedValueOnce(false);
 
-      await expect(
-        service.login({
+      let errorInexistente: DomainError | undefined;
+      try {
+        await service.login({
           correo: 'inexistente@correo.com',
-          contrasena: '123456',
-        }),
-      ).rejects.toThrow(DomainError);
+          contrasena: 'ClaveErronea',
+        });
+      } catch (err) {
+        errorInexistente = err as DomainError;
+      }
+
+      expect(mockPasswordService.verify).toHaveBeenCalledTimes(1);
+      expect(mockPasswordService.verify).toHaveBeenCalledWith(
+        expect.stringMatching(/^\$argon2id\$/),
+        'ClaveErronea',
+      );
+
+      mockPrismaService.usuario.findUnique.mockResolvedValueOnce(mockUsuario);
+      mockPasswordService.verify.mockResolvedValueOnce(false);
+
+      let errorContrasena: DomainError | undefined;
+      try {
+        await service.login({
+          correo: 'ramon@correo.com',
+          contrasena: 'ClaveErronea',
+        });
+      } catch (err) {
+        errorContrasena = err as DomainError;
+      }
+
+      expect(errorInexistente).toBeInstanceOf(DomainError);
+      expect(errorContrasena).toBeInstanceOf(DomainError);
+      expect(errorInexistente?.code).toBe(errorContrasena?.code);
+      expect(errorInexistente?.message).toBe(errorContrasena?.message);
+      expect(errorInexistente?.getStatus()).toBe(errorContrasena?.getStatus());
+    });
+
+    it('debe hacer rehash transparente en login solo si los parámetros de Argon2 difieren', async () => {
+      const hashViejo =
+        '$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHQ$aGFzaGhhc2g';
+      const hashNuevo =
+        '$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$bnVldm9oYXNo';
+
+      mockPrismaService.usuario.findUnique.mockResolvedValueOnce({
+        ...mockUsuario,
+        contrasenaHash: hashViejo,
+      });
+      mockPasswordService.verify.mockResolvedValueOnce(true);
+      mockPasswordService.needsRehash.mockReturnValueOnce(true);
+      mockPasswordService.hash.mockResolvedValueOnce(hashNuevo);
+      mockPrismaService.usuario.update.mockResolvedValueOnce(mockUsuario);
+      mockPrismaService.refreshToken.create.mockResolvedValueOnce({});
+
+      await service.login({
+        correo: 'ramon@correo.com',
+        contrasena: 'ClaveValida123!',
+      });
+
+      expect(mockPasswordService.hash).toHaveBeenCalledWith('ClaveValida123!');
+      expect(mockPrismaService.usuario.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          ultimoAcceso: expect.any(Date) as Date,
+          contrasenaHash: hashNuevo,
+        },
+      });
     });
 
     it('debe rechazar con 401 si la contraseña es incorrecta', async () => {

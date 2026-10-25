@@ -14,6 +14,9 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { CodigoError } from '../../common/errors/codigos-error.enum';
 import { DomainError } from '../../common/errors/domain.error';
 
+const DUMMY_ARGON2ID_HASH =
+  '$argon2id$v=19$m=19456,t=2,p=1$Y29udHJhc2VuYWR1bW15c2FsdA$K8d3x9m2L5p7Q1v4W6z8B0n2M4k6J8h0G2f4D6s8A0q';
+
 @Injectable()
 export class AuthService {
   private readonly jwtSecret: string;
@@ -68,6 +71,7 @@ export class AuthService {
     });
 
     if (!usuario || usuario.deletedAt !== null) {
+      await this.passwordService.verify(DUMMY_ARGON2ID_HASH, dto.contrasena);
       throw new DomainError(
         CodigoError.NO_AUTENTICADO,
         'Credenciales incorrectas',
@@ -104,10 +108,23 @@ export class AuthService {
       );
     }
 
-    // Actualizar fecha de último acceso
+    // Rehash transparente si los parámetros almacenados difieren de los vigentes (m=19456, t=2, p=1)
+    let nuevoHash: string | undefined;
+    const requiereRehash =
+      typeof this.passwordService.needsRehash === 'function'
+        ? this.passwordService.needsRehash(usuario.contrasenaHash)
+        : false;
+    if (requiereRehash && typeof this.passwordService.hash === 'function') {
+      nuevoHash = await this.passwordService.hash(dto.contrasena);
+    }
+
+    // Actualizar fecha de último acceso (y contrasenaHash si hubo rehash)
     await this.prisma.usuario.update({
       where: { id: usuario.id },
-      data: { ultimoAcceso: new Date() },
+      data: {
+        ultimoAcceso: new Date(),
+        ...(nuevoHash ? { contrasenaHash: nuevoHash } : {}),
+      },
     });
 
     // Registrar INICIO_SESION en bitácora de auditoría

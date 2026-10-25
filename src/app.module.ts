@@ -1,6 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { ClsModule } from 'nestjs-cls';
 import { Request } from 'express';
 import { PrismaModule } from './prisma/prisma.module';
@@ -23,6 +24,10 @@ import { ReportesModule } from './modules/reportes/reportes.module';
 import { AdjuntosModule } from './modules/adjuntos/adjuntos.module';
 import { ExportacionModule } from './modules/exportacion/exportacion.module';
 import { envValidationSchema } from './config/env.validation';
+import {
+  AppThrottlerGuard,
+  crearThrottlerOptions,
+} from './modules/auth/guards/app-throttler.guard';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { AccesoVigenteGuard } from './common/guards/acceso-vigente.guard';
 import { PermisosGuard } from './common/guards/permisos.guard';
@@ -33,6 +38,29 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: envValidationSchema,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        crearThrottlerOptions({
+          enabled: config.get<boolean>('THROTTLE_ENABLED', true),
+          defaultLimit: config.get<number>('THROTTLE_DEFAULT_LIMIT', 300),
+          defaultTtlMs: config.get<number>('THROTTLE_DEFAULT_TTL_MS', 60_000),
+          loginIpLimit: config.get<number>('THROTTLE_LOGIN_IP_LIMIT', 10),
+          loginIpTtlMs: config.get<number>('THROTTLE_DEFAULT_TTL_MS', 60_000),
+          loginCorreoLimit: config.get<number>(
+            'THROTTLE_LOGIN_CORREO_LIMIT',
+            5,
+          ),
+          loginCorreoTtlMs: config.get<number>(
+            'THROTTLE_DEFAULT_TTL_MS',
+            60_000,
+          ),
+          loginCorreoBlockDurationMs: config.get<number>(
+            'THROTTLE_LOGIN_BLOCK_MS',
+            900_000,
+          ),
+        }),
     }),
     ClsModule.forRoot({
       global: true,
@@ -64,6 +92,10 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     ExportacionModule,
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AppThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
