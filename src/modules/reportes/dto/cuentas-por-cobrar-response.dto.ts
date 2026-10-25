@@ -32,6 +32,7 @@ export class CuentaPorCobrarItemDto {
   ventaId!: number;
 
   @ApiProperty({
+    type: String,
     example: 'FAC-2026-001',
     nullable: true,
     description: 'Folio o número de factura de la venta',
@@ -54,12 +55,16 @@ export class CuentaPorCobrarItemDto {
   cicloId!: number;
 
   @ApiProperty({
+    type: String,
+    format: 'date',
     example: '2026-03-15',
     description: 'Fecha de emisión de la venta (YYYY-MM-DD)',
   })
   fechaVenta!: string;
 
   @ApiProperty({
+    type: String,
+    format: 'date',
     example: '2026-04-15',
     nullable: true,
     description: 'Fecha límite de pago (YYYY-MM-DD)',
@@ -82,6 +87,7 @@ export class CuentaPorCobrarItemDto {
   montoPendiente!: string;
 
   @ApiProperty({
+    type: Number,
     example: 15,
     nullable: true,
     description:

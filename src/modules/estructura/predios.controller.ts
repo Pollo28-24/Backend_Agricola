@@ -22,6 +22,7 @@ import { UpdatePredioDto } from './dto/update-predio.dto';
 import { PredioResponseDto } from './dto/predio-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
+import { MensajeResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Estructura Agrícola - Predios')
 @ApiBearerAuth('JWT-auth')
@@ -98,7 +99,11 @@ export class PrediosController {
     summary:
       'Baja lógica de predio y liberación de nombre único (RN-041, Sección 3.11)',
   })
-  @ApiResponse({ status: 200, description: 'Predio eliminado exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Predio eliminado exitosamente',
+    type: MensajeResponseDto,
+  })
   @ApiResponse({
     status: 404,
     description: 'Predio no encontrado o no pertenece a la empresa',
@@ -111,7 +116,7 @@ export class PrediosController {
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ mensaje: string }> {
+  ): Promise<MensajeResponseDto> {
     return this.prediosService.eliminarPredio(empresaId, id);
   }
 }

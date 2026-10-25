@@ -5,7 +5,11 @@ export class CicloResumenDto {
   @ApiProperty({ example: 1 })
   id: number;
 
-  @ApiPropertyOptional({ example: 'Primavera 2027', nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    example: 'Primavera 2027',
+    nullable: true,
+  })
   nombre: string | null;
 
   @ApiProperty({ example: 'ACTIVO' })

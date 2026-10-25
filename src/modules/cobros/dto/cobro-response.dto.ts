@@ -16,24 +16,33 @@ export class CobroResponseDto {
   @ApiProperty({ example: 10 })
   ventaId: number;
 
-  @ApiProperty({ example: '2026-03-15' })
+  @ApiProperty({ type: String, format: 'date', example: '2026-03-15' })
   fecha: string;
 
-  @ApiProperty({ example: '500.00' })
+  @ApiProperty({ type: String, example: '500.00' })
   monto: string;
 
   @ApiProperty({ enum: MetodoPago, example: MetodoPago.EFECTIVO })
   metodo: MetodoPago;
 
-  @ApiPropertyOptional({ example: 'SPEI-847291' })
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'SPEI-847291' })
   referencia: string | null;
 
   @ApiProperty({ type: CobroRegistradorResponseDto })
   registradoPor: CobroRegistradorResponseDto;
 
-  @ApiProperty({ example: '2026-03-15T10:00:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2026-03-15T10:00:00.000Z',
+  })
   createdAt: Date;
 
-  @ApiPropertyOptional({ example: null })
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: null,
+  })
   deletedAt: Date | null;
 }

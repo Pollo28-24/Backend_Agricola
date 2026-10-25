@@ -23,6 +23,8 @@ export class UpdateActividadDto {
   tipoActividadId?: number;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date',
     example: '2027-01-16',
     description: 'Fecha de la actividad (YYYY-MM-DD)',
   })
@@ -31,6 +33,8 @@ export class UpdateActividadDto {
   fecha?: string;
 
   @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
     example: 6,
     description: 'ID del usuario responsable (o null para desasignar)',
   })
@@ -40,6 +44,8 @@ export class UpdateActividadDto {
   responsableId?: number | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'Corrección de descripción y ajuste de horas',
     maxLength: 500,
   })
@@ -49,6 +55,8 @@ export class UpdateActividadDto {
   descripcion?: string | null;
 
   @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
     example: 6.5,
     description: 'Horas trabajadas (máximo 2 decimales)',
   })

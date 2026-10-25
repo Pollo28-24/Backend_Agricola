@@ -24,6 +24,30 @@ import {
   QueryExportacionDto,
 } from './dto/exportacion-query.dto';
 
+const RESPUESTA_BINARIA_EXPORTACION = {
+  status: 200,
+  description: 'Archivo binario descargable (XLSX, PDF o CSV)',
+  content: {
+    'application/octet-stream': {
+      schema: { type: 'string', format: 'binary' },
+    },
+  },
+  headers: {
+    'Content-Disposition': {
+      description: 'Nombre del archivo exportado (attachment; filename="...")',
+      schema: { type: 'string' },
+    },
+    'X-Content-Type-Options': {
+      description: 'Prevención de MIME sniffing',
+      schema: { type: 'string', example: 'nosniff' },
+    },
+    'Cache-Control': {
+      description: 'Control de caché',
+      schema: { type: 'string', example: 'no-store' },
+    },
+  },
+};
+
 @ApiTags('Exportación de Reportes')
 @ApiBearerAuth('JWT-auth')
 @Controller('reportes/exportaciones')
@@ -38,7 +62,7 @@ export class ExportacionController {
     summary:
       'Exporta el reporte general de rentabilidad de ciclos a Excel, PDF o CSV (Hito 10B / ADR-013)',
   })
-  @ApiResponse({ status: 200, description: 'Archivo binario descargable' })
+  @ApiResponse(RESPUESTA_BINARIA_EXPORTACION)
   @ApiResponse({
     status: 400,
     description: 'Parámetros inválidos o límite de 5000 filas excedido',
@@ -71,7 +95,7 @@ export class ExportacionController {
     summary:
       'Exporta el reporte integral de un ciclo específico (rentabilidad y desgloses)',
   })
-  @ApiResponse({ status: 200, description: 'Archivo binario descargable' })
+  @ApiResponse(RESPUESTA_BINARIA_EXPORTACION)
   @ApiResponse({ status: 404, description: 'Ciclo inexistente o ajeno' })
   async exportarCicloDetalle(
     @CurrentUser() usuario: UsuarioAutenticado,
@@ -99,7 +123,7 @@ export class ExportacionController {
     summary:
       'Exporta el comparativo cronológico de ciclos en una parcela específica',
   })
-  @ApiResponse({ status: 200, description: 'Archivo binario descargable' })
+  @ApiResponse(RESPUESTA_BINARIA_EXPORTACION)
   @ApiResponse({ status: 404, description: 'Parcela inexistente o ajena' })
   async exportarComparativo(
     @CurrentUser() usuario: UsuarioAutenticado,
@@ -126,7 +150,7 @@ export class ExportacionController {
   @ApiOperation({
     summary: 'Exporta la cartera de cuentas por cobrar y saldos vencidos',
   })
-  @ApiResponse({ status: 200, description: 'Archivo binario descargable' })
+  @ApiResponse(RESPUESTA_BINARIA_EXPORTACION)
   async exportarCuentasPorCobrar(
     @CurrentUser() usuario: UsuarioAutenticado,
     @Query() filtro: ExportarCuentasPorCobrarDto,

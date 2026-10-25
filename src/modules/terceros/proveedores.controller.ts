@@ -25,6 +25,8 @@ import { FiltroProveedorDto } from './dto/filtro-proveedor.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Terceros - Proveedores')
 @ApiBearerAuth('JWT-auth')
@@ -52,7 +54,7 @@ export class ProveedoresController {
   @ApiOperation({
     summary: 'Listar proveedores de la empresa con paginación y búsqueda',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto })
+  @ApiPaginatedResponse(ProveedorResponseDto)
   async listar(
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroProveedorDto,
@@ -96,7 +98,11 @@ export class ProveedoresController {
   @ApiOperation({
     summary: 'Baja lógica de un proveedor sin historial (RN-041)',
   })
-  @ApiResponse({ status: 200, description: 'Proveedor eliminado exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Proveedor eliminado exitosamente',
+    type: MessageResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })
   @ApiResponse({
     status: 409,
@@ -105,7 +111,7 @@ export class ProveedoresController {
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     return this.proveedoresService.eliminarProveedor(empresaId, id);
   }
 }

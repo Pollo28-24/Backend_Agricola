@@ -41,7 +41,11 @@ export class EmpresaResponseDto {
   @ApiProperty({ example: 'Rancho Los Pinos' })
   nombre!: string;
 
-  @ApiPropertyOptional({ example: 'Ramón Ortega S.P.R. de R.L.' })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Ramón Ortega S.P.R. de R.L.',
+  })
   razonSocial?: string | null;
 
   @ApiProperty({ example: 'OERA700101XX0' })
@@ -50,10 +54,14 @@ export class EmpresaResponseDto {
   @ApiProperty({ example: 'contacto@rancholospinos.com' })
   correo!: string;
 
-  @ApiPropertyOptional({ example: '9515550101' })
+  @ApiPropertyOptional({ type: String, nullable: true, example: '9515550101' })
   telefono?: string | null;
 
-  @ApiPropertyOptional({ example: 'Camino a la Presa Km 2, Zimatlán, Oaxaca' })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Camino a la Presa Km 2, Zimatlán, Oaxaca',
+  })
   direccion?: string | null;
 
   @ApiProperty({ example: 'MXN' })

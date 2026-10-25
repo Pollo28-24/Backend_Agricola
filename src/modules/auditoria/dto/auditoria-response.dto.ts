@@ -33,6 +33,7 @@ export class AuditoriaResponseDto {
   empresaId!: number;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 3,
     nullable: true,
     description:
@@ -41,7 +42,7 @@ export class AuditoriaResponseDto {
   usuarioId!: number | null;
 
   @ApiPropertyOptional({
-    type: AuditoriaUsuarioDto,
+    type: () => AuditoriaUsuarioDto,
     nullable: true,
     description: 'Datos del usuario que ejecutó la acción',
   })
@@ -67,20 +68,25 @@ export class AuditoriaResponseDto {
   accion!: AccionAuditoria;
 
   @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
     example: { activo: false },
     nullable: true,
     description: 'Valores previos antes de la modificación o baja',
   })
-  valoresAnteriores!: Record<string, any> | null;
+  valoresAnteriores!: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
     example: { activo: true },
     nullable: true,
     description: 'Valores posteriores aplicados',
   })
-  valoresNuevos!: Record<string, any> | null;
+  valoresNuevos!: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '192.168.1.10',
     nullable: true,
     description: 'Dirección IP de origen capturada de la petición',
@@ -88,6 +94,8 @@ export class AuditoriaResponseDto {
   direccionIp!: string | null;
 
   @ApiProperty({
+    type: String,
+    format: 'date-time',
     example: '2026-10-15T18:00:00.000Z',
     description: 'Fecha y hora exacta del evento en formato ISO 8601',
   })

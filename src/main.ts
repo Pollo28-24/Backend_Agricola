@@ -1,10 +1,11 @@
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { DomainExceptionFilter } from './common/filters/domain-exception.filter';
 import { SerializacionInterceptor } from './common/interceptors/serializacion.interceptor';
+import { crearDocumentoOpenApi } from './config/openapi.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -47,26 +48,7 @@ async function bootstrap() {
   );
 
   // Documentación OpenAPI / Swagger
-  const config = new DocumentBuilder()
-    .setTitle('Plataforma de Rentabilidad Agrícola - API')
-    .setDescription(
-      'API REST modular para gestión y análisis de rentabilidad agrícola, costos, cosechas y ventas',
-    )
-    .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'Authorization',
-        description: 'Ingrese el Access Token JWT',
-        in: 'header',
-      },
-      'JWT-auth',
-    )
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
+  const document = crearDocumentoOpenApi(app);
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,

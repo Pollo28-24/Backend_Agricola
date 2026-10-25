@@ -33,6 +33,7 @@ import {
   EnlaceDescargaDto,
 } from './dto/adjunto-response.dto';
 import { sanearNombreArchivo } from './utils/magic-bytes.util';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Archivos Adjuntos')
 @ApiBearerAuth('JWT-auth')
@@ -109,6 +110,15 @@ export class AdjuntosController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Subir archivo adjunto a una actividad (RN-062)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['archivo'],
+      properties: {
+        archivo: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiResponse({ status: 201, type: AdjuntoResponseDto })
   async subirAdjuntoActividad(
     @CurrentUser() usuario: UsuarioAutenticado,
@@ -156,6 +166,15 @@ export class AdjuntosController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Subir comprobante o contrato a una venta' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['archivo'],
+      properties: {
+        archivo: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiResponse({ status: 201, type: AdjuntoResponseDto })
   async subirAdjuntoVenta(
     @CurrentUser() usuario: UsuarioAutenticado,
@@ -203,6 +222,15 @@ export class AdjuntosController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Subir comprobante de pago a un cobro' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['archivo'],
+      properties: {
+        archivo: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiResponse({ status: 201, type: AdjuntoResponseDto })
   async subirAdjuntoCobro(
     @CurrentUser() usuario: UsuarioAutenticado,
@@ -265,6 +293,30 @@ export class AdjuntosController {
   @Get('adjuntos/descarga')
   @ApiOperation({
     summary: 'Descargar archivo binario mediante token HMAC firmado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Flujo binario del archivo adjunto (JPEG, PNG, WEBP o PDF)',
+    content: {
+      'application/octet-stream': {
+        schema: { type: 'string', format: 'binary' },
+      },
+    },
+    headers: {
+      'Content-Disposition': {
+        description:
+          'Nombre de archivo saneado (attachment; filename="..."; filename*=UTF-8\'\'...)',
+        schema: { type: 'string' },
+      },
+      'X-Content-Type-Options': {
+        description: 'Prevención de MIME sniffing',
+        schema: { type: 'string', example: 'nosniff' },
+      },
+      'Cache-Control': {
+        description: 'Control de caché para descargas firmadas',
+        schema: { type: 'string', example: 'no-store' },
+      },
+    },
   })
   async descargarArchivo(
     @Query('token') token: string,
@@ -337,11 +389,15 @@ export class AdjuntosController {
     summary:
       'Eliminar físicamente un adjunto con bloqueo de ciclo y auditoría (RN-062)',
   })
-  @ApiResponse({ status: 200, description: 'Adjunto eliminado correctamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Adjunto eliminado correctamente',
+    type: MessageResponseDto,
+  })
   async eliminarAdjunto(
     @CurrentUser() usuario: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     await this.adjuntosService.eliminarAdjunto(
       usuario.empresaId,
       usuario.id,

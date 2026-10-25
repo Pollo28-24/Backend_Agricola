@@ -27,6 +27,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Costos Operativos - Gastos')
 @ApiBearerAuth('JWT-auth')
@@ -69,7 +71,7 @@ export class GastosController {
     summary:
       'Listar gastos operativos con scoped visibility (CAPTURISTA solo ve sus propios gastos) y paginación (Contrato 3.23)',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto<GastoResponseDto> })
+  @ApiPaginatedResponse(GastoResponseDto)
   async listarGastos(
     @CurrentUser() user: UsuarioAutenticado,
     @Query() filtro: FiltroGastoDto,
@@ -166,7 +168,7 @@ export class GastosController {
   })
   @ApiResponse({
     status: 200,
-    schema: { example: { message: 'Gasto eliminado exitosamente' } },
+    type: MessageResponseDto,
   })
   @ApiResponse({
     status: 403,
@@ -180,7 +182,7 @@ export class GastosController {
   async eliminarGasto(
     @CurrentUser() user: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     const tienePermisoAdministrar =
       user.permisos?.includes('registro:administrar') ?? false;
 

@@ -11,6 +11,7 @@ export class TipoActividadResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example:
       'Aplicación de agua al cultivo mediante sistema tecnificado o gravedad',
     nullable: true,

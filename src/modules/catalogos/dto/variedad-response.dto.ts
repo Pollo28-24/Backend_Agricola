@@ -11,6 +11,7 @@ export class VariedadResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Variedad determinada de alto rendimiento',
     nullable: true,
     description: 'Descripción de características agronómicas',
@@ -18,6 +19,7 @@ export class VariedadResponseDto {
   descripcion!: string | null;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 90,
     nullable: true,
     description: 'Duración estimada del ciclo en días',

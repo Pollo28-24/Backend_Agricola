@@ -18,6 +18,7 @@ export class CicloResponseDto {
   variedadId!: number;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Primavera 2027',
     description: 'Nombre descriptivo',
     nullable: true,
@@ -25,12 +26,16 @@ export class CicloResponseDto {
   nombre!: string | null;
 
   @ApiProperty({
+    type: String,
+    format: 'date',
     example: '2027-01-10',
     description: 'Fecha de primera labor (YYYY-MM-DD)',
   })
   fechaInicio!: string;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date',
     example: '2027-06-15',
     description: 'Fecha de fin (YYYY-MM-DD)',
     nullable: true,
@@ -38,12 +43,14 @@ export class CicloResponseDto {
   fechaFin!: string | null;
 
   @ApiProperty({
+    type: String,
     example: '2.50',
     description: 'Superficie sembrada en hectáreas (formato decimal string)',
   })
   superficieSembrada!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '9000.000',
     description: 'Meta de producción en kg (formato decimal string)',
     nullable: true,
@@ -58,6 +65,7 @@ export class CicloResponseDto {
   estado!: EstadoCiclo;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Riego por goteo',
     description: 'Observaciones agronómicas',
     nullable: true,
@@ -65,6 +73,8 @@ export class CicloResponseDto {
   observaciones!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
     example: '2027-06-15T18:00:00.000Z',
     description: 'Fecha y hora de cierre formal',
     nullable: true,
@@ -72,6 +82,7 @@ export class CicloResponseDto {
   cerradoEn!: Date | null;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 1,
     description: 'ID del usuario que cerró el ciclo',
     nullable: true,

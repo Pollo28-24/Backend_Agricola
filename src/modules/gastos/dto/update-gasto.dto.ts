@@ -25,6 +25,8 @@ export class UpdateGastoDto {
   categoriaId?: number;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date',
     example: '2027-01-16',
     description: 'Fecha del gasto (YYYY-MM-DD)',
   })
@@ -33,6 +35,7 @@ export class UpdateGastoDto {
   fecha?: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '1550.00',
     description: 'Total del gasto (estrictamente > 0)',
   })
@@ -41,6 +44,8 @@ export class UpdateGastoDto {
   total?: string;
 
   @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
     example: 5,
     description: 'ID del proveedor (o null para desasociar)',
   })
@@ -50,6 +55,8 @@ export class UpdateGastoDto {
   proveedorId?: number | null;
 
   @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
     example: 4,
     description: 'ID de la actividad vinculada (o null para desasociar)',
   })
@@ -59,6 +66,8 @@ export class UpdateGastoDto {
   actividadId?: number | null;
 
   @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
     example: 1,
     description: 'ID de la unidad de medida (o null para desasociar)',
   })
@@ -68,6 +77,8 @@ export class UpdateGastoDto {
   unidadId?: number | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'Corrección de descripción y ajuste de comprobante',
     maxLength: 500,
   })
@@ -77,6 +88,8 @@ export class UpdateGastoDto {
   descripcion?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: '12.000',
     description: 'Cantidad física adquirida/consumida',
   })
@@ -85,6 +98,8 @@ export class UpdateGastoDto {
   cantidad?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: '125.00',
     description: 'Costo unitario sin impuestos',
   })
@@ -93,6 +108,8 @@ export class UpdateGastoDto {
   costoUnitario?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: '50.00',
     description: 'Importe de impuestos aplicados',
   })
@@ -101,6 +118,8 @@ export class UpdateGastoDto {
   impuesto?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'FAC-B-10293',
     description: 'Número o folio de comprobante',
     maxLength: 60,

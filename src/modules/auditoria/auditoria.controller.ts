@@ -9,6 +9,7 @@ import { AuditoriaService } from './auditoria.service';
 import { FiltroAuditoriaDto } from './dto/filtro-auditoria.dto';
 import { AuditoriaResponseDto } from './dto/auditoria-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { ParseBigIntPipe } from '../../common/pipes/parse-bigint.pipe';
@@ -27,7 +28,7 @@ export class AuditoriaController {
     description:
       'Retorna los eventos de trazabilidad de la empresa de forma cronológica descendente. Admite paginación estándar (?page=1&limit=20) y filtros por usuario, entidad y acción. Inmutable: solo lectura.',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto })
+  @ApiPaginatedResponse(AuditoriaResponseDto)
   async listar(
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtros: FiltroAuditoriaDto,

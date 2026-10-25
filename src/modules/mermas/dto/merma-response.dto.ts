@@ -11,7 +11,7 @@ export class MermaResponseDto {
   @ApiProperty({ example: 2 })
   motivoId: number;
 
-  @ApiPropertyOptional({ example: 5 })
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 5 })
   cosechaId: number | null;
 
   @ApiProperty({ example: 1 })
@@ -20,10 +20,11 @@ export class MermaResponseDto {
   @ApiProperty({ example: 10 })
   creadoPorId: number;
 
-  @ApiProperty({ example: '2027-02-12' })
+  @ApiProperty({ type: String, format: 'date', example: '2027-02-12' })
   fecha: string;
 
   @ApiProperty({
+    type: String,
     example: '50.000',
     description: 'Cantidad física en unidad de origen',
   })
@@ -32,12 +33,24 @@ export class MermaResponseDto {
   @ApiProperty({ enum: EtapaMerma, example: EtapaMerma.POSCOSECHA })
   etapa: EtapaMerma;
 
-  @ApiPropertyOptional({ example: 'Fruto con daño mecánico' })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Fruto con daño mecánico',
+  })
   observaciones: string | null;
 
-  @ApiProperty({ example: '2027-02-12T10:00:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2027-02-12T10:00:00.000Z',
+  })
   createdAt: Date;
 
-  @ApiProperty({ example: '2027-02-12T10:00:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2027-02-12T10:00:00.000Z',
+  })
   updatedAt: Date;
 }

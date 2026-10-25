@@ -46,6 +46,7 @@ export class CategoriaGastoResponseDto {
   id!: number;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 5,
     nullable: true,
     description:
@@ -61,6 +62,7 @@ export class CategoriaGastoResponseDto {
   esPersonalizada!: boolean;
 
   @ApiPropertyOptional({
+    type: Number,
     example: null,
     nullable: true,
     description: 'ID de la categoría padre (null si es raíz de nivel 1)',
@@ -74,6 +76,7 @@ export class CategoriaGastoResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Semillas, fertilizantes y agroquímicos',
     nullable: true,
     description: 'Descripción',

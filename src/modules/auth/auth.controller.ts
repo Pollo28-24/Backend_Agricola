@@ -22,6 +22,7 @@ import { AuthResponseDto, UsuarioPerfilDto } from './dto/auth-response.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { MensajeResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Autenticación')
 @Controller('auth')
@@ -72,11 +73,15 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cerrar sesión y revocar refresh token' })
-  @ApiResponse({ status: 200, description: 'Sesión revocada exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Sesión revocada exitosamente',
+    type: MensajeResponseDto,
+  })
   async logout(
     @CurrentUser('id') usuarioId: number,
     @Body() dto?: RefreshTokenDto,
-  ): Promise<{ mensaje: string }> {
+  ): Promise<MensajeResponseDto> {
     return this.authService.logout(dto?.refreshToken);
   }
 

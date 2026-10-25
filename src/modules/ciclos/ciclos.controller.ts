@@ -28,6 +28,8 @@ import { CicloDetalleResponseDto } from './dto/ciclo-detalle-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Núcleo Productivo - Ciclos de Producción')
 @ApiBearerAuth('JWT-auth')
@@ -60,7 +62,7 @@ export class CiclosController {
     summary:
       'Listar ciclos de producción de la empresa con filtros y paginación',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto })
+  @ApiPaginatedResponse(CicloResponseDto)
   async listar(
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroCicloDto,
@@ -266,7 +268,11 @@ export class CiclosController {
   @ApiOperation({
     summary: 'Eliminar un ciclo planificado sin registros vinculados (RN-016)',
   })
-  @ApiResponse({ status: 200, description: 'Ciclo eliminado exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Ciclo eliminado exitosamente',
+    type: MessageResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Ciclo no encontrado' })
   @ApiResponse({
     status: 409,
@@ -276,7 +282,7 @@ export class CiclosController {
     @CurrentUser('empresaId') empresaId: number,
     @CurrentUser('id') usuarioId: number,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     return this.ciclosService.eliminarCiclo(empresaId, usuarioId, id);
   }
 }

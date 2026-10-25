@@ -25,6 +25,8 @@ import { FiltroClienteDto } from './dto/filtro-cliente.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Terceros - Clientes')
 @ApiBearerAuth('JWT-auth')
@@ -52,7 +54,7 @@ export class ClientesController {
   @ApiOperation({
     summary: 'Listar clientes de la empresa con paginación y filtros',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto })
+  @ApiPaginatedResponse(ClienteResponseDto)
   async listar(
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroClienteDto,
@@ -90,7 +92,11 @@ export class ClientesController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Baja lógica de un cliente sin historial (RN-041)' })
-  @ApiResponse({ status: 200, description: 'Cliente eliminado exitosamente' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cliente eliminado exitosamente',
+    type: MessageResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Cliente no encontrado' })
   @ApiResponse({
     status: 409,
@@ -99,7 +105,7 @@ export class ClientesController {
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     return this.clientesService.eliminarCliente(empresaId, id);
   }
 }

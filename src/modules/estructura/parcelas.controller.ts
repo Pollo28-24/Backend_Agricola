@@ -25,6 +25,7 @@ import { UpdateParcelaDto } from './dto/update-parcela.dto';
 import { ParcelaResponseDto } from './dto/parcela-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
+import { MensajeResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Estructura Agrícola - Parcelas')
 @ApiBearerAuth('JWT-auth')
@@ -125,6 +126,7 @@ export class ParcelasController {
   @ApiResponse({
     status: 200,
     description: 'Parcela dada de baja exitosamente',
+    type: MensajeResponseDto,
   })
   @ApiResponse({
     status: 404,
@@ -138,7 +140,7 @@ export class ParcelasController {
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ mensaje: string }> {
+  ): Promise<MensajeResponseDto> {
     return this.parcelasService.eliminarParcela(empresaId, id);
   }
 }

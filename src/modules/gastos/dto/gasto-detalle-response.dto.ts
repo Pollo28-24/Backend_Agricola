@@ -1,50 +1,112 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GastoResponseDto } from './gasto-response.dto';
 
+export class GastoCicloResumenDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Primavera 2027',
+  })
+  nombre!: string | null;
+
+  @ApiProperty({ example: 'ACTIVO' })
+  estado!: string;
+
+  @ApiProperty({ example: 2 })
+  parcelaId!: number;
+
+  @ApiProperty({ example: 'Parcela Norte' })
+  parcelaNombre!: string;
+}
+
+export class GastoCategoriaResumenDto {
+  @ApiProperty({ example: 2 })
+  id!: number;
+
+  @ApiProperty({ example: 'Fertilizantes' })
+  nombre!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Insumos nutricionales',
+  })
+  descripcion!: string | null;
+}
+
+export class GastoProveedorResumenDto {
+  @ApiProperty({ example: 5 })
+  id!: number;
+
+  @ApiProperty({ example: 'Agroinsumos del Valle' })
+  nombre!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'AGR950101ABC',
+  })
+  rfc!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, example: '9515550101' })
+  telefono!: string | null;
+}
+
+export class GastoActividadResumenDto {
+  @ApiProperty({ example: 3 })
+  id!: number;
+
+  @ApiPropertyOptional({ type: String, format: 'date', example: '2027-01-15' })
+  fecha?: string;
+
+  @ApiPropertyOptional({ type: String, example: 'Fertilización' })
+  tipoActividadNombre?: string;
+}
+
+export class GastoUnidadResumenDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 'KG' })
+  codigo!: string;
+
+  @ApiProperty({ example: 'Kilogramo' })
+  nombre!: string;
+
+  @ApiPropertyOptional({ type: String, example: 'PESO' })
+  tipo?: string;
+}
+
+export class GastoUsuarioResumenDto {
+  @ApiProperty({ example: 10 })
+  id!: number;
+
+  @ApiProperty({ example: 'Juan' })
+  nombre!: string;
+
+  @ApiProperty({ example: 'Pérez' })
+  apellido!: string;
+}
+
 export class GastoDetalleResponseDto extends GastoResponseDto {
-  @ApiPropertyOptional()
-  ciclo?: {
-    id: number;
-    nombre: string | null;
-    estado: string;
-    parcelaId: number;
-    parcelaNombre: string;
-  };
+  @ApiPropertyOptional({ type: () => GastoCicloResumenDto })
+  ciclo?: GastoCicloResumenDto;
 
-  @ApiPropertyOptional()
-  categoria?: {
-    id: number;
-    nombre: string;
-    descripcion: string | null;
-  };
+  @ApiPropertyOptional({ type: () => GastoCategoriaResumenDto })
+  categoria?: GastoCategoriaResumenDto;
 
-  @ApiPropertyOptional()
-  proveedor?: {
-    id: number;
-    nombre: string;
-    rfc: string | null;
-    telefono: string | null;
-  } | null;
+  @ApiPropertyOptional({ type: () => GastoProveedorResumenDto, nullable: true })
+  proveedor?: GastoProveedorResumenDto | null;
 
-  @ApiPropertyOptional()
-  actividad?: {
-    id: number;
-    fecha?: string;
-    tipoActividadNombre?: string;
-  } | null;
+  @ApiPropertyOptional({ type: () => GastoActividadResumenDto, nullable: true })
+  actividad?: GastoActividadResumenDto | null;
 
-  @ApiPropertyOptional()
-  unidad?: {
-    id: number;
-    codigo: string;
-    nombre: string;
-    tipo?: string;
-  } | null;
+  @ApiPropertyOptional({ type: () => GastoUnidadResumenDto, nullable: true })
+  unidad?: GastoUnidadResumenDto | null;
 
-  @ApiPropertyOptional()
-  creadoPor?: {
-    id: number;
-    nombre: string;
-    apellido: string;
-  };
+  @ApiPropertyOptional({ type: () => GastoUsuarioResumenDto })
+  creadoPor?: GastoUsuarioResumenDto;
 }

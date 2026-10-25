@@ -1,44 +1,97 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MermaResponseDto } from './merma-response.dto';
 
+export class MermaCicloResumenDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Primavera 2027',
+  })
+  nombre!: string | null;
+
+  @ApiProperty({ example: 'ACTIVO' })
+  estado!: string;
+
+  @ApiProperty({ example: 2 })
+  parcelaId!: number;
+
+  @ApiProperty({ example: 'Parcela Norte' })
+  parcelaNombre!: string;
+}
+
+export class MermaMotivoResumenDto {
+  @ApiProperty({ example: 2 })
+  id!: number;
+
+  @ApiProperty({ example: 'Plaga o enfermedad' })
+  nombre!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Daño fitosanitario',
+  })
+  descripcion!: string | null;
+}
+
+export class MermaCosechaResumenDto {
+  @ApiProperty({ example: 5 })
+  id!: number;
+
+  @ApiProperty({ type: String, format: 'date', example: '2027-02-10' })
+  fecha!: string;
+
+  @ApiProperty({ type: String, example: '1500.000' })
+  cantidad!: string;
+
+  @ApiProperty({ example: 'PRIMERA' })
+  calidad!: string;
+}
+
+export class MermaUnidadResumenDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 'KG' })
+  codigo!: string;
+
+  @ApiProperty({ example: 'Kilogramo' })
+  nombre!: string;
+
+  @ApiProperty({ example: 'PESO' })
+  tipo!: string;
+
+  @ApiProperty({ type: String, example: '1.0000' })
+  factorABase!: string;
+}
+
+export class MermaUsuarioResumenDto {
+  @ApiProperty({ example: 10 })
+  id!: number;
+
+  @ApiProperty({ example: 'Juan' })
+  nombre!: string;
+
+  @ApiProperty({ example: 'Pérez' })
+  apellido!: string;
+}
+
 export class MermaDetalleResponseDto extends MermaResponseDto {
-  @ApiPropertyOptional()
-  ciclo?: {
-    id: number;
-    nombre: string | null;
-    estado: string;
-    parcelaId: number;
-    parcelaNombre: string;
-  };
+  @ApiPropertyOptional({ type: () => MermaCicloResumenDto })
+  ciclo?: MermaCicloResumenDto;
 
-  @ApiPropertyOptional()
-  motivo?: {
-    id: number;
-    nombre: string;
-    descripcion: string | null;
-  };
+  @ApiPropertyOptional({ type: () => MermaMotivoResumenDto })
+  motivo?: MermaMotivoResumenDto;
 
-  @ApiPropertyOptional()
-  cosecha?: {
-    id: number;
-    fecha: string;
-    cantidad: string;
-    calidad: string;
-  } | null;
+  @ApiPropertyOptional({ type: () => MermaCosechaResumenDto, nullable: true })
+  cosecha?: MermaCosechaResumenDto | null;
 
-  @ApiPropertyOptional()
-  unidad?: {
-    id: number;
-    codigo: string;
-    nombre: string;
-    tipo: string;
-    factorABase: string;
-  };
+  @ApiPropertyOptional({ type: () => MermaUnidadResumenDto })
+  unidad?: MermaUnidadResumenDto;
 
-  @ApiPropertyOptional()
-  creadoPor?: {
-    id: number;
-    nombre: string;
-    apellido: string;
-  };
+  @ApiPropertyOptional({ type: () => MermaUsuarioResumenDto })
+  creadoPor?: MermaUsuarioResumenDto;
 }

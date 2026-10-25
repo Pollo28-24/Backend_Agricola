@@ -27,6 +27,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Producción - Mermas')
 @ApiBearerAuth('JWT-auth')
@@ -68,7 +70,7 @@ export class MermasController {
   @ApiOperation({
     summary: 'Listar mermas con scoped visibility y paginación (Contrato 3.23)',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto<MermaResponseDto> })
+  @ApiPaginatedResponse(MermaResponseDto)
   async listarMermas(
     @CurrentUser() user: UsuarioAutenticado,
     @Query() filtro: FiltroMermaDto,
@@ -156,7 +158,7 @@ export class MermasController {
   })
   @ApiResponse({
     status: 200,
-    schema: { example: { message: 'Merma eliminada exitosamente' } },
+    type: MessageResponseDto,
   })
   @ApiResponse({
     status: 403,
@@ -169,7 +171,7 @@ export class MermasController {
   async eliminarMerma(
     @CurrentUser() user: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     const tienePermisoAdministrar =
       user.permisos?.includes('registro:administrar') ?? false;
 

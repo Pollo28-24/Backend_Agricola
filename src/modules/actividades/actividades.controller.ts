@@ -27,6 +27,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Núcleo Productivo - Actividades Agrícolas')
 @ApiBearerAuth('JWT-auth')
@@ -68,10 +70,7 @@ export class ActividadesController {
     summary:
       'Listar actividades de la empresa con filtros opcionales y paginación (RN-068 / Contrato 3.23)',
   })
-  @ApiResponse({
-    status: 200,
-    type: PaginatedResponseDto<ActividadResponseDto>,
-  })
+  @ApiPaginatedResponse(ActividadResponseDto)
   async listarActividades(
     @CurrentUser('empresaId') empresaId: number,
     @Query() filtro: FiltroActividadDto,
@@ -144,7 +143,7 @@ export class ActividadesController {
   })
   @ApiResponse({
     status: 200,
-    schema: { example: { message: 'Actividad eliminada exitosamente' } },
+    type: MessageResponseDto,
   })
   @ApiResponse({
     status: 403,
@@ -162,7 +161,7 @@ export class ActividadesController {
   async eliminarActividad(
     @CurrentUser() user: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     const tienePermisoAdministrar =
       user.permisos?.includes('registro:administrar') ?? false;
     return this.actividadesService.eliminarActividad(

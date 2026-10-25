@@ -11,6 +11,7 @@ export class TipoSueloResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example:
       'Suelo equilibrado con proporciones óptimas de arena, limo y arcilla',
     nullable: true,

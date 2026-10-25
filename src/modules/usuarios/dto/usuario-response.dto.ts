@@ -16,7 +16,7 @@ export class UsuarioResponseDto {
   @ApiProperty({ example: 'luis@correo.com' })
   correo!: string;
 
-  @ApiPropertyOptional({ example: '9515550103' })
+  @ApiPropertyOptional({ type: String, nullable: true, example: '9515550103' })
   telefono?: string | null;
 
   @ApiProperty({ example: true })
@@ -31,9 +31,18 @@ export class UsuarioResponseDto {
   })
   permisos!: string[];
 
-  @ApiPropertyOptional({ example: '2026-10-15T12:00:00.000Z' })
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: '2026-10-15T12:00:00.000Z',
+  })
   ultimoAcceso?: string | null;
 
-  @ApiProperty({ example: '2026-10-15T10:00:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2026-10-15T10:00:00.000Z',
+  })
   createdAt!: string;
 }

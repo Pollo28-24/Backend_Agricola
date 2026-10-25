@@ -25,6 +25,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 
 @ApiTags('Comercialización - Ventas')
 @ApiBearerAuth('JWT-auth')
@@ -66,7 +67,7 @@ export class VentasController {
   @ApiOperation({
     summary: 'Listar ventas paginadas con filtros opcionales (RN-068)',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto })
+  @ApiPaginatedResponse(VentaResponseDto)
   async listarVentas(
     @CurrentUser() user: UsuarioAutenticado,
     @Query() filtro: FiltroVentaDto,

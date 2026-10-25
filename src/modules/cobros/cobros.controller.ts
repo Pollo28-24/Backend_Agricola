@@ -25,6 +25,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 
 @ApiTags('Comercialización - Cobros')
 @ApiBearerAuth('JWT-auth')
@@ -63,10 +64,10 @@ export class CobrosController {
     summary:
       'Listar cobros de una venta paginados (por defecto solo vigentes, opcional incluir anulados)',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Listado paginado de cobros de la venta',
-  })
+  @ApiPaginatedResponse(
+    CobroResponseDto,
+    'Listado paginado de cobros de la venta',
+  )
   async listarCobrosDeVenta(
     @CurrentUser() usuario: UsuarioAutenticado,
     @Param('ventaId', ParseIntPipe) ventaId: number,

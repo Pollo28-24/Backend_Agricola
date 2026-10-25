@@ -27,6 +27,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
+import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Producción - Cosechas')
 @ApiBearerAuth('JWT-auth')
@@ -68,7 +70,7 @@ export class CosechasController {
     summary:
       'Listar cosechas con scoped visibility y paginación (Contrato 3.23)',
   })
-  @ApiResponse({ status: 200, type: PaginatedResponseDto<CosechaResponseDto> })
+  @ApiPaginatedResponse(CosechaResponseDto)
   async listarCosechas(
     @CurrentUser() user: UsuarioAutenticado,
     @Query() filtro: FiltroCosechaDto,
@@ -155,7 +157,7 @@ export class CosechasController {
   })
   @ApiResponse({
     status: 200,
-    schema: { example: { message: 'Cosecha eliminada exitosamente' } },
+    type: MessageResponseDto,
   })
   @ApiResponse({
     status: 403,
@@ -173,7 +175,7 @@ export class CosechasController {
   async eliminarCosecha(
     @CurrentUser() user: UsuarioAutenticado,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<MessageResponseDto> {
     const tienePermisoAdministrar =
       user.permisos?.includes('registro:administrar') ?? false;
 

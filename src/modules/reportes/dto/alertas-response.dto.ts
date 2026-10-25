@@ -49,6 +49,7 @@ export class AlertaItemDto {
   severidad!: SeveridadAlerta;
 
   @ApiProperty({
+    type: Number,
     example: 12,
     nullable: true,
     description: 'ID del ciclo involucrado si aplica',
@@ -56,6 +57,7 @@ export class AlertaItemDto {
   cicloId!: number | null;
 
   @ApiProperty({
+    type: Number,
     example: 45,
     nullable: true,
     description: 'ID de la venta involucrada si aplica',
@@ -63,6 +65,7 @@ export class AlertaItemDto {
   ventaId!: number | null;
 
   @ApiProperty({
+    type: Number,
     example: 3,
     nullable: true,
     description: 'ID del cliente involucrado si aplica',
@@ -95,6 +98,7 @@ export class AlertaItemDto {
   referenciaTipo!: ReferenciaTipoAlerta;
 
   @ApiProperty({
+    type: Number,
     example: 12,
     nullable: true,
     description: 'Identificador único de la entidad de referencia',
@@ -102,6 +106,8 @@ export class AlertaItemDto {
   referenciaId!: number | null;
 
   @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
     example: { porcentaje: -12.5 },
     nullable: true,
     description: 'Metadatos adicionales en formato JSON estructurado',

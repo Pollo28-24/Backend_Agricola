@@ -14,6 +14,7 @@ export class PredioResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Carretera Federal Km 45.5',
     nullable: true,
     description: 'Ubicación física',
@@ -21,6 +22,7 @@ export class PredioResponseDto {
   ubicacion!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Villa de Zaachila',
     nullable: true,
     description: 'Municipio',
@@ -28,6 +30,7 @@ export class PredioResponseDto {
   municipio!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Oaxaca',
     nullable: true,
     description: 'Entidad federativa',
@@ -35,12 +38,14 @@ export class PredioResponseDto {
   entidadFederativa!: string | null;
 
   @ApiProperty({
+    type: String,
     example: '25.50',
     description: 'Superficie total en hectáreas (Decimal a string)',
   })
   superficieTotal!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '16.9531234',
     nullable: true,
     description: 'Coordenada de latitud',
@@ -48,6 +53,7 @@ export class PredioResponseDto {
   latitud!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '-96.7215678',
     nullable: true,
     description: 'Coordenada de longitud',
@@ -55,18 +61,23 @@ export class PredioResponseDto {
   longitud!: string | null;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 3,
     description: 'Cantidad de parcelas activas asociadas al predio',
   })
   parcelasCount?: number;
 
   @ApiProperty({
+    type: String,
+    format: 'date-time',
     example: '2026-10-15T18:00:00.000Z',
     description: 'Fecha de creación',
   })
   createdAt!: string;
 
   @ApiProperty({
+    type: String,
+    format: 'date-time',
     example: '2026-10-15T18:00:00.000Z',
     description: 'Fecha de última actualización',
   })

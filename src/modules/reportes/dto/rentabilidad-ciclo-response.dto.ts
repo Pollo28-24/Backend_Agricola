@@ -5,19 +5,27 @@ export class CicloInfoReporteDto {
   @ApiProperty({ example: 1, description: 'ID del ciclo de producción' })
   id!: number;
 
-  @ApiPropertyOptional({ example: 'Ciclo Canvas 2026', nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    example: 'Ciclo Canvas 2026',
+    nullable: true,
+  })
   nombre!: string | null;
 
   @ApiProperty({ enum: EstadoCiclo, example: EstadoCiclo.FINALIZADO })
   estado!: EstadoCiclo;
 
   @ApiProperty({
+    type: String,
+    format: 'date',
     example: '2026-01-15',
     description: 'Fecha de inicio (YYYY-MM-DD)',
   })
   fechaInicio!: string;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date',
     example: '2026-06-30',
     description: 'Fecha de fin (YYYY-MM-DD)',
     nullable: true,
@@ -118,6 +126,7 @@ export class IndicadoresRentabilidadDto {
   ganancia!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '28.93',
     description: 'Margen de ganancia porcentual (2 dec)',
     nullable: true,
@@ -125,6 +134,7 @@ export class IndicadoresRentabilidadDto {
   margenPct!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '40.70',
     description: 'Retorno sobre la inversión (ROI %) (2 dec)',
     nullable: true,
@@ -132,6 +142,7 @@ export class IndicadoresRentabilidadDto {
   roiPct!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '10.49',
     description: 'Costo unitario por kg neto (2 dec)',
     nullable: true,
@@ -139,6 +150,7 @@ export class IndicadoresRentabilidadDto {
   costoPorKg!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '14.76',
     description: 'Precio promedio de venta por kg (2 dec)',
     nullable: true,
@@ -146,6 +158,7 @@ export class IndicadoresRentabilidadDto {
   precioPromedioKg!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '0.61',
     description: 'Porcentaje de merma respecto a cosecha (2 dec)',
     nullable: true,
@@ -153,6 +166,7 @@ export class IndicadoresRentabilidadDto {
   mermaPct!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '34400.00',
     description: 'Costo por hectárea sembrada (2 dec)',
     nullable: true,
@@ -160,6 +174,7 @@ export class IndicadoresRentabilidadDto {
   costoPorHectarea!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '3280.00',
     description: 'Rendimiento en kg por hectárea (2 dec)',
     nullable: true,

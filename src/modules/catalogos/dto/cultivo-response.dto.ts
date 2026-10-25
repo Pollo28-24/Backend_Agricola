@@ -11,6 +11,7 @@ export class CultivoResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Solanum lycopersicum',
     nullable: true,
     description: 'Nombre científico botánico',
@@ -18,6 +19,7 @@ export class CultivoResponseDto {
   nombreCientifico!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Cultivo hortícola de fruto',
     nullable: true,
     description: 'Descripción agronómica',

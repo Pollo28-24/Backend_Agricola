@@ -33,9 +33,9 @@ export class CicloDetalleResponseDto extends CicloResponseDto {
   @ApiProperty({ type: VariedadResumenDto })
   variedadInfo!: VariedadResumenDto;
 
-  @ApiPropertyOptional({ example: 'Don Ramón' })
+  @ApiPropertyOptional({ type: String, example: 'Don Ramón' })
   creadoPorNombre!: string;
 
-  @ApiPropertyOptional({ example: 'Don Ramón', nullable: true })
+  @ApiPropertyOptional({ type: String, example: 'Don Ramón', nullable: true })
   cerradoPorNombre!: string | null;
 }

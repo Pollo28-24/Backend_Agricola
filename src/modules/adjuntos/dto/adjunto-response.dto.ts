@@ -25,7 +25,11 @@ export class AdjuntoResponseDto {
   @ApiProperty({ example: 2 })
   subidoPorId: number;
 
-  @ApiProperty({ example: '2026-10-22T12:00:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2026-10-22T12:00:00.000Z',
+  })
   createdAt: string;
 }
 
@@ -38,6 +42,10 @@ export class EnlaceDescargaDto {
   @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiJ9.signature' })
   token: string;
 
-  @ApiProperty({ example: '2026-10-22T12:05:00.000Z' })
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2026-10-22T12:05:00.000Z',
+  })
   expiraEn: string;
 }

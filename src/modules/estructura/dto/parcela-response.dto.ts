@@ -12,6 +12,7 @@ export class ParcelaResponseDto {
   predioNombre!: string;
 
   @ApiPropertyOptional({
+    type: Number,
     example: 2,
     nullable: true,
     description: 'ID del tipo agrológico de suelo',
@@ -19,6 +20,7 @@ export class ParcelaResponseDto {
   tipoSueloId!: number | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Franco',
     nullable: true,
     description: 'Nombre del tipo de suelo',
@@ -32,12 +34,14 @@ export class ParcelaResponseDto {
   nombre!: string;
 
   @ApiProperty({
+    type: String,
     example: '5.25',
     description: 'Superficie en hectáreas (Decimal a string)',
   })
   superficie!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '16.9540123',
     nullable: true,
     description: 'Latitud de referencia',
@@ -45,6 +49,7 @@ export class ParcelaResponseDto {
   latitud!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '-96.7220456',
     nullable: true,
     description: 'Longitud de referencia',
@@ -52,11 +57,13 @@ export class ParcelaResponseDto {
   longitud!: string | null;
 
   @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
     example: { type: 'Polygon', coordinates: [] },
     nullable: true,
     description: 'Perímetro GeoJSON de la parcela',
   })
-  poligono!: any | null;
+  poligono!: unknown;
 
   @ApiProperty({
     enum: EstadoParcela,
@@ -66,12 +73,16 @@ export class ParcelaResponseDto {
   estado!: EstadoParcela;
 
   @ApiProperty({
+    type: String,
+    format: 'date-time',
     example: '2026-10-15T18:00:00.000Z',
     description: 'Fecha de creación',
   })
   createdAt!: string;
 
   @ApiProperty({
+    type: String,
+    format: 'date-time',
     example: '2026-10-15T18:00:00.000Z',
     description: 'Fecha de última actualización',
   })

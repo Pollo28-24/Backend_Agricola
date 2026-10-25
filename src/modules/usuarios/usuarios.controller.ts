@@ -25,6 +25,7 @@ import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { UsuarioResponseDto } from './dto/usuario-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
+import { MensajeResponseDto } from '../../common/dto/mensaje-response.dto';
 
 @ApiTags('Usuarios')
 @ApiBearerAuth('JWT-auth')
@@ -114,6 +115,7 @@ export class UsuariosController {
   @ApiResponse({
     status: 200,
     description: 'Usuario dado de baja exitosamente',
+    type: MensajeResponseDto,
   })
   @ApiResponse({
     status: 404,
@@ -122,7 +124,7 @@ export class UsuariosController {
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ mensaje: string }> {
+  ): Promise<MensajeResponseDto> {
     return this.usuariosService.eliminar(empresaId, id);
   }
 }

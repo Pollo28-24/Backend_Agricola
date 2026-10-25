@@ -18,6 +18,7 @@ export class ClienteResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'CAG880512XYZ',
     description: 'RFC del cliente',
     nullable: true,
@@ -25,6 +26,7 @@ export class ClienteResponseDto {
   rfc!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '3398765432',
     description: 'Teléfono de contacto',
     nullable: true,
@@ -32,6 +34,7 @@ export class ClienteResponseDto {
   telefono!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'compras@centralabastos.com',
     description: 'Correo electrónico',
     nullable: true,

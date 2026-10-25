@@ -26,6 +26,8 @@ export class UpdateCosechaDto {
   unidadId?: number;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date',
     example: '2027-02-11',
     description: 'Fecha de la cosecha (YYYY-MM-DD)',
   })
@@ -34,6 +36,7 @@ export class UpdateCosechaDto {
   fecha?: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '1450.000',
     description: 'Cantidad física cosechada (> 0)',
   })
@@ -47,6 +50,8 @@ export class UpdateCosechaDto {
   calidad?: CalidadCosecha;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'Ajuste de pesaje tras calibración de báscula',
     maxLength: 500,
   })

@@ -32,6 +32,8 @@ export class UpdateMermaDto {
   unidadId?: number;
 
   @ApiPropertyOptional({
+    type: String,
+    format: 'date',
     example: '2027-02-13',
     description: 'Fecha de la merma (YYYY-MM-DD)',
   })
@@ -40,6 +42,7 @@ export class UpdateMermaDto {
   fecha?: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '45.000',
     description: 'Cantidad física mermada (> 0)',
   })
@@ -53,6 +56,8 @@ export class UpdateMermaDto {
   etapa?: EtapaMerma;
 
   @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
     example: 6,
     description:
       'ID de la cosecha de origen vinculada (o null para desvincular)',
@@ -63,6 +68,8 @@ export class UpdateMermaDto {
   cosechaId?: number | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     example: 'Corrección de etapa y ajuste de pesaje',
     maxLength: 500,
   })

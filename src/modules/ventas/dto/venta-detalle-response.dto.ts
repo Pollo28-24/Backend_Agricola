@@ -8,7 +8,7 @@ export class VentaDetalleResponseDto {
   @ApiProperty({ example: 1 })
   ventaId: number;
 
-  @ApiPropertyOptional({ example: 1 })
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 1 })
   cosechaId: number | null;
 
   @ApiProperty({ example: 1 })

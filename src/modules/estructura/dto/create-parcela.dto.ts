@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { EstadoParcela } from '@prisma/client';
+import { EstadoParcela, Prisma } from '@prisma/client';
 
 export class CreateParcelaDto {
   @ApiProperty({
@@ -72,6 +72,8 @@ export class CreateParcelaDto {
   longitud?: number;
 
   @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
     example: {
       type: 'Polygon',
       coordinates: [
@@ -88,7 +90,7 @@ export class CreateParcelaDto {
   })
   @IsOptional()
   @IsObject({ message: 'El polígono debe ser un objeto GeoJSON válido' })
-  poligono?: Record<string, any>;
+  poligono?: Prisma.InputJsonObject;
 
   @ApiPropertyOptional({
     enum: EstadoParcela,

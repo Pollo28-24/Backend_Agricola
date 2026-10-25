@@ -17,6 +17,7 @@ export class ProveedorResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'AGR950101ABC',
     description: 'RFC del proveedor',
     nullable: true,
@@ -24,6 +25,7 @@ export class ProveedorResponseDto {
   rfc!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: '3312345678',
     description: 'Teléfono de contacto',
     nullable: true,
@@ -31,6 +33,7 @@ export class ProveedorResponseDto {
   telefono!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'ventas@agroinsumos.com',
     description: 'Correo electrónico',
     nullable: true,
@@ -38,6 +41,7 @@ export class ProveedorResponseDto {
   correo!: string | null;
 
   @ApiPropertyOptional({
+    type: String,
     example: 'Av. Industrial 120, Parque Industrial',
     description: 'Dirección física/fiscal',
     nullable: true,

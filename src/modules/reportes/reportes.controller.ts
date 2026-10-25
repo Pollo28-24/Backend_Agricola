@@ -28,6 +28,7 @@ import { CostoPorActividadDto } from './dto/costo-actividad-response.dto';
 import { MermaDesgloseDto } from './dto/merma-desglose-response.dto';
 import { ComparativoParcelaItemDto } from './dto/comparativo-parcela-response.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { ApiPaginatedResponse } from '../../common/decorators/api-paginated-response.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
@@ -81,7 +82,7 @@ export class ReportesController {
   @ApiOperation({
     summary: 'Listado paginado de rentabilidad de ciclos en 2 pasos (RN-066)',
   })
-  @ApiResponse({ status: 200, description: 'Listado obtenido exitosamente' })
+  @ApiPaginatedResponse(RentabilidadCicloItemDto)
   async obtenerRentabilidad(
     @CurrentUser() usuario: UsuarioAutenticado,
     @Query() filtro: FiltroRentabilidadDto,
@@ -167,7 +168,7 @@ export class ReportesController {
     summary:
       'Comparativo analítico histórico de ciclos en una parcela (LAG / RN-058)',
   })
-  @ApiResponse({ status: 200 })
+  @ApiPaginatedResponse(ComparativoParcelaItemDto)
   async obtenerComparativoParcela(
     @CurrentUser() usuario: UsuarioAutenticado,
     @Param('parcelaId', ParseIntPipe) parcelaId: number,

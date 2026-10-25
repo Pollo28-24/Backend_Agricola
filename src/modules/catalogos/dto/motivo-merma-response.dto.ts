@@ -11,6 +11,7 @@ export class MotivoMermaResponseDto {
   nombre!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example:
       'Daño por insectos, hongos, bacterias o virus en campo o poscosecha',
     nullable: true,
