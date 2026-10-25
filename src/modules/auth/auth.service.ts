@@ -1,7 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { AccionAuditoria } from '@prisma/client';
+import { AccionAuditoria, EstadoSuscripcion, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -175,6 +175,7 @@ export class AuthService {
                 id: true,
                 nombre: true,
                 estadoSuscripcion: true,
+                activo: true,
                 deletedAt: true,
               },
             },
@@ -192,12 +193,7 @@ export class AuthService {
       },
     });
 
-    if (
-      !tokenDb ||
-      tokenDb.revocado ||
-      tokenDb.expiraEn < new Date() ||
-      tokenDb.usuarioId !== payload.sub
-    ) {
+    if (!tokenDb || tokenDb.usuarioId !== payload.sub) {
       throw new DomainError(
         CodigoError.NO_AUTENTICADO,
         'Refresh token no válido o ya revocado',
@@ -205,7 +201,7 @@ export class AuthService {
       );
     }
 
-    // Verificar hash del token
+    // Verificar hash del token antes de mutar estado
     const tokenHash = this.hashToken(dto.refreshToken);
     if (tokenDb.tokenHash !== tokenHash) {
       throw new DomainError(
@@ -215,8 +211,28 @@ export class AuthService {
       );
     }
 
+    // Reuso detectado: token ya revocado o rotado previamente -> revocar toda la familia y confirmar antes de lanzar 401
+    if (tokenDb.revocado || tokenDb.revocadoEn !== null) {
+      await this.revocarFamilia(tokenDb.familiaId);
+      throw new DomainError(
+        CodigoError.NO_AUTENTICADO,
+        'Refresh token no válido o ya revocado',
+        401,
+      );
+    }
+
+    // Token expirado en BD: 401 sin revocar la familia
+    if (tokenDb.expiraEn < new Date()) {
+      throw new DomainError(
+        CodigoError.NO_AUTENTICADO,
+        'Refresh token expirado',
+        401,
+      );
+    }
+
     const usuario = tokenDb.usuario;
     if (!usuario.activo || usuario.deletedAt !== null) {
+      await this.revocarFamilia(tokenDb.familiaId);
       throw new DomainError(
         CodigoError.NO_AUTENTICADO,
         'El usuario ha sido desactivado',
@@ -224,29 +240,66 @@ export class AuthService {
       );
     }
 
-    if (!usuario.empresa || usuario.empresa.deletedAt !== null) {
+    const suscripcionInactiva =
+      !usuario.empresa ||
+      usuario.empresa.deletedAt !== null ||
+      usuario.empresa.activo === false ||
+      usuario.empresa.estadoSuscripcion === EstadoSuscripcion.VENCIDA ||
+      usuario.empresa.estadoSuscripcion === EstadoSuscripcion.CANCELADA;
+
+    if (suscripcionInactiva) {
+      await this.revocarFamilia(tokenDb.familiaId);
       throw new DomainError(
         CodigoError.NO_AUTENTICADO,
-        'La empresa asociada está inactiva',
+        'La empresa o suscripción asociada está inactiva',
         401,
       );
     }
 
-    // Rotación: revocar el token usado
-    await this.prisma.refreshToken.update({
-      where: { id: tokenDb.id },
-      data: {
-        revocado: true,
-        revocadoEn: new Date(),
-      },
-    });
+    // Rotación atómica condicional: exigir count === 1; si count === 0 hubo reuso en carrera
+    const ejecutarRotacion = async (
+      tx: Prisma.TransactionClient | PrismaService,
+    ): Promise<{ accessToken: string; refreshToken: string } | null> => {
+      const rotacion = await tx.refreshToken.updateMany({
+        where: {
+          jti: payload.jti,
+          revocado: false,
+          revocadoEn: null,
+        },
+        data: {
+          revocado: true,
+          revocadoEn: new Date(),
+        },
+      });
+
+      if (rotacion.count !== 1) {
+        return null;
+      }
+
+      return this.generarParTokens(
+        usuario.id,
+        usuario.empresaId,
+        usuario.rol.codigo,
+        tokenDb.familiaId,
+        tx,
+      );
+    };
+
+    const tokens =
+      typeof this.prisma.$transaction === 'function'
+        ? await this.prisma.$transaction((tx) => ejecutarRotacion(tx))
+        : await ejecutarRotacion(this.prisma);
+
+    if (!tokens) {
+      await this.revocarFamilia(tokenDb.familiaId);
+      throw new DomainError(
+        CodigoError.NO_AUTENTICADO,
+        'Refresh token no válido o ya revocado',
+        401,
+      );
+    }
 
     const permisos = usuario.rol.permisos.map((rp) => rp.permiso.codigo);
-    const tokens = await this.generarParTokens(
-      usuario.id,
-      usuario.empresaId,
-      usuario.rol.codigo,
-    );
 
     return {
       accessToken: tokens.accessToken,
@@ -265,7 +318,7 @@ export class AuthService {
   }
 
   /**
-   * Cierre de sesión: revoca el refresh token
+   * Cierre de sesión: revoca toda la familia del refresh token
    */
   async logout(refreshToken?: string): Promise<{ mensaje: string }> {
     if (refreshToken) {
@@ -273,10 +326,18 @@ export class AuthService {
         const payload = this.jwtService.verify<{ jti: string }>(refreshToken, {
           secret: this.jwtRefreshSecret,
         });
-        await this.prisma.refreshToken.updateMany({
-          where: { jti: payload.jti, revocado: false },
-          data: { revocado: true, revocadoEn: new Date() },
+        const tokenDb = await this.prisma.refreshToken.findUnique({
+          where: { jti: payload.jti },
+          select: { familiaId: true },
         });
+        if (tokenDb?.familiaId) {
+          await this.revocarFamilia(tokenDb.familiaId);
+        } else {
+          await this.prisma.refreshToken.updateMany({
+            where: { jti: payload.jti, revocado: false },
+            data: { revocado: true, revocadoEn: new Date() },
+          });
+        }
       } catch {
         // Si el token es inválido, finaliza silenciosamente
       }
@@ -331,10 +392,25 @@ export class AuthService {
     };
   }
 
+  private async revocarFamilia(familiaId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: {
+        familiaId,
+        revocado: false,
+      },
+      data: {
+        revocado: true,
+        revocadoEn: new Date(),
+      },
+    });
+  }
+
   private async generarParTokens(
     usuarioId: number,
     empresaId: number,
     rol: string,
+    familiaId?: string,
+    txClient?: Prisma.TransactionClient | PrismaService,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const payload: JwtPayload = {
       sub: usuarioId,
@@ -344,25 +420,28 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.jwtSecret,
-      expiresIn: this.jwtExpiresIn as any,
+      expiresIn: this.jwtExpiresIn as unknown as number,
     });
 
     const jti = uuidv4();
+    const familiaFinal = familiaId ?? jti;
     const refreshToken = this.jwtService.sign(
       { sub: usuarioId, jti },
       {
         secret: this.jwtRefreshSecret,
-        expiresIn: this.jwtRefreshExpiresIn as any,
+        expiresIn: this.jwtRefreshExpiresIn as unknown as number,
       },
     );
 
     // Calcular fecha de expiración (default 7 días)
     const expiraEn = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const tokenHash = this.hashToken(refreshToken);
+    const client = txClient ?? this.prisma;
 
-    await this.prisma.refreshToken.create({
+    await client.refreshToken.create({
       data: {
         usuarioId,
+        familiaId: familiaFinal,
         jti,
         tokenHash,
         expiraEn,

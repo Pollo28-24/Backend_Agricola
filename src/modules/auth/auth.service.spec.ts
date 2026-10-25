@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -7,6 +8,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { PasswordService } from '../../common/services/password.service';
 import { DomainError } from '../../common/errors/domain.error';
+
+function sha256(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -26,7 +31,8 @@ describe('AuthService', () => {
 
   const mockJwtService = {
     sign: jest.fn(
-      (payload, options) => `token_mock_${payload.sub || payload.jti}`,
+      (payload: { sub?: number; jti?: string }) =>
+        `token_mock_${payload.sub ?? payload.jti ?? ''}`,
     ),
     verify: jest.fn(),
   };
@@ -44,6 +50,7 @@ describe('AuthService', () => {
 
   const mockPasswordService = {
     verify: jest.fn(),
+    hash: jest.fn(),
   };
 
   const mockAuditService = {
@@ -63,6 +70,7 @@ describe('AuthService', () => {
       id: 10,
       nombre: 'Rancho Los Pinos',
       estadoSuscripcion: 'ACTIVA',
+      activo: true,
       deletedAt: null,
     },
     rol: {
@@ -117,13 +125,11 @@ describe('AuthService', () => {
         'usuario:administrar',
       ]);
 
-      // Verificar actualización de último acceso
       expect(mockPrismaService.usuario.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { ultimoAcceso: expect.any(Date) },
+        data: { ultimoAcceso: expect.any(Date) as Date },
       });
 
-      // Verificar auditoría de INICIO_SESION
       expect(mockAuditService.registrar).toHaveBeenCalledWith(
         expect.objectContaining({
           empresaId: 10,
@@ -195,9 +201,11 @@ describe('AuthService', () => {
       const mockRefreshTokenDb = {
         id: 99,
         usuarioId: 1,
+        familiaId: 'fam-123',
         jti: 'jti-123',
-        tokenHash: (service as any).hashToken('refresh_token_valido'),
+        tokenHash: sha256('refresh_token_valido'),
         revocado: false,
+        revocadoEn: null,
         expiraEn: new Date(Date.now() + 100000),
         usuario: mockUsuario,
       };
@@ -206,9 +214,8 @@ describe('AuthService', () => {
       mockPrismaService.refreshToken.findUnique.mockResolvedValue(
         mockRefreshTokenDb,
       );
-      mockPrismaService.refreshToken.update.mockResolvedValue({
-        ...mockRefreshTokenDb,
-        revocado: true,
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({
+        count: 1,
       });
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
@@ -219,32 +226,242 @@ describe('AuthService', () => {
       expect(res.accessToken).toBeDefined();
       expect(res.refreshToken).toBeDefined();
 
-      // Verificar que se revocó el token usado
-      expect(mockPrismaService.refreshToken.update).toHaveBeenCalledWith({
-        where: { id: 99 },
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { jti: 'jti-123', revocado: false, revocadoEn: null },
         data: {
           revocado: true,
-          revocadoEn: expect.any(Date),
+          revocadoEn: expect.any(Date) as Date,
         },
       });
 
-      // Verificar que se creó el nuevo token
-      expect(mockPrismaService.refreshToken.create).toHaveBeenCalled();
+      expect(mockPrismaService.refreshToken.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            familiaId: 'fam-123',
+          }) as Record<string, unknown>,
+        }),
+      );
     });
 
-    it('debe rechazar si el token ya estaba revocado', async () => {
-      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-123' });
+    it('debe revocar toda la familia y rechazar con 401 cuando se detecta reuso de un token ya rotado', async () => {
+      const tokenStr = 'token_ya_usado';
+      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-padre' });
       mockPrismaService.refreshToken.findUnique.mockResolvedValue({
         id: 99,
         usuarioId: 1,
-        jti: 'jti-123',
-        revocado: true, // Ya revocado
+        familiaId: 'fam-abc',
+        jti: 'jti-padre',
+        tokenHash: sha256(tokenStr),
+        revocado: true,
+        revocadoEn: new Date(),
         expiraEn: new Date(Date.now() + 100000),
+        usuario: mockUsuario,
+      });
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 2 });
+
+      await expect(service.refresh({ refreshToken: tokenStr })).rejects.toThrow(
+        DomainError,
+      );
+
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { familiaId: 'fam-abc', revocado: false },
+        data: {
+          revocado: true,
+          revocadoEn: expect.any(Date) as Date,
+        },
+      });
+    });
+
+    it('5 refresh concurrentes con el mismo token terminan con 0 tokens activos en la familia y como máximo un 200', async () => {
+      const tokenStr = 'token_concurrente';
+      const tokenHash = sha256(tokenStr);
+      const estadoTokens: Array<{
+        jti: string;
+        familiaId: string;
+        revocado: boolean;
+        revocadoEn: Date | null;
+      }> = [
+        {
+          jti: 'jti-init',
+          familiaId: 'fam-conc',
+          revocado: false,
+          revocadoEn: null,
+        },
+      ];
+
+      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-init' });
+      mockPrismaService.refreshToken.findUnique.mockImplementation(() => {
+        const actual = estadoTokens[0];
+        return Promise.resolve({
+          id: 1,
+          usuarioId: 1,
+          familiaId: actual.familiaId,
+          jti: actual.jti,
+          tokenHash,
+          revocado: false,
+          revocadoEn: null,
+          expiraEn: new Date(Date.now() + 100000),
+          usuario: mockUsuario,
+        });
       });
 
-      await expect(
-        service.refresh({ refreshToken: 'token_ya_usado' }),
-      ).rejects.toThrow(DomainError);
+      let rotado = false;
+      mockPrismaService.refreshToken.updateMany.mockImplementation(
+        (args: {
+          where: { jti?: string; familiaId?: string; revocado?: boolean };
+        }) => {
+          if (args.where.jti) {
+            if (!rotado) {
+              rotado = true;
+              estadoTokens[0].revocado = true;
+              estadoTokens[0].revocadoEn = new Date();
+              return Promise.resolve({ count: 1 });
+            }
+            return Promise.resolve({ count: 0 });
+          }
+          if (args.where.familiaId === 'fam-conc') {
+            for (const t of estadoTokens) {
+              t.revocado = true;
+              t.revocadoEn = new Date();
+            }
+            return Promise.resolve({ count: estadoTokens.length });
+          }
+          return Promise.resolve({ count: 0 });
+        },
+      );
+
+      mockPrismaService.refreshToken.create.mockImplementation(
+        (args: { data: { jti: string; familiaId: string } }) => {
+          estadoTokens.push({
+            jti: args.data.jti,
+            familiaId: args.data.familiaId,
+            revocado: false,
+            revocadoEn: null,
+          });
+          return Promise.resolve(args.data);
+        },
+      );
+
+      const resultados = await Promise.allSettled([
+        service.refresh({ refreshToken: tokenStr }),
+        service.refresh({ refreshToken: tokenStr }),
+        service.refresh({ refreshToken: tokenStr }),
+        service.refresh({ refreshToken: tokenStr }),
+        service.refresh({ refreshToken: tokenStr }),
+      ]);
+
+      const exitos = resultados.filter((r) => r.status === 'fulfilled');
+      const rechazos = resultados.filter((r) => r.status === 'rejected');
+      const activosEnFamilia = estadoTokens.filter((t) => !t.revocado);
+
+      expect(exitos.length).toBeLessThanOrEqual(1);
+      expect(rechazos.length).toBeGreaterThanOrEqual(4);
+      expect(activosEnFamilia).toHaveLength(0);
+    });
+
+    it('token expirado en BD responde 401 sin revocar la familia', async () => {
+      const tokenStr = 'token_expirado_bd';
+      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-exp' });
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 100,
+        usuarioId: 1,
+        familiaId: 'fam-exp',
+        jti: 'jti-exp',
+        tokenHash: sha256(tokenStr),
+        revocado: false,
+        revocadoEn: null,
+        expiraEn: new Date(Date.now() - 5000),
+        usuario: mockUsuario,
+      });
+
+      await expect(service.refresh({ refreshToken: tokenStr })).rejects.toThrow(
+        DomainError,
+      );
+
+      expect(mockPrismaService.refreshToken.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('usuario desactivado revoca toda la familia y responde 401 (RN-072)', async () => {
+      const tokenStr = 'token_user_inactivo';
+      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-inact' });
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 101,
+        usuarioId: 1,
+        familiaId: 'fam-inact',
+        jti: 'jti-inact',
+        tokenHash: sha256(tokenStr),
+        revocado: false,
+        revocadoEn: null,
+        expiraEn: new Date(Date.now() + 100000),
+        usuario: { ...mockUsuario, activo: false },
+      });
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.refresh({ refreshToken: tokenStr })).rejects.toThrow(
+        DomainError,
+      );
+
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { familiaId: 'fam-inact', revocado: false },
+        data: {
+          revocado: true,
+          revocadoEn: expect.any(Date) as Date,
+        },
+      });
+    });
+
+    it('suscripción inactiva (VENCIDA) en refresh revoca toda la familia y responde 401 (RN-072)', async () => {
+      const tokenStr = 'token_sub_vencida';
+      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-sub' });
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 102,
+        usuarioId: 1,
+        familiaId: 'fam-sub',
+        jti: 'jti-sub',
+        tokenHash: sha256(tokenStr),
+        revocado: false,
+        revocadoEn: null,
+        expiraEn: new Date(Date.now() + 100000),
+        usuario: {
+          ...mockUsuario,
+          empresa: { ...mockUsuario.empresa, estadoSuscripcion: 'VENCIDA' },
+        },
+      });
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+
+      await expect(service.refresh({ refreshToken: tokenStr })).rejects.toThrow(
+        DomainError,
+      );
+
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { familiaId: 'fam-sub', revocado: false },
+        data: {
+          revocado: true,
+          revocadoEn: expect.any(Date) as Date,
+        },
+      });
+    });
+  });
+
+  describe('logout', () => {
+    it('debe revocar toda la familia asociada al refresh token al cerrar sesión', async () => {
+      mockJwtService.verify.mockReturnValue({ sub: 1, jti: 'jti-logout' });
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 50,
+        jti: 'jti-logout',
+        familiaId: 'fam-logout',
+      });
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.logout('token_logout');
+
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { familiaId: 'fam-logout', revocado: false },
+        data: {
+          revocado: true,
+          revocadoEn: expect.any(Date) as Date,
+        },
+      });
     });
   });
 

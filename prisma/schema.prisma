@@ -211,6 +211,7 @@ model Usuario {
 model RefreshToken {
   id         Int       @id @default(autoincrement())
   usuarioId  Int
+  familiaId  String    @db.VarChar(60)
   tokenHash  String    @db.VarChar(255)
   jti        String    @unique @db.VarChar(60)
   revocado   Boolean   @default(false)
@@ -221,6 +222,7 @@ model RefreshToken {
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@index([usuarioId])
+  @@index([familiaId])
   @@map("refresh_token")
 }
 
