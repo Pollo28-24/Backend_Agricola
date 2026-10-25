@@ -23,13 +23,22 @@ describe('PasswordService', () => {
     expect(hash).toMatch(/\bp=1\b/);
   });
 
-  it('needsRehash debe retornar true solo con parámetros antiguos y false con vigentes', async () => {
+  it('needsRehash debe retornar true solo cuando los parámetros son más débiles que los actuales y false cuando son iguales o más fuertes (nunca degradar)', async () => {
     const hashVigente = await service.hash('ClaveVigente123!');
-    const hashAntiguo =
+    const hashMasFuerte =
       '$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2g';
+    const hashMasDebilMemoria =
+      '$argon2id$v=19$m=4096,t=2,p=1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2g';
+    const hashMasDebilTiempo =
+      '$argon2id$v=19$m=19456,t=1,p=1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2g';
+    const hashAlgoritmoDistinto =
+      '$argon2i$v=19$m=65536,t=3,p=1$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2g';
 
     expect(service.needsRehash(hashVigente)).toBe(false);
-    expect(service.needsRehash(hashAntiguo)).toBe(true);
+    expect(service.needsRehash(hashMasFuerte)).toBe(false);
+    expect(service.needsRehash(hashMasDebilMemoria)).toBe(true);
+    expect(service.needsRehash(hashMasDebilTiempo)).toBe(true);
+    expect(service.needsRehash(hashAlgoritmoDistinto)).toBe(true);
   });
 
   it('debe verificar correctamente contraseñas válidas', async () => {

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -44,6 +44,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             id: true,
             nombre: true,
             estadoSuscripcion: true,
+            activo: true,
             deletedAt: true,
           },
         },
@@ -67,7 +68,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    if (!usuario.empresa || usuario.empresa.deletedAt !== null) {
+    if (
+      !usuario.empresa ||
+      usuario.empresa.deletedAt !== null ||
+      !usuario.empresa.activo
+    ) {
       throw new DomainError(
         CodigoError.NO_AUTENTICADO,
         'La empresa asociada se encuentra inactiva o eliminada',

@@ -183,15 +183,14 @@ describe('AuthService', () => {
       expect(errorInexistente?.getStatus()).toBe(errorContrasena?.getStatus());
     });
 
-    it('debe hacer rehash transparente en login solo si los parámetros de Argon2 difieren', async () => {
-      const hashViejo =
-        '$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHQ$aGFzaGhhc2g';
+    it('debe hacer rehash transparente en login solo si los parámetros de Argon2 son más débiles', async () => {
+      const hashDebil = '$argon2id$v=19$m=4096,t=1,p=1$c2FsdHNhbHQ$aGFzaGhhc2g';
       const hashNuevo =
         '$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$bnVldm9oYXNo';
 
       mockPrismaService.usuario.findUnique.mockResolvedValueOnce({
         ...mockUsuario,
-        contrasenaHash: hashViejo,
+        contrasenaHash: hashDebil,
       });
       mockPasswordService.verify.mockResolvedValueOnce(true);
       mockPasswordService.needsRehash.mockReturnValueOnce(true);

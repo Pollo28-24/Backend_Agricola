@@ -39,10 +39,14 @@ El documento maestro (`Rentabilidad_Agricola_3.docx` v3.2, §§2.9, 3.23 y 3.24)
   - Al combinar IP + correo, un atacante desde otra IP no puede bloquear la cuenta de la víctima para su red legítima.
   - Al aplicar `SHA-256` sobre el correo normalizado, el almacenamiento en memoria del limitador nunca conserva direcciones de correo en claro.
 
-### 3. Validación de Secretos y Argon2id con Rehash Transparente
+### 3. Validación de Secretos y Argon2id con Rehash Transparente Monotónico
 - `env.validation.ts` exige `JWT_SECRET` y `JWT_REFRESH_SECRET` con `.min(64).required()` en todos los entornos, además de `THROTTLE_ENABLED` (obligatorio `true` cuando `NODE_ENV=production`) y `TRUST_PROXY` (`false` por defecto).
-- `PasswordService` fija explícitamente `argon2id` con `memoryCost: 19456`, `timeCost: 2`, `parallelism: 1` e incorpora `needsRehash(hash)`.
-- En `AuthService.login`, si el correo no existe en base de datos, se ejecuta `passwordService.verify` contra un hash Argon2id ficticio precalculado en el arranque del servicio y se responde con el mismo error `401 NO_AUTENTICADO` (`Credenciales incorrectas`). Si el login es exitoso y `needsRehash` detecta parámetros distintos, se actualiza `contrasenaHash` de forma transparente.
+- **Justificación de parámetros Argon2id (OWASP Password Storage Cheat Sheet)**:
+  - El documento maestro (§3.24) adopta el perfil base recomendado por la *OWASP Password Storage Cheat Sheet* para `argon2id`: `memoryCost: 19456` (19 MiB), `timeCost: 2` y `parallelism: 1`.
+  - Frente a los valores previos (`m=65536, t=3, p=1`, 64 MiB), el perfil OWASP de 19 MiB mantiene resistencia contra ataques por GPU/ASIC mientras reduce por $\sim 3.4\times$ la presión de memoria RAM por petición concurrente de login/dummy-verify en el contenedor Node.js, mitigando el riesgo de agotamiento de memoria (OOM / autodenegación de servicio) bajo ráfagas de autenticación.
+  - Los tres parámetros son configurables por entorno mediante `ARGON2_MEMORY_COST` (default `19456`), `ARGON2_TIME_COST` (default `2`) y `ARGON2_PARALLELISM` (default `1`).
+  - `PasswordService.needsRehash(hash)` evalúa monotonía estricta (`m < memoryCost || t < timeCost || p < parallelism`): **solo** recalcula hashes cuyo costo sea más débil que el configurado actualmente y **nunca** degrada un hash existente que haya sido generado con parámetros más fuertes (p. ej. `m=65536, t=3, p=1`).
+- En `AuthService.login`, si el correo no existe en base de datos, se ejecuta `passwordService.verify` contra un hash Argon2id ficticio precalculado en el arranque del servicio y se responde con el mismo error `401 NO_AUTENTICADO` (`Credenciales incorrectas`). Si el login es exitoso y `needsRehash` detecta parámetros más débiles, se actualiza `contrasenaHash` de forma transparente.
 
 ---
 

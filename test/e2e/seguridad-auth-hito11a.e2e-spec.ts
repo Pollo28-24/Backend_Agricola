@@ -23,8 +23,6 @@ const ALLOWLIST_RN038 = new Set([
   'POST /api/v1/auth/refresh',
   'POST /api/v1/auth/logout',
   'POST /api/v1/empresas/registro',
-  'POST /api/v1/adjuntos/:id/enlace-descarga',
-  'GET /api/v1/adjuntos/:id/enlace-descarga',
 ]);
 
 describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-037, RN-074 (E2E)', () => {
@@ -403,6 +401,85 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
           where: { entidad: 'usuario', entidadId: userRol.id },
         });
         await prisma.usuario.delete({ where: { id: userRol.id } });
+      }
+    });
+
+    it('rechaza inmediatamente con 401 un accessToken vigente y revoca la familia en refresh cuando la empresa es eliminada (deletedAt) o desactivada (RN-072)', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const planBasico = await prisma.planSuscripcion.findUniqueOrThrow({
+        where: { codigo: 'BASICO' },
+      });
+      const rolAdmin = await prisma.rol.findUniqueOrThrow({
+        where: { codigo: 'ADMIN' },
+      });
+      const hash = await argon2.hash('Password123!');
+
+      const empresaTemp = await prisma.empresa.create({
+        data: {
+          nombre: 'Empresa Eliminada RN072',
+          rfc: `EEL${Date.now().toString().slice(-9)}`,
+          correo: 'eliminada@rn072.com',
+          planId: planBasico.id,
+          estadoSuscripcion: EstadoSuscripcion.ACTIVA,
+          activo: true,
+        },
+      });
+
+      const userEmpTemp = await prisma.usuario.create({
+        data: {
+          empresaId: empresaTemp.id,
+          rolId: rolAdmin.id,
+          nombre: 'Admin',
+          apellido: 'EmpEliminada',
+          correo: `admin.emp.elim.${Date.now()}@rn072.com`,
+          contrasenaHash: hash,
+          activo: true,
+        },
+      });
+
+      try {
+        const loginRes = await request(server).post('/api/v1/auth/login').send({
+          correo: userEmpTemp.correo,
+          contrasena: 'Password123!',
+        });
+        expect(loginRes.status).toBe(200);
+        const { accessToken, refreshToken } = loginRes.body as {
+          accessToken: string;
+          refreshToken: string;
+        };
+
+        // Dar de baja lógica la empresa (deletedAt !== null)
+        await prisma.empresa.update({
+          where: { id: empresaTemp.id },
+          data: { deletedAt: new Date(), activo: false },
+        });
+
+        const meRes = await request(server)
+          .get('/api/v1/auth/me')
+          .set('Authorization', `Bearer ${accessToken}`);
+        expect(meRes.status).toBe(401);
+        expect((meRes.body as { code: string }).code).toBe(
+          CodigoError.NO_AUTENTICADO,
+        );
+
+        const refreshRes = await request(server)
+          .post('/api/v1/auth/refresh')
+          .send({ refreshToken });
+        expect(refreshRes.status).toBe(401);
+
+        const activos = await prisma.refreshToken.count({
+          where: { usuarioId: userEmpTemp.id, revocado: false },
+        });
+        expect(activos).toBe(0);
+      } finally {
+        await prisma.bitacoraAuditoria.deleteMany({
+          where: { empresaId: empresaTemp.id },
+        });
+        await prisma.refreshToken.deleteMany({
+          where: { usuarioId: userEmpTemp.id },
+        });
+        await prisma.usuario.delete({ where: { id: userEmpTemp.id } });
+        await prisma.empresa.delete({ where: { id: empresaTemp.id } });
       }
     });
   });
@@ -934,9 +1011,12 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
         .post('/api/v1/auth/login')
         .send({ correo: correoAtacado, contrasena: 'WrongPassword1!' });
       expect(res6.status).toBe(429);
-      expect((res6.body as { code: string }).code).toBe(
-        CodigoError.DEMASIADAS_PETICIONES,
-      );
+      expect(res6.body).toEqual({
+        statusCode: 429,
+        code: CodigoError.DEMASIADAS_PETICIONES,
+        message: expect.any(String) as unknown,
+        details: { retryAfter: expect.any(Number) as unknown },
+      });
       expect(res6.headers['retry-after']).toBeDefined();
       expect(Number(res6.headers['retry-after'])).toBeGreaterThan(0);
 
