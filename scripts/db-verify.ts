@@ -1,4 +1,4 @@
-import * as mariadb from 'mariadb';
+import { execSync } from 'child_process';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -13,6 +13,7 @@ if (fs.existsSync(envTestPath)) {
 }
 
 export interface MetricaResultado {
+  n?: number;
   concepto: string;
   esperado: number;
   obtenido: number;
@@ -26,10 +27,6 @@ export interface VerificacionResumen {
   metricasExitosas: number;
   metricasFallidas: number;
   resultados: MetricaResultado[];
-}
-
-interface ConteoRow {
-  total: number | bigint;
 }
 
 /**
@@ -82,166 +79,78 @@ export function parsearDatabaseUrl(rawUrl?: string): {
   };
 }
 
-export async function ejecutarVerificacion(
+export function ejecutarVerificacion(
   dbNameOverride?: string,
-): Promise<VerificacionResumen> {
+): VerificacionResumen {
   const connParams = parsearDatabaseUrl();
   const dbName = dbNameOverride || connParams.database;
 
   // Safeguard de seguridad: la verificación se ejecuta sobre bases de prueba
   if (!dbName.endsWith('_test') && !dbName.includes('test')) {
     throw new Error(
-      `[SEGURIDAD] La verificación de base de datos solo está permitida sobre bases '_test'. Base objetivo: '${dbName}'`,
+      `[SEGURIDAD] La verificación completa de base de datos solo está permitida sobre bases '_test'. Base objetivo: '${dbName}'`,
     );
   }
 
-  const conn = await mariadb.createConnection({
-    host: connParams.host,
-    port: connParams.port,
-    user: connParams.user,
-    password: connParams.password,
-    database: dbName,
-    allowPublicKeyRetrieval: true,
-  });
+  const scriptSqlPath = path.resolve(__dirname, 'verificacion_db.sql');
+  if (!fs.existsSync(scriptSqlPath)) {
+    throw new Error(`No se encontró el script SQL en: ${scriptSqlPath}`);
+  }
 
+  const cmd = `mysql -u "${connParams.user}" ${connParams.password ? `-p"${connParams.password}"` : ''} -h "${connParams.host}" -P ${connParams.port} --default-character-set=utf8mb4 "${dbName}" -e "source ${scriptSqlPath.replace(/\\/g, '/')}"`;
+
+  let stdout = '';
   try {
-    // 1. Tablas Base (excluyendo _prisma_migrations)
-    const rowsTablas: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> '_prisma_migrations';`,
-      [dbName],
-    );
-    const totalTablas = Number(rowsTablas[0]?.total ?? 0);
-
-    // 2. Claves Foráneas
-    const rowsFks: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = ? AND REFERENCED_TABLE_NAME IS NOT NULL;`,
-      [dbName],
-    );
-    const totalFks = Number(rowsFks[0]?.total ?? 0);
-
-    // 3. Restricciones CHECK
-    const rowsChecks: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = ? AND CONSTRAINT_TYPE = 'CHECK';`,
-      [dbName],
-    );
-    const totalChecks = Number(rowsChecks[0]?.total ?? 0);
-
-    // 4. Vistas Analíticas
-    const rowsVistas: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'VIEW';`,
-      [dbName],
-    );
-    const totalVistas = Number(rowsVistas[0]?.total ?? 0);
-
-    // 5. Columnas STORED GENERATED
-    const rowsStored: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND EXTRA LIKE '%STORED GENERATED%';`,
-      [dbName],
-    );
-    const totalStored = Number(rowsStored[0]?.total ?? 0);
-
-    // 6. Roles
-    const rowsRoles: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM rol;`,
-    );
-    const totalRoles = Number(rowsRoles[0]?.total ?? 0);
-
-    // 7. Permisos
-    const rowsPermisos: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM permiso;`,
-    );
-    const totalPermisos = Number(rowsPermisos[0]?.total ?? 0);
-
-    // 8. Permisos ADMIN (19)
-    const rowsAdmin: ConteoRow[] = await conn.query(
-      `SELECT COUNT(rp.permisoId) AS total FROM rol r JOIN rol_permiso rp ON rp.rolId = r.id WHERE r.codigo = 'ADMIN';`,
-    );
-    const totalAdmin = Number(rowsAdmin[0]?.total ?? 0);
-
-    // 9. Permisos CAPTURISTA (4)
-    const rowsCapturista: ConteoRow[] = await conn.query(
-      `SELECT COUNT(rp.permisoId) AS total FROM rol r JOIN rol_permiso rp ON rp.rolId = r.id WHERE r.codigo = 'CAPTURISTA';`,
-    );
-    const totalCapturista = Number(rowsCapturista[0]?.total ?? 0);
-
-    // 10. Permisos CONTADOR (8)
-    const rowsContador: ConteoRow[] = await conn.query(
-      `SELECT COUNT(rp.permisoId) AS total FROM rol r JOIN rol_permiso rp ON rp.rolId = r.id WHERE r.codigo = 'CONTADOR';`,
-    );
-    const totalContador = Number(rowsContador[0]?.total ?? 0);
-
-    // 11. Planes de suscripción (3)
-    const rowsPlanes: ConteoRow[] = await conn.query(
-      `SELECT COUNT(*) AS total FROM plan_suscripcion;`,
-    );
-    const totalPlanes = Number(rowsPlanes[0]?.total ?? 0);
-
-    // Probar las 5 vistas para garantizar que ejecutan sin excepción
-    const vistasLista = [
-      'v_rentabilidad_ciclo',
-      'v_costo_por_categoria',
-      'v_costo_por_actividad',
-      'v_merma_desglose',
-      'v_comparativo_parcela',
-    ];
-    for (const v of vistasLista) {
-      await conn.query(`SELECT COUNT(*) FROM \`${v}\`;`);
+    stdout = execSync(cmd, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (error: unknown) {
+    const err = error as { stdout?: string; stderr?: string; message?: string };
+    stdout = (err.stdout || '') + (err.stderr || '');
+    if (!stdout.includes('Prueba\tEsperado\tObtenido\tResultado')) {
+      throw new Error(`Fallo al ejecutar el script de verificación: ${err.message || String(error)}\n${stdout}`);
     }
-
-    const metricasCapturadas = [
-      {
-        concepto: 'Tablas Base (sin _prisma_migrations)',
-        esperado: 28,
-        obtenido: totalTablas,
-      },
-      { concepto: 'Claves Foráneas (FK)', esperado: 49, obtenido: totalFks },
-      {
-        concepto: 'Restricciones CHECK (Integridad)',
-        esperado: 19,
-        obtenido: totalChecks,
-      },
-      {
-        concepto: 'Vistas Analíticas de Indicadores',
-        esperado: 5,
-        obtenido: totalVistas,
-      },
-      {
-        concepto: 'Columnas Generadas STORED',
-        esperado: 2,
-        obtenido: totalStored,
-      },
-      { concepto: 'Roles Predefinidos', esperado: 3, obtenido: totalRoles },
-      {
-        concepto: 'Permisos Atómicos del Sistema',
-        esperado: 19,
-        obtenido: totalPermisos,
-      },
-      {
-        concepto: 'Permisos Asignados a Rol ADMIN',
-        esperado: 19,
-        obtenido: totalAdmin,
-      },
-      {
-        concepto: 'Permisos Asignados a Rol CAPTURISTA',
-        esperado: 4,
-        obtenido: totalCapturista,
-      },
-      {
-        concepto: 'Permisos Asignados a Rol CONTADOR',
-        esperado: 8,
-        obtenido: totalContador,
-      },
-      {
-        concepto: 'Planes de Suscripción (Semilla)',
-        esperado: 3,
-        obtenido: totalPlanes,
-      },
-    ];
-
-    return evaluarMetricasBd(metricasCapturadas);
-  } finally {
-    await conn.end();
   }
+
+  // Parsear la salida de mysql
+  const lineas = stdout.split('\n');
+  const resultados: MetricaResultado[] = [];
+  let capturando = false;
+
+  for (const rawLinea of lineas) {
+    const linea = rawLinea.trim();
+    if (linea.startsWith('#\tPrueba\tEsperado\tObtenido\tResultado')) {
+      capturando = true;
+      continue;
+    }
+    if (capturando) {
+      if (linea.startsWith('pruebas\tpruebas_fallidas') || linea === '') {
+        capturando = false;
+        continue;
+      }
+      const partes = linea.split('\t');
+      if (partes.length >= 5) {
+        const n = parseInt(partes[0], 10);
+        const concepto = partes[1].trim();
+        const esperado = parseFloat(partes[2]);
+        const obtenido = parseFloat(partes[3]);
+        const estado = partes[4].trim() === 'OK' ? 'OK' : 'FALLA';
+        resultados.push({ n, concepto, esperado, obtenido, estado });
+      }
+    }
+  }
+
+  const fallidas = resultados.filter((r) => r.estado === 'FALLA').length;
+  const exitosas = resultados.filter((r) => r.estado === 'OK').length;
+
+  return {
+    exitoTotal: fallidas === 0 && resultados.length > 0,
+    totalMetricas: resultados.length,
+    metricasExitosas: exitosas,
+    metricasFallidas: fallidas,
+    resultados,
+  };
 }
 
 export async function main(): Promise<void> {
@@ -257,19 +166,19 @@ export async function main(): Promise<void> {
       '===============================================================',
     );
 
-    const resumen = await ejecutarVerificacion(targetDb);
+    const resumen = ejecutarVerificacion(targetDb);
 
     console.log(
-      '\n| #  | Concepto Estructural / Semántico        | Esperado | Obtenido | Estado |',
+      '\n| #  | Prueba / Concepto del Anexo D          | Esperado | Obtenido | Estado |',
     );
     console.log(
-      '|----|------------------------------------------|:--------:|:--------:|:------:|',
+      '|----|----------------------------------------|:--------:|:--------:|:------:|',
     );
     resumen.resultados.forEach((r, idx) => {
       const num = String(idx + 1).padStart(2, '0');
-      const concepto = r.concepto.padEnd(40, ' ');
-      const esp = String(r.esperado).padStart(8, ' ');
-      const obt = String(r.obtenido).padStart(8, ' ');
+      const concepto = r.concepto.length > 38 ? r.concepto.substring(0, 35) + '...' : r.concepto.padEnd(38, ' ');
+      const esp = String(Math.round(r.esperado * 10000) / 10000).padStart(8, ' ');
+      const obt = String(Math.round(r.obtenido * 10000) / 10000).padStart(8, ' ');
       const est = r.estado === 'OK' ? '  ✅ OK  ' : ' ❌ FALLA ';
       console.log(`| ${num} | ${concepto} | ${esp} | ${obt} |${est}|`);
     });
@@ -279,12 +188,12 @@ export async function main(): Promise<void> {
 
     if (resumen.exitoTotal) {
       console.log(
-        `🎉 ÉXITO: Las ${resumen.totalMetricas} métricas estructurales y semánticas coinciden al 100%.\n`,
+        `🎉 ÉXITO: Las ${resumen.totalMetricas} pruebas del Anexo D coinciden al 100% (cero fallas).\n`,
       );
       process.exit(0);
     } else {
       console.error(
-        `❌ FALLA: Se detectaron ${resumen.metricasFallidas} discrepancias en la base de datos.\n`,
+        `❌ FALLA: Se detectaron ${resumen.metricasFallidas} discrepancias en el Anexo D.\n`,
       );
       process.exit(1);
     }

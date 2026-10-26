@@ -104,6 +104,9 @@ npm run db:verify rentabilidad_agricola_test
 ```
 El verificador evaluará las 11 dimensiones estructurales y semánticas, retornando `exit 0` si la base es consistente o `exit 1` ante cualquier discrepancia.
 
+> [!NOTE]
+> **Alcance de la Validación de Restauración**: La verificación mediante `npm run db:verify` valida exhaustivamente la integridad estructural (tablas, claves foráneas, restricciones CHECK, vistas, columnas generadas) y la consistencia semántica de catálogos y datos semilla institucionales. No valida el volumen transaccional histórico de datos operativos (cubierto por la suite de estrés de gran volumen del Hito 9A con `E2E_VOLUMEN=1`).
+
 ---
 
 ## 5. Protocolo de Simulacro Trimestral de Restauración (§3.24)
