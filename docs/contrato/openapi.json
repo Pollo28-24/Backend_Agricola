@@ -6305,13 +6305,13 @@
             }
           },
           {
-            "description": "Cantidad de registros por página (máximo 100)",
+            "description": "Cantidad de registros por página (máximo 100, valor por defecto 50 según docx §3.23)",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
-              "example": 20,
+              "default": 50,
+              "example": 50,
               "maximum": 100,
               "type": "number"
             }
@@ -7771,13 +7771,13 @@
             }
           },
           {
-            "description": "Cantidad de registros por página (máximo 100)",
+            "description": "Cantidad de registros por página (máximo 100, valor por defecto 50 según docx §3.23)",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
-              "example": 20,
+              "default": 50,
+              "example": 50,
               "maximum": 100,
               "type": "number"
             }
@@ -9133,13 +9133,13 @@
             }
           },
           {
-            "description": "Cantidad de registros por página (máximo 100)",
+            "description": "Cantidad de registros por página (máximo 100, valor por defecto 50 según docx §3.23)",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
-              "example": 20,
+              "default": 50,
+              "example": 50,
               "maximum": 100,
               "type": "number"
             }
@@ -13844,13 +13844,13 @@
             }
           },
           {
-            "description": "Cantidad de registros por página (máximo 100)",
+            "description": "Cantidad de registros por página (máximo 100, valor por defecto 50 según docx §3.23)",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
-              "example": 20,
+              "default": 50,
+              "example": 50,
               "maximum": 100,
               "type": "number"
             }

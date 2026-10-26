@@ -58,7 +58,7 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
       },
     ];
 
-    it('debe retornar registros paginados con valores por defecto (page=1, limit=20)', async () => {
+    it('debe retornar registros paginados con valores por defecto (page=1, limit=50)', async () => {
       mockPrismaService.bitacoraAuditoria.findMany.mockResolvedValue(
         mockRegistros,
       );
@@ -72,8 +72,8 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
       expect(res.meta).toEqual({
         total: 45,
         page: 1,
-        limit: 20,
-        totalPages: 3, // Math.ceil(45 / 20) = 3
+        limit: 50,
+        totalPages: 1, // Math.ceil(45 / 50) = 1
       });
       expect(mockPrismaService.bitacoraAuditoria.findMany).toHaveBeenCalledWith(
         {
@@ -87,7 +87,7 @@ describe('AuditoriaService (RN-003, RN-043, RN-060, RN-068, RN-074)', () => {
           },
           orderBy: { createdAt: 'desc' },
           skip: 0,
-          take: 20,
+          take: 50,
         },
       );
     });

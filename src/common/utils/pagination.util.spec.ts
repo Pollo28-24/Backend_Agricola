@@ -2,11 +2,11 @@ import { PaginationUtil } from './pagination.util';
 
 describe('PaginationUtil', () => {
   describe('normalizar', () => {
-    it('debe usar valores por defecto (page=1, limit=20, skip=0) cuando no se pasan parámetros', () => {
+    it('debe usar valores por defecto (page=1, limit=50, skip=0) cuando no se pasan parámetros', () => {
       const res = PaginationUtil.normalizar();
       expect(res).toEqual({
         page: 1,
-        limit: 20,
+        limit: 50,
         skip: 0,
       });
     });
@@ -32,12 +32,12 @@ describe('PaginationUtil', () => {
     });
 
     it('debe usar defaultLimit cuando el límite es inexistente, cero o negativo', () => {
-      expect(PaginationUtil.normalizar({ limit: undefined }).limit).toBe(20);
-      expect(PaginationUtil.normalizar({ limit: 0 }).limit).toBe(20);
-      expect(PaginationUtil.normalizar({ limit: -10 }).limit).toBe(20);
+      expect(PaginationUtil.normalizar({ limit: undefined }).limit).toBe(50);
+      expect(PaginationUtil.normalizar({ limit: 0 }).limit).toBe(50);
+      expect(PaginationUtil.normalizar({ limit: -10 }).limit).toBe(50);
       expect(
         PaginationUtil.normalizar({ limit: 'invalido' as any }).limit,
-      ).toBe(20);
+      ).toBe(50);
     });
 
     it('debe acotar el límite a maxLimit (100 por defecto) cuando se solicita un límite mayor', () => {

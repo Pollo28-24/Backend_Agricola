@@ -18,7 +18,7 @@ export class PaginationUtil {
     const rawPage = Number(params.page);
     const rawLimit = Number(params.limit);
 
-    const defaultLimit = params.defaultLimit ?? 20;
+    const defaultLimit = params.defaultLimit ?? 50;
     const maxLimit = params.maxLimit ?? 100;
 
     const page = !isNaN(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
