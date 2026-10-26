@@ -144,7 +144,7 @@ Todos los identificadores de registros (`id`, `empresaId`, `cicloId`, `usuarioId
 Los endpoints de listado implementan el patrón canónico mediante `PaginationQueryDto` y retornan el envoltorio estándar:
 - **Parámetros de entrada**:
   - `page`: Número de página solicitado (entero $\ge 1$, por defecto `1`).
-  - `limit`: Cantidad de registros por página (entero $\ge 1$, por defecto `20`, tope máximo `@Max(100)`). Cualquier valor superior a 100 es rechazado con `400 PETICION_INVALIDA`.
+  - `limit`: Cantidad de registros por página (entero $\ge 1$, por defecto `50` según docx §3.23, tope máximo `@Max(100)`). Cualquier valor superior a 100 es rechazado con `400 PETICION_INVALIDA`.
 - **Estructura de respuesta**:
 ```json
 {
@@ -152,8 +152,8 @@ Los endpoints de listado implementan el patrón canónico mediante `PaginationQu
   "meta": {
     "total": 150,
     "page": 1,
-    "limit": 20,
-    "totalPages": 8
+    "limit": 50,
+    "totalPages": 3
   }
 }
 ```

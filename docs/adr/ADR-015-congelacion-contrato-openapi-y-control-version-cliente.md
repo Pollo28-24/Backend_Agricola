@@ -37,7 +37,7 @@ Se creó la suite `test/e2e/contrato-openapi.e2e-spec.ts` que valida automática
 7. Verificación E2E de claves reales en respuestas documentarias (`GET /api/v1/health` retornando `status`, `timestamp`, `ambiente`, `servicios` y `POST /api/v1/auth/logout` retornando `mensaje`).
 
 ### 3. Catálogo Canónico de Errores y Matriz de Permisos (D4 y D5)
-- `docs/contrato/errores.md`: Documenta el sobre unificado de error `{ statusCode, code, message, details? }`, cabeceras `x-correlation-id` y `Retry-After`, y la totalidad de los 37 códigos de `CodigoError` con su reacción requerida en Flutter.
+- `docs/contrato/errores.md`: Documenta el sobre unificado de error `{ statusCode, code, message, details? }`, cabeceras `x-correlation-id` y `Retry-After`, y la totalidad de los 36 códigos de `CodigoError` con su reacción requerida en Flutter.
 - `docs/contrato/matriz-permisos.md`: Documenta los 19 permisos del sistema, los roles predefinidos (ADMIN: 19, CONTADOR: 8, CAPTURISTA: 4), y el mapeo exhaustivo de permisos requeridos por cada una de las 106 rutas HTTP.
 
 ### 4. Control de Versiones del Cliente Móvil (`X-App-Version` y HTTP 426) (D6)
@@ -62,3 +62,9 @@ En `docs/contrato-api-flutter.md` se estableció como regla crítica que el clie
 ### Negativas / Deuda Técnica
 - Todo nuevo endpoint o modificación a un DTO de respuesta requiere ejecutar `npm run contrato:generar` para actualizar el snapshot antes de hacer commit.
 - La generación de clientes Dart en CI requiere `npx @openapitools/openapi-generator-cli` o Docker (documentado en D7).
+
+---
+
+## Errata (Hito 11C.1 — Paginación canónica y Catálogo de Errores)
+- **Paginación por defecto**: Se armonizó el valor por defecto de `limit` a `50` (tope máximo `100`), conforme a la especificación del documento maestro (`Rentabilidad_Agricola_3.docx` v3.2, §3.23), corrigiendo el valor preliminar de 20.
+- **Conteo de CodigoError**: Se aclaró el conteo exacto de los miembros del enum `CodigoError` (36 códigos, mapeados 1:1 en las 36 filas de `docs/contrato/errores.md`).
