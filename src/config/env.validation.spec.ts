@@ -57,4 +57,64 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
     expect(result.error).toBeDefined();
     expect(result.error?.message).toContain('THROTTLE_ENABLED');
   });
+
+  describe('Parámetros de costo Argon2id (Hito 11A / 11D - Paso 0.7)', () => {
+    it('debe rechazar ARGON2_MEMORY_COST inferior a 19456 bytes', () => {
+      const result = envValidationSchema.validate({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+        JWT_SECRET: validSecret,
+        JWT_REFRESH_SECRET: validSecret,
+        ARGON2_MEMORY_COST: 10000,
+      });
+
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toContain('ARGON2_MEMORY_COST');
+    });
+
+    it('debe rechazar ARGON2_TIME_COST inferior a 2 iteraciones', () => {
+      const result = envValidationSchema.validate({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+        JWT_SECRET: validSecret,
+        JWT_REFRESH_SECRET: validSecret,
+        ARGON2_TIME_COST: 1,
+      });
+
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toContain('ARGON2_TIME_COST');
+    });
+
+    it('debe rechazar ARGON2_PARALLELISM inferior a 1 hilo', () => {
+      const result = envValidationSchema.validate({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+        JWT_SECRET: validSecret,
+        JWT_REFRESH_SECRET: validSecret,
+        ARGON2_PARALLELISM: 0,
+      });
+
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toContain('ARGON2_PARALLELISM');
+    });
+
+    it('debe aplicar los valores por defecto OWASP mínimos cuando no se proveen (m=19456, t=2, p=1)', () => {
+      const result = envValidationSchema.validate({
+        NODE_ENV: 'development',
+        DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+        JWT_SECRET: validSecret,
+        JWT_REFRESH_SECRET: validSecret,
+      });
+
+      expect(result.error).toBeUndefined();
+      const val = result.value as {
+        ARGON2_MEMORY_COST: number;
+        ARGON2_TIME_COST: number;
+        ARGON2_PARALLELISM: number;
+      };
+      expect(val.ARGON2_MEMORY_COST).toBe(19456);
+      expect(val.ARGON2_TIME_COST).toBe(2);
+      expect(val.ARGON2_PARALLELISM).toBe(1);
+    });
+  });
 });

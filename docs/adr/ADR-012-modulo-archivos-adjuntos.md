@@ -116,3 +116,8 @@ La eliminación adquiere el lock del ciclo, valida que el ciclo no esté cancela
 | `multer` (vía `@nestjs/platform-express`) | `2.4.0` | MIT | > 6 meses | `npm audit --omit=dev`: 0 vulnerabilidades directas en multer. Dependencias base del framework documentadas. |
 | `crypto` (Node.js nativo) | Node.js v22 LTS | Built-in | N/A | Firma HMAC-SHA256 y comparación en tiempo constante con `crypto.timingSafeEqual`. |
 
+
+---
+
+## Errata y Actualizaciones Post-Hito 11D
+- **Sincronización §3.23 (Formato WebP)**: Se consolidó la prueba e2e y la documentación canónica del formato `image/webp` (Magic Bytes `RIFF....WEBP`) asegurando paridad total entre la especificación §3.23 y la suite de pruebas del backend.

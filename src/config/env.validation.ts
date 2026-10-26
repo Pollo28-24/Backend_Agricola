@@ -36,8 +36,8 @@ export const envValidationSchema = Joi.object({
   THROTTLE_LOGIN_IP_LIMIT: Joi.number().integer().min(1).default(10),
   THROTTLE_LOGIN_CORREO_LIMIT: Joi.number().integer().min(1).default(5),
   THROTTLE_LOGIN_BLOCK_MS: Joi.number().integer().min(100).default(900000),
-  ARGON2_MEMORY_COST: Joi.number().integer().min(4096).default(19456),
-  ARGON2_TIME_COST: Joi.number().integer().min(1).default(2),
+  ARGON2_MEMORY_COST: Joi.number().integer().min(19456).default(19456),
+  ARGON2_TIME_COST: Joi.number().integer().min(2).default(2),
   ARGON2_PARALLELISM: Joi.number().integer().min(1).default(1),
   STORAGE_LOCAL_PATH: Joi.string()
     .default('./storage_uploads')

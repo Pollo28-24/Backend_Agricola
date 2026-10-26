@@ -55,6 +55,13 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
     0x49, 0x48, 0x44, 0x52,
   ]);
   const validPdfHeader = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n');
+  const validWebpHeader = Buffer.concat([
+    Buffer.from('RIFF'),
+    Buffer.from([0x24, 0x00, 0x00, 0x00]),
+    Buffer.from('WEBP'),
+    Buffer.from('VP8 '),
+    Buffer.from([0x18, 0x00, 0x00, 0x00]),
+  ]);
 
   beforeAll(async () => {
     const testApp = await createTestApp();
@@ -96,6 +103,35 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
         .post(`/api/v1/gastos/${seed.empresaA.gastoAdmin.id}/adjuntos`)
         .set('Authorization', `Bearer ${tokenAdminA}`)
         .attach('archivo', fakeContent, 'comprobante.png');
+
+      expect(res.status).toBe(415);
+      const body = res.body as ErrorResponseBody;
+      expect(body.code).toBe(CodigoError.TIPO_ARCHIVO_NO_PERMITIDO);
+    });
+    it('debe aceptar archivo de imagen WebP con firma válida RIFF...WEBP (201)', async () => {
+      const res = await testRequest(app)
+        .post(`/api/v1/gastos/${seed.empresaA.gastoAdmin.id}/adjuntos`)
+        .set('Authorization', `Bearer ${tokenAdminA}`)
+        .attach('archivo', validWebpHeader, {
+          filename: 'foto.webp',
+          contentType: 'image/webp',
+        });
+
+      expect(res.status).toBe(201);
+      const body = res.body as AdjuntoResponseBody;
+      expect(body.tipoMime).toBe('image/webp');
+      expect(body.nombreArchivo).toBe('foto.webp');
+    });
+
+    it('debe rechazar archivo con extensión .webp pero firma no válida (415)', async () => {
+      const fakeWebp = Buffer.from('NOT-A-WEBP-FILE-CONTENT-HERE');
+      const res = await testRequest(app)
+        .post(`/api/v1/gastos/${seed.empresaA.gastoAdmin.id}/adjuntos`)
+        .set('Authorization', `Bearer ${tokenAdminA}`)
+        .attach('archivo', fakeWebp, {
+          filename: 'falso.webp',
+          contentType: 'image/webp',
+        });
 
       expect(res.status).toBe(415);
       const body = res.body as ErrorResponseBody;

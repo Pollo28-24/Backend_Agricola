@@ -380,4 +380,92 @@ describe('Contrato OpenAPI y Control de Versión (Hito 11D - D2 y D3)', () => {
       expect(logoutBody.mensaje.length).toBeGreaterThan(0);
     });
   });
+
+  describe('Guardias Anti-Deriva de Documentación y Contrato Vivo (Paso 0 - 11D)', () => {
+    it('cada código en CodigoError debe estar documentado en docs/contrato/errores.md con su status HTTP', () => {
+      const erroresMdPath = path.resolve(
+        __dirname,
+        '../../docs/contrato/errores.md',
+      );
+      const contenidoMd = fs.readFileSync(erroresMdPath, 'utf-8');
+
+      const codigosEnum = Object.values(CodigoError);
+      const regexFila = /\|\s*`([A-Z0-9_]+)`\s*\|\s*(\d{3})\s*\|/g;
+      const codigosEncontrados = new Map<string, number>();
+
+      let match: RegExpExecArray | null;
+      while ((match = regexFila.exec(contenidoMd)) !== null) {
+        codigosEncontrados.set(match[1], parseInt(match[2], 10));
+      }
+
+      expect(codigosEncontrados.size).toBe(codigosEnum.length);
+      for (const codigo of codigosEnum) {
+        expect(codigosEncontrados.has(codigo)).toBe(true);
+        const status = codigosEncontrados.get(codigo);
+        expect(status).toBeGreaterThanOrEqual(400);
+        expect(status).toBeLessThan(600);
+      }
+    });
+
+    it('las 106 rutas de DiscoveryService deben estar documentadas en docs/contrato/matriz-permisos.md', () => {
+      const matrizMdPath = path.resolve(
+        __dirname,
+        '../../docs/contrato/matriz-permisos.md',
+      );
+      const contenidoMd = fs.readFileSync(matrizMdPath, 'utf-8');
+
+      expect(rutasDiscovery.length).toBe(106);
+      for (const r of rutasDiscovery) {
+        const filaConBackticks = '| `' + r.method + '` | `' + r.path + '` |';
+        const filaSinBackticks = '| ' + r.method + ' | ' + r.path + ' |';
+        const encontrada =
+          contenidoMd.includes(filaConBackticks) ||
+          contenidoMd.includes(filaSinBackticks);
+        if (!encontrada) {
+          throw new Error(
+            'Ruta no documentada en matriz-permisos.md: [' +
+              r.method +
+              '] ' +
+              r.path,
+          );
+        }
+        expect(encontrada).toBe(true);
+      }
+    });
+
+    it('paginación: debe admitir limit=100 (200) y rechazar limit=101 (400 PETICION_INVALIDA)', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const loginRes = await request(server)
+        .post('/api/v1/auth/login')
+        .send({
+          correo: seed.empresaA.usuarios.admin.correo,
+          contrasena: 'Password123!',
+        })
+        .expect(200);
+
+      const token = (loginRes.body as { accessToken: string }).accessToken;
+
+      // Límite máximo permitido: 100
+      const res100 = await request(server)
+        .get('/api/v1/actividades?limit=100')
+        .set('Authorization', 'Bearer ' + token)
+        .expect(200);
+
+      const body100 = res100.body as {
+        data: unknown[];
+        meta: { limit: number };
+      };
+      expect(Array.isArray(body100.data)).toBe(true);
+      expect(body100.meta.limit).toBe(100);
+
+      // Límite excedido: 101 -> 400 PETICION_INVALIDA
+      const res101 = await request(server)
+        .get('/api/v1/actividades?limit=101')
+        .set('Authorization', 'Bearer ' + token)
+        .expect(400);
+
+      const body101 = res101.body as { code: string; message: string };
+      expect(body101.code).toBe(CodigoError.PETICION_INVALIDA);
+    });
+  });
 });

@@ -58,11 +58,11 @@ class AuthInterceptor extends QueuedInterceptor {
         try {
           // Mutex / Single-Flight: Si ya hay un refresco en progreso, esperar su resultado
           if (_refreshCompleter != null) {
-            final newAccessToken = await _refreshCompleter!.future;
-            if (newAccessToken != null) {
-              err.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
-              final retryRes = await dio.fetch(err.requestOptions);
-              return handler.resolve(retryRes);
+            final newToken = await _refreshCompleter!.future;
+            if (newToken != null) {
+              err.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+              final retryResponse = await dio.fetch(err.requestOptions);
+              return handler.resolve(retryResponse);
             }
           } else {
             _refreshCompleter = Completer<String?>();
@@ -70,18 +70,16 @@ class AuthInterceptor extends QueuedInterceptor {
             if (refreshToken == null) {
               _refreshCompleter!.complete(null);
               _refreshCompleter = null;
-              await tokenStorage.clear();
               return handler.next(err);
             }
 
-            final refreshResponse = await dio.post(
+            final refreshRes = await dio.post(
               '/api/v1/auth/refresh',
               data: {'refreshToken': refreshToken},
-              options: Options(headers: {'Authorization': null}),
             );
 
-            final newAccessToken = refreshResponse.data['accessToken'];
-            final newRefreshToken = refreshResponse.data['refreshToken'];
+            final newAccessToken = refreshRes.data['accessToken'];
+            final newRefreshToken = refreshRes.data['refreshToken'];
 
             await tokenStorage.saveTokens(
               accessToken: newAccessToken,
@@ -91,16 +89,16 @@ class AuthInterceptor extends QueuedInterceptor {
             _refreshCompleter!.complete(newAccessToken);
             _refreshCompleter = null;
 
+            // Reintentar la petición original con el nuevo token
             err.requestOptions.headers['Authorization'] = 'Bearer $newAccessToken';
-            final retryRes = await dio.fetch(err.requestOptions);
-            return handler.resolve(retryRes);
+            final retryResponse = await dio.fetch(err.requestOptions);
+            return handler.resolve(retryResponse);
           }
         } catch (refreshErr) {
           _refreshCompleter?.complete(null);
           _refreshCompleter = null;
-          await tokenStorage.clear();
-          // Redirigir inmediatamente a pantalla de Login
-          NavigationService.navigateToLogin();
+          await tokenStorage.clearTokens();
+          // Redirigir a login
           return handler.next(err);
         }
       }
@@ -112,11 +110,11 @@ class AuthInterceptor extends QueuedInterceptor {
 
 ---
 
-## 3. Distinción Semántica: 401 NO_AUTENTICADO vs 403
+## 3. Manejo de Errores Específicos del Backend
 
-| Código HTTP | Código Dominio | Significado | Acción en Flutter |
-|---|---|---|---|
-| **401** | `NO_AUTENTICADO` | El token expiró (TTL 15 min) o es inválido. | **Disparar flujo de refresco de sesión** mediante el interceptor con mutex. |
+| HTTP Status | Código de Error | Causa | Conducta Requerida en Flutter |
+|:---:|---|---|---|
+| **401** | `NO_AUTENTICADO` | Access token expirado (15 min) o ausente. | **Único error que dispara refresco de sesión**. Intentar refresco mediante Mutex. Si falla, borrar credenciales y navegar a Login. |
 | **403** | `SUSCRIPCION_INACTIVA` | La suscripción está vencida o suspendida (RN-038). | **NUNCA reintentar ni refrescar**. Pasar la app a modo solo lectura (permitir consultas GET, deshabilitar formularios de escritura) y desplegar banner de renovación. |
 | **403** | `PERMISO_DENEGADO` | El usuario carece del permiso atómico para la acción. | **NUNCA reintentar ni refrescar**. Mostrar alerta "Acción no permitida por su perfil de usuario". |
 | **403** | `LIMITE_PLAN_EXCEDIDO` | Se alcanzó el cupo de parcelas o recursos del plan. | Mostrar pantalla de upgrade de plan de suscripción. |
@@ -143,17 +141,19 @@ Todos los identificadores de registros (`id`, `empresaId`, `cicloId`, `usuarioId
 - En Flutter, parsee con `DateTime.parse(jsonDate).toLocal()` para presentar al usuario en su zona horaria local.
 
 ### 4.4 Paginación Canónica
-Los endpoints de listado implementan el patrón unificado de paginación:
+Los endpoints de listado implementan el patrón canónico mediante `PaginationQueryDto` y retornan el envoltorio estándar:
+- **Parámetros de entrada**:
+  - `page`: Número de página solicitado (entero $\ge 1$, por defecto `1`).
+  - `limit`: Cantidad de registros por página (entero $\ge 1$, por defecto `20`, tope máximo `@Max(100)`). Cualquier valor superior a 100 es rechazado con `400 PETICION_INVALIDA`.
+- **Estructura de respuesta**:
 ```json
 {
   "data": [ ... ],
   "meta": {
     "total": 150,
-    "pagina": 1,
-    "limite": 20,
-    "totalPaginas": 8,
-    "tieneSiguiente": true,
-    "tieneAnterior": false
+    "page": 1,
+    "limit": 20,
+    "totalPages": 8
   }
 }
 ```
@@ -162,23 +162,35 @@ Los endpoints de listado implementan el patrón unificado de paginación:
 
 ## 5. Carga y Descarga de Archivos Adjuntos
 
-### 5.1 Subida de Archivos (`POST /api/v1/adjuntos`)
+### 5.1 Subida de Archivos (`POST /api/v1/:entidad/:id/adjuntos`)
 - Enviar como petición `multipart/form-data`.
 - Tipos de archivo permitidos: `application/pdf`, `image/png`, `image/jpeg`, `image/webp`. El servidor valida tanto la extensión como los Magic Bytes reales del archivo.
 - Tamaño máximo permitido: **10 MB**. Compruebe `file.lengthSync() <= 10 * 1024 * 1024` antes de enviar.
 
 ### 5.2 Descarga Segura con Enlaces Firmados (HMAC)
 El backend utiliza un esquema desacoplado de descarga segura:
-1. El cliente solicita el enlace firmado mediante `GET /api/v1/adjuntos/:id/enlace-descarga`.
-2. El servidor retorna `{ "enlace": "/api/v1/adjuntos/descargar/TOKEN_HMAC", "expiraEn": 300 }`.
-3. Flutter descarga el archivo directamente desde la URL firmada. El token tiene una vida útil de **300 segundos (5 minutos)**. Si expira, debe solicitarse un nuevo enlace.
+1. El cliente solicita el enlace firmado mediante:
+   `GET /api/v1/adjuntos/:id/enlace-descarga`
+2. El servidor retorna:
+   ```json
+   {
+     "urlDescarga": "/api/v1/adjuntos/descarga?token=eyJhbGciOi...",
+     "token": "eyJhbGciOi...",
+     "expiraEn": "2026-10-26T04:45:00.000Z"
+   }
+   ```
+3. Flutter descarga el archivo directamente desde la URL firmada:
+   `GET /api/v1/adjuntos/descarga?token=...`
+   El token tiene una vida útil de **300 segundos (5 minutos)**. Si expira o es adulterado, responde `403 ENLACE_DESCARGA_INVALIDO`.
 
 ---
 
 ## 6. Control de Versiones del Cliente (`X-App-Version` y 426)
 
-Para garantizar la compatibilidad con el backend, Flutter debe incluir la cabecera `X-App-Version` en todas las peticiones HTTP:
+Para garantizar la compatibilidad con el backend, Flutter debe incluir la cabecera `X-App-Version` en todas las peticiones HTTP que ejecute la aplicación:
 - **Formato obligatorio**: SemVer 2.0.0 (ej. `1.0.0`, `1.2.3`).
+- **Política de cabecera ausente**: Si la cabecera `X-App-Version` está ausente, el servidor **NUNCA rechaza la petición**. Esto permite el funcionamiento transparente de visores de adjuntos del sistema operativo, navegadores web, sondas de infraestructura y herramientas de desarrollo.
+- **Rutas exentas por diseño**: `/health`, `/api/docs` y `GET /api/v1/adjuntos/descarga?token=...` están explícitamente exentas de validación de versión.
 - **Manejo del error HTTP 426**:
   ```json
   {
@@ -194,16 +206,18 @@ Para garantizar la compatibilidad con el backend, Flutter debe incluir la cabece
   ```
 - **Conducta requerida en Flutter**:
   Al recibir un status `426` con código `VERSION_APP_OBSOLETA`, desplegar un diálogo modal **no cancelable** (bloqueante) indicando que es obligatorio actualizar la aplicación para continuar, con un botón "Actualizar ahora" que invoque `url_launcher` hacia la URL provista en `details.storeUrl`.
+- **Manejo del error HTTP 400 (`VERSION_APP_INVALIDA`)**:
+  Si la cabecera se envía pero no cumple con la especificación SemVer (ej. `v1`, `beta`), el backend responde `400 VERSION_APP_INVALIDA`. Asegurar que Flutter envíe el valor limpio devuelto por `package_info_plus`.
 
 ---
 
 ## 7. Generación de Modelos y Clientes Dart (D7)
 
 ### 7.1 Estado de Herramientas en el Entorno
-Durante la inspección del Hito 11D, se detectaron las siguientes herramientas disponibles en la máquina:
-- **Java**: `OpenJDK 21.0.5 LTS` (Instalado).
-- **Docker**: `Docker CLI` (Instalado).
-- **Dart / Flutter**: `Dart SDK` (Instalado en `C:\flutter\bin`).
+Durante la inspección de herramientas en la máquina:
+- **Java**: `OpenJDK 21.0.5 LTS` (Instalado y verificado con `java -version`).
+- **Docker**: `Docker CLI` (Instalado y disponible).
+- **Dart / Flutter SDK**: Dart SDK 3.7.2 (stable) verificado directamente en `C:\flutter\bin\cache\dart-sdk\bin\dart.exe`. (Nota: el script por lotes `C:\flutter\bin\dart.bat` invoca un wrapper PowerShell interactivo que puede colgarse en subshells desatendidas de Windows; use siempre el binario nativo directo o configure el PATH al subdirectorio `dart-sdk/bin`).
 
 ### 7.2 Comandos Recomendados para Generación de Código
 

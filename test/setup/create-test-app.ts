@@ -1,9 +1,11 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '../../src/app.module';
 import { DomainExceptionFilter } from '../../src/common/filters/domain-exception.filter';
 import { SerializacionInterceptor } from '../../src/common/interceptors/serializacion.interceptor';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { crearDocumentoOpenApi } from '../../src/config/openapi.config';
 import { assertDatabaseRealEsDeTest } from './e2e-env';
 
 export interface TestAppInstance {
@@ -32,6 +34,9 @@ export async function createTestApp(): Promise<TestAppInstance> {
       },
     }),
   );
+
+  const document = crearDocumentoOpenApi(app);
+  SwaggerModule.setup('api/docs', app, document);
 
   await app.init();
 
