@@ -19,7 +19,8 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "postinstall": "prisma skills sync || exit 0",
     "contrato:generar": "ts-node scripts/contrato-openapi.ts generar",
-    "contrato:verificar": "ts-node scripts/contrato-openapi.ts verificar"
+    "contrato:verificar": "ts-node scripts/contrato-openapi.ts verificar",
+    "db:verify": "ts-node scripts/db-verify.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
