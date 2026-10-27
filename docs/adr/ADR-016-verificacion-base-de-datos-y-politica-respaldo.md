@@ -34,6 +34,20 @@ Se estableció la matriz comparativa canónica entre el Anexo D original del doc
 | **Permisos Asignados a CONTADOR** | 8 | **8** | Permisos de consulta y gestión financiera de gastos y ventas. |
 | **Planes de Suscripción** | 3 | **3** | `BASICO`, `PRODUCTOR`, `PROFESIONAL`. |
 
+#### Desglose Canónico de las 74 Comprobaciones del Anexo D (§3.25)
+La ejecución completa del script de verificación (`scripts/verificacion_db.sql`) sobre el esquema contiene exactamente **74 comprobaciones formales**, clasificadas en tres bloques deterministas:
+
+1. **Estructura y Semilla (19 comprobaciones)**:
+   - Conteo de tablas base (28 vs 27 original por `refresh_token`), claves foráneas (49 vs 48), restricciones CHECK (19), vistas (5) y columnas generadas (2).
+   - Verificación de existencia de índices requeridos y datos semilla mínimos (roles `ADMIN`, `CAPTURISTA`, `CONTADOR`, catálogo de 19 permisos, asignaciones de permisos por rol y los 3 planes de suscripción).
+2. **Indicadores y Consistencia de Vistas Analíticas (38 comprobaciones)**:
+   - Verificación de consistencia aritmética y consultas analíticas sobre `v_rentabilidad_ciclo`, `v_costo_por_categoria`, `v_costo_por_actividad`, `v_merma_desglose` y `v_comparativo_parcela`.
+   - Incluye la validación de indicadores calculados para los escenarios de prueba del documento (Canvas, Ciclo B y Ciclo C).
+3. **Restricciones de Integridad y Casos Negativos (17 comprobaciones)**:
+   - Comprobaciones ejecutadas mediante el procedimiento almacenado auxiliar `tmp_esperar_error`, verificando que violaciones a restricciones CHECK, unicidad de ciclo activo (`claveCicloActivo` con error 3105), fechas ilógicas y claves foráneas fallen de forma determinista con el código de error SQL esperado sin corromper la transacción.
+
+Total consolidado: **19 (estructura) + 38 (indicadores de vistas) + 17 (restricciones de error) = 74 comprobaciones (100% OK)**.
+
 ### 2. Runner Automatizado de Verificación (`npm run db:verify`)
 Se desarrolló el runner en TypeScript (`scripts/db-verify.ts`) y su correspondiente script en `package.json`:
 - **Salvaguarda de Seguridad**: El runner valida estrictamente que la base de datos objetivo posea el sufijo `_test` o pertenezca a entornos no productivos antes de proceder.
