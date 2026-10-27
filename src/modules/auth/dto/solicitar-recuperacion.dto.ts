@@ -8,8 +8,8 @@ export class SolicitarRecuperacionDto {
     description:
       'Correo electrónico registrado del usuario para restablecimiento de contraseña',
   })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  @Transform(({ value }: { value: unknown }): string =>
+    typeof value === 'string' ? value.trim().toLowerCase() : '',
   )
   @IsEmail({}, { message: 'El formato de correo no es válido' })
   @IsNotEmpty({ message: 'El correo es obligatorio' })

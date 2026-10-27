@@ -80,7 +80,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-        // Invalida AccessTokens emitidos antes del último cambio de contraseña (RN-076 y §3.23.1).
+    // Invalida AccessTokens emitidos antes del último cambio de contraseña (RN-076 y §3.23.1).
     // Importante: se trunca cambioContrasenaEn a segundos para evitar falsos positivos por milisegundos.
     if (usuario.cambioContrasenaEn && payload.iat) {
       const cambioContrasenaSec = Math.floor(

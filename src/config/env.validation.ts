@@ -67,26 +67,55 @@ export const envValidationSchema = Joi.object({
   // =====================================================================
   MAIL_TRANSPORT: Joi.string()
     .valid('brevo', 'log', 'memory')
-    .default('log')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().valid('brevo').invalid('log', 'memory').required(),
+      otherwise: Joi.when('NODE_ENV', {
+        is: 'test',
+        then: Joi.string().default('memory'),
+        otherwise: Joi.string().default('log'),
+      }),
+    })
     .description('Transporte de envío de correos (brevo, log o memory)'),
   BREVO_API_KEY: Joi.string()
-    .when('MAIL_TRANSPORT', {
-      is: 'brevo',
-      then: Joi.required(),
-      otherwise: Joi.optional().allow('', null),
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().min(20).required(),
+      otherwise: Joi.when('MAIL_TRANSPORT', {
+        is: 'brevo',
+        then: Joi.string().min(20).required(),
+        otherwise: Joi.optional().allow('', null),
+      }),
     })
-    .description('Clave de API de Brevo para envío transaccional'),
+    .description(
+      'Clave de API de Brevo para envío transaccional (mínimo 20 caracteres)',
+    ),
   MAIL_FROM_EMAIL: Joi.string()
     .email()
     .default('no-reply@rentabilidad-agricola.com')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    })
     .description('Dirección remitente para correos transaccionales'),
   MAIL_FROM_NAME: Joi.string()
+    .min(2)
     .default('Rentabilidad Agrícola')
-    .description('Nombre remitente para correos transaccionales'),
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    })
+    .description(
+      'Nombre remitente para correos transaccionales (mínimo 2 caracteres)',
+    ),
   PASSWORD_RESET_URL: Joi.string()
     .when('NODE_ENV', {
       is: 'production',
-      then: Joi.string().uri({ scheme: ['https'] }).required(),
+      then: Joi.string()
+        .uri({ scheme: ['https'] })
+        .required(),
       otherwise: Joi.string()
         .uri({ scheme: ['http', 'https'] })
         .default('http://localhost:3000/restablecer-contrasena'),

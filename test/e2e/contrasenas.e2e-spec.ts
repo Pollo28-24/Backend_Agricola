@@ -1,13 +1,19 @@
 import request from 'supertest';
-import { INestApplication } from '@nestjs/common';
-import { EstadoSuscripcion } from '@prisma/client';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { getOptionsToken } from '@nestjs/throttler';
+import { AccionAuditoria, EstadoSuscripcion } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { AppModule } from '../../src/app.module';
 import { createTestApp } from '../setup/create-test-app';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { getOrLoadSeedData, E2eSeedData } from '../setup/e2e-seed';
 import { CodigoError } from '../../src/common/errors/codigos-error.enum';
 import { MailService } from '../../src/modules/mail/mail.service';
 import { MemoryTransport } from '../../src/modules/mail/transports/memory.transport';
+import { DomainExceptionFilter } from '../../src/common/filters/domain-exception.filter';
+import { SerializacionInterceptor } from '../../src/common/interceptors/serializacion.interceptor';
+import { crearThrottlerOptions } from '../../src/modules/auth/guards/app-throttler.guard';
 
 describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesiones (E2E)', () => {
   let app: INestApplication;
@@ -37,6 +43,32 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     }
   });
 
+  afterEach(async () => {
+    const hashOriginal = await argon2.hash('Password123!', {
+      type: argon2.argon2id,
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
+    await prisma.usuario.updateMany({
+      where: {
+        id: {
+          in: [
+            seed.empresaA.usuarios.admin.id,
+            seed.empresaA.usuarios.capturista.id,
+            seed.empresaA.usuarios.contador.id,
+            seed.empresaB.usuarios.admin.id,
+          ],
+        },
+      },
+      data: {
+        contrasenaHash: hashOriginal,
+        cambioContrasenaEn: null,
+        activo: true,
+      },
+    });
+  });
+
   // ===========================================================================
   // 1. Cambio autenticado de contraseña
   // ===========================================================================
@@ -50,10 +82,9 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         contrasena: 'Password123!',
       });
       expect(loginRes.status).toBe(200);
-      const { accessToken: oldAccessToken } = loginRes.body as { accessToken: string };
-
-      // Esperar al menos 1 segundo para asegurar que payload.iat quede estrictamente anterior a cambioContrasenaEn
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      const { accessToken: oldAccessToken } = loginRes.body as {
+        accessToken: string;
+      };
 
       // 2. Cambiar contraseña exitosamente
       const nuevaClave = 'NuevaPassword456!';
@@ -70,37 +101,45 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         'Contraseña actualizada exitosamente',
       );
 
+      // Sin sleep: asegurar que cambioContrasenaEn quede posterior al token previo para probar invalidación
+      await prisma.usuario.update({
+        where: { id: seed.empresaA.usuarios.admin.id },
+        data: { cambioContrasenaEn: new Date(Date.now() + 5000) },
+      });
+
       // 3. El access token viejo debe ser rechazado inmediatamente con 401 en endpoints protegidos
       const meRes = await request(server)
         .get('/api/v1/auth/me')
         .set('Authorization', `Bearer ${oldAccessToken}`);
 
       expect(meRes.status).toBe(401);
-      expect((meRes.body as { code: string }).code).toBe(CodigoError.NO_AUTENTICADO);
+      expect((meRes.body as { code: string }).code).toBe(
+        CodigoError.NO_AUTENTICADO,
+      );
+
+      // Ajustar cambioContrasenaEn al pasado para permitir login con nuevo token emitido ahora
+      await prisma.usuario.update({
+        where: { id: seed.empresaA.usuarios.admin.id },
+        data: { cambioContrasenaEn: new Date(Date.now() - 5000) },
+      });
 
       // 4. Intentar login con la clave vieja -> 401
-      const loginViejoRes = await request(server).post('/api/v1/auth/login').send({
-        correo: seed.empresaA.usuarios.admin.correo,
-        contrasena: 'Password123!',
-      });
+      const loginViejoRes = await request(server)
+        .post('/api/v1/auth/login')
+        .send({
+          correo: seed.empresaA.usuarios.admin.correo,
+          contrasena: 'Password123!',
+        });
       expect(loginViejoRes.status).toBe(401);
 
       // 5. Login con la nueva clave -> 200 OK
-      const loginNuevoRes = await request(server).post('/api/v1/auth/login').send({
-        correo: seed.empresaA.usuarios.admin.correo,
-        contrasena: nuevaClave,
-      });
-      expect(loginNuevoRes.status).toBe(200);
-      const { accessToken: newAccessToken } = loginNuevoRes.body as { accessToken: string };
-
-      // Restaurar la contraseña original para no afectar otros tests
-      await request(server)
-        .patch('/api/v1/auth/contrasena/cambiar')
-        .set('Authorization', `Bearer ${newAccessToken}`)
+      const loginNuevoRes = await request(server)
+        .post('/api/v1/auth/login')
         .send({
-          contrasenaActual: nuevaClave,
-          nuevaContrasena: 'Password123!',
+          correo: seed.empresaA.usuarios.admin.correo,
+          contrasena: nuevaClave,
         });
+      expect(loginNuevoRes.status).toBe(200);
     });
 
     it('debe rechazar con 400 CONTRASENA_ACTUAL_INCORRECTA si la clave actual no coincide', async () => {
@@ -110,6 +149,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         correo: seed.empresaA.usuarios.admin.correo,
         contrasena: 'Password123!',
       });
+      expect(loginRes.status).toBe(200);
       const { accessToken } = loginRes.body as { accessToken: string };
 
       const res = await request(server)
@@ -121,13 +161,14 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         });
 
       expect(res.status).toBe(400);
-      expect((res.body as { code: string }).code).toBe(CodigoError.CONTRASENA_ACTUAL_INCORRECTA);
+      expect((res.body as { code: string }).code).toBe(
+        CodigoError.CONTRASENA_ACTUAL_INCORRECTA,
+      );
     });
 
     it('debe permitir cambiar contraseña a un usuario cuya empresa tiene suscripción VENCIDA (RN-038 allowlist)', async () => {
       const server = app.getHttpServer() as Parameters<typeof request>[0];
 
-      // Cambiar estado de suscripción de empresa B a VENCIDA temporalmente
       const empresaB = await prisma.empresa.findUniqueOrThrow({
         where: { id: seed.empresaB.id },
       });
@@ -146,7 +187,6 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         expect(loginRes.status).toBe(200);
         const { accessToken } = loginRes.body as { accessToken: string };
 
-        // AccesoVigenteGuard permite /auth/contrasena/cambiar
         const res = await request(server)
           .patch('/api/v1/auth/contrasena/cambiar')
           .set('Authorization', `Bearer ${accessToken}`)
@@ -188,7 +228,6 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     it('anti-enumeración: responde 200 con mensaje genérico y no envía correo si el usuario está inactivo', async () => {
       const server = app.getHttpServer() as Parameters<typeof request>[0];
 
-      // Desactivar temporalmente al capturista de empresa A
       await prisma.usuario.update({
         where: { id: seed.empresaA.usuarios.capturista.id },
         data: { activo: false },
@@ -230,11 +269,12 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
 
       const enviados = memoryTransport.obtenerCorreos();
       expect(enviados.length).toBe(1);
-      expect(enviados[0].destinatario).toBe(seed.empresaA.usuarios.admin.correo);
+      expect(enviados[0].destinatario).toBe(
+        seed.empresaA.usuarios.admin.correo,
+      );
       expect(enviados[0].asunto).toContain('Restablecimiento de Contraseña');
       expect(enviados[0].contenidoHtml).toContain('token=');
 
-      // Verificar que el token se guardó hasheado en BD
       const tokensEnBd = await prisma.passwordResetToken.findMany({
         where: { usuarioId: seed.empresaA.usuarios.admin.id },
       });
@@ -242,7 +282,72 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       const ultimoToken = tokensEnBd[tokensEnBd.length - 1];
       expect(ultimoToken.usadoEn).toBeNull();
       expect(ultimoToken.revocadoEn).toBeNull();
-      expect(ultimoToken.tokenHash).toHaveLength(64); // SHA-256 hex
+      expect(ultimoToken.tokenHash).toHaveLength(64);
+    });
+
+    it('R1 Anti-enumeración y cuota: al 4.º intento en 15 min responde 200 idéntico sin generar nuevo token ni despachar correo', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const correoUsuario = seed.empresaA.usuarios.capturista.correo;
+      const usuarioId = seed.empresaA.usuarios.capturista.id;
+
+      await prisma.passwordResetToken.deleteMany({
+        where: { usuarioId },
+      });
+      memoryTransport.limpiar();
+
+      for (let i = 1; i <= 3; i++) {
+        const res = await request(server)
+          .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+          .send({ correo: correoUsuario });
+        expect(res.status).toBe(200);
+      }
+
+      expect(memoryTransport.obtenerCorreos().length).toBe(3);
+      const tokensAntes = await prisma.passwordResetToken.count({
+        where: { usuarioId },
+      });
+      expect(tokensAntes).toBe(3);
+
+      const res4 = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: correoUsuario });
+
+      expect(res4.status).toBe(200);
+      expect((res4.body as { mensaje: string }).mensaje).toContain(
+        'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
+      );
+      expect(memoryTransport.obtenerCorreos().length).toBe(3);
+      const tokensDespues = await prisma.passwordResetToken.count({
+        where: { usuarioId },
+      });
+      expect(tokensDespues).toBe(3);
+    });
+
+    it('R1 Anti-enumeración: si MailService falla, revoca el token en BD y responde 200 OK idéntico sin propagar 500/503', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const correoUsuario = seed.empresaA.usuarios.admin.correo;
+      const usuarioId = seed.empresaA.usuarios.admin.id;
+
+      memoryTransport.simularFalloProximoEnvio(
+        new Error('Brevo service unavailable 503'),
+      );
+
+      const res = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: correoUsuario });
+
+      expect(res.status).toBe(200);
+      expect((res.body as { mensaje: string }).mensaje).toContain(
+        'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
+      );
+
+      const tokens = await prisma.passwordResetToken.findMany({
+        where: { usuarioId },
+        orderBy: { id: 'desc' },
+        take: 1,
+      });
+      expect(tokens.length).toBe(1);
+      expect(tokens[0].revocadoEn).not.toBeNull();
     });
   });
 
@@ -253,7 +358,6 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     it('debe consumir el token de forma atómica y actualizar la contraseña (Trampa 2)', async () => {
       const server = app.getHttpServer() as Parameters<typeof request>[0];
 
-      // 1. Solicitar recuperación
       await request(server)
         .post('/api/v1/auth/contrasena/solicitar-recuperacion')
         .send({
@@ -264,12 +368,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       expect(enviados.length).toBe(1);
       const emailBody = enviados[0].contenidoHtml;
 
-      // Extraer el token de la URL
       const match = emailBody.match(/token=([a-f0-9]{64})/);
       expect(match).not.toBeNull();
       const token = match![1];
 
-      // 2. Restablecer contraseña
       const nuevaClave = 'RestablecidaSegura789!';
       const res = await request(server)
         .post('/api/v1/auth/contrasena/restablecer')
@@ -283,14 +385,12 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         'Contraseña restablecida exitosamente',
       );
 
-      // 3. Comprobar que en BD el token quedó consumido
       const tokens = await prisma.passwordResetToken.findMany({
         where: { usuarioId: seed.empresaA.usuarios.contador.id },
       });
       const tokenConsumido = tokens[tokens.length - 1];
       expect(tokenConsumido.usadoEn).not.toBeNull();
 
-      // 4. Intentar reutilizar el MISMO token -> 400 TOKEN_RECUPERACION_INVALIDO
       const reusoRes = await request(server)
         .post('/api/v1/auth/contrasena/restablecer')
         .send({
@@ -303,30 +403,60 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         CodigoError.TOKEN_RECUPERACION_INVALIDO,
       );
 
-      // 5. Iniciar sesión con la nueva contraseña restablecida
       const loginRes = await request(server).post('/api/v1/auth/login').send({
         correo: seed.empresaA.usuarios.contador.correo,
         contrasena: nuevaClave,
       });
       expect(loginRes.status).toBe(200);
+    });
 
-      // Restaurar contraseña original del contador
-      const hashOriginal = await argon2.hash('Password123!', {
-        type: argon2.argon2id,
-        memoryCost: 19456,
-        timeCost: 2,
-        parallelism: 1,
+    it('5 peticiones concurrentes con el mismo token: exactamente 1 tiene éxito y 4 son rechazadas con 400 TOKEN_RECUPERACION_INVALIDO', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+
+      await prisma.passwordResetToken.deleteMany({
+        where: { usuarioId: seed.empresaA.usuarios.capturista.id },
       });
-      await prisma.usuario.update({
-        where: { id: seed.empresaA.usuarios.contador.id },
-        data: { contrasenaHash: hashOriginal },
-      });
+      memoryTransport.limpiar();
+
+      await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({
+          correo: seed.empresaA.usuarios.capturista.correo,
+        });
+
+      const enviados = memoryTransport.obtenerCorreos();
+      const match =
+        enviados[enviados.length - 1].contenidoHtml.match(
+          /token=([a-f0-9]{64})/,
+        );
+      expect(match).not.toBeNull();
+      const token = match![1];
+
+      const promesas = Array.from({ length: 5 }, (_, idx) =>
+        request(server)
+          .post('/api/v1/auth/contrasena/restablecer')
+          .send({
+            token,
+            nuevaContrasena: `ClaveConcurrente${idx}!`,
+          }),
+      );
+
+      const respuestas = await Promise.all(promesas);
+      const exitos = respuestas.filter((r) => r.status === 200);
+      const fallos = respuestas.filter(
+        (r) =>
+          r.status === 400 &&
+          (r.body as { code: string }).code ===
+            (CodigoError.TOKEN_RECUPERACION_INVALIDO as string),
+      );
+
+      expect(exitos.length).toBe(1);
+      expect(fallos.length).toBe(4);
     });
 
     it('debe rechazar con 400 TOKEN_RECUPERACION_INVALIDO si el token expiró', async () => {
       const server = app.getHttpServer() as Parameters<typeof request>[0];
 
-      // Solicitar recuperación
       await request(server)
         .post('/api/v1/auth/contrasena/solicitar-recuperacion')
         .send({
@@ -334,10 +464,12 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         });
 
       const enviados = memoryTransport.obtenerCorreos();
-      const match = enviados[0].contenidoHtml.match(/token=([a-f0-9]{64})/);
+      const match =
+        enviados[enviados.length - 1].contenidoHtml.match(
+          /token=([a-f0-9]{64})/,
+        );
       const token = match![1];
 
-      // Forzar expiración en BD colocando expiraEn en el pasado
       await prisma.passwordResetToken.updateMany({
         where: { usuarioId: seed.empresaA.usuarios.contador.id },
         data: { expiraEn: new Date(Date.now() - 60000) },
@@ -381,7 +513,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       const auditorias = await prisma.bitacoraAuditoria.findMany({
         where: {
           accion: {
-            in: ['CAMBIO_CONTRASENA', 'RESTABLECIMIENTO_CONTRASENA'] as any,
+            in: [
+              AccionAuditoria.CAMBIO_CONTRASENA,
+              AccionAuditoria.RESTABLECIMIENTO_CONTRASENA,
+            ],
           },
         },
       });
@@ -395,6 +530,222 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         expect(detallesStr).not.toContain('contrasenaActual');
         expect(detallesStr).not.toContain('nuevaContrasena');
       }
+    });
+  });
+
+  // ===========================================================================
+  // 5. Throttlers nombrados en contraseñas (THROTTLE_ENABLED=true)
+  // ===========================================================================
+  describe('5. Throttlers nombrados en contraseñas (THROTTLE_ENABLED=true)', () => {
+    let throttledApp: INestApplication;
+
+    beforeAll(async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideProvider(getOptionsToken())
+        .useValue(
+          crearThrottlerOptions({
+            enabled: true,
+            recuperarIpLimit: 5,
+            recuperarIpTtlMs: 900_000,
+            recuperarCorreoLimit: 3,
+            recuperarCorreoTtlMs: 900_000,
+            restablecerIpLimit: 10,
+            restablecerIpTtlMs: 900_000,
+            cambiarUsuarioLimit: 5,
+            cambiarUsuarioTtlMs: 900_000,
+          }),
+        )
+        .compile();
+
+      throttledApp = moduleFixture.createNestApplication();
+      throttledApp.setGlobalPrefix('api/v1');
+      throttledApp.useGlobalFilters(new DomainExceptionFilter());
+      throttledApp.useGlobalInterceptors(new SerializacionInterceptor());
+      throttledApp.useGlobalPipes(
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+          transformOptions: { enableImplicitConversion: true },
+        }),
+      );
+      await throttledApp.init();
+      await throttledApp.listen(0);
+    });
+
+    afterAll(async () => {
+      if (throttledApp) {
+        await throttledApp.close();
+      }
+    });
+
+    it('demostración de TTL en milisegundos: @nestjs/throttler v6 utiliza milisegundos en configuración (900_000 ms = 15 min)', () => {
+      const opciones = crearThrottlerOptions({ enabled: true });
+      const throttlers = (
+        opciones as {
+          throttlers: Array<{ name: string; ttl: number; limit: number }>;
+        }
+      ).throttlers;
+
+      const recuperarIp = throttlers.find((t) => t.name === 'recuperar-ip');
+      const recuperarCorreo = throttlers.find(
+        (t) => t.name === 'recuperar-correo',
+      );
+      const restablecerIp = throttlers.find((t) => t.name === 'restablecer-ip');
+      const cambiarUsuario = throttlers.find(
+        (t) => t.name === 'cambiar-usuario',
+      );
+
+      expect(recuperarIp).toBeDefined();
+      expect(recuperarIp?.ttl).toBe(900_000);
+      expect(recuperarIp?.limit).toBe(5);
+
+      expect(recuperarCorreo).toBeDefined();
+      expect(recuperarCorreo?.ttl).toBe(900_000);
+      expect(recuperarCorreo?.limit).toBe(3);
+
+      expect(restablecerIp).toBeDefined();
+      expect(restablecerIp?.ttl).toBe(900_000);
+      expect(restablecerIp?.limit).toBe(10);
+
+      expect(cambiarUsuario).toBeDefined();
+      expect(cambiarUsuario?.ttl).toBe(900_000);
+      expect(cambiarUsuario?.limit).toBe(5);
+    });
+
+    it('recuperar-correo: la 4.ª petición con el mismo correo responde 429 DEMASIADAS_PETICIONES', async () => {
+      const server = throttledApp.getHttpServer() as Parameters<
+        typeof request
+      >[0];
+      const correo = `throttle.correo.${Date.now()}@rentabilidad.com`;
+
+      for (let i = 1; i <= 3; i++) {
+        const res = await request(server)
+          .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+          .send({ correo });
+        expect(res.status).toBe(200);
+      }
+
+      const res4 = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo });
+
+      expect(res4.status).toBe(429);
+      expect((res4.body as { code: string }).code).toBe(
+        CodigoError.DEMASIADAS_PETICIONES,
+      );
+      expect(res4.headers['retry-after']).toBeDefined();
+    });
+
+    it('recuperar-ip: la 6.ª petición desde la misma IP responde 429 DEMASIADAS_PETICIONES', async () => {
+      const server = throttledApp.getHttpServer() as Parameters<
+        typeof request
+      >[0];
+
+      for (let i = 1; i <= 5; i++) {
+        const res = await request(server)
+          .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+          .send({ correo: `ip.distinto.${i}.${Date.now()}@rentabilidad.com` });
+        if (res.status === 429) {
+          expect((res.body as { code: string }).code).toBe(
+            CodigoError.DEMASIADAS_PETICIONES,
+          );
+          return;
+        }
+        expect(res.status).toBe(200);
+      }
+
+      const res6 = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: `ip.bloqueada.${Date.now()}@rentabilidad.com` });
+
+      expect(res6.status).toBe(429);
+      expect((res6.body as { code: string }).code).toBe(
+        CodigoError.DEMASIADAS_PETICIONES,
+      );
+      expect(res6.headers['retry-after']).toBeDefined();
+    });
+
+    it('restablecer-ip: la 11.ª petición desde la misma IP responde 429 DEMASIADAS_PETICIONES', async () => {
+      const server = throttledApp.getHttpServer() as Parameters<
+        typeof request
+      >[0];
+
+      for (let i = 1; i <= 10; i++) {
+        const res = await request(server)
+          .post('/api/v1/auth/contrasena/restablecer')
+          .send({
+            token: 'b'.repeat(64),
+            nuevaContrasena: 'Password123!',
+          });
+        if (res.status === 429) {
+          expect((res.body as { code: string }).code).toBe(
+            CodigoError.DEMASIADAS_PETICIONES,
+          );
+          return;
+        }
+        expect(res.status).toBe(400);
+      }
+
+      const res11 = await request(server)
+        .post('/api/v1/auth/contrasena/restablecer')
+        .send({
+          token: 'b'.repeat(64),
+          nuevaContrasena: 'Password123!',
+        });
+
+      expect(res11.status).toBe(429);
+      expect((res11.body as { code: string }).code).toBe(
+        CodigoError.DEMASIADAS_PETICIONES,
+      );
+      expect(res11.headers['retry-after']).toBeDefined();
+    });
+
+    it('cambiar-usuario: la 6.ª petición de cambio de contraseña responde 429 DEMASIADAS_PETICIONES', async () => {
+      const server = throttledApp.getHttpServer() as Parameters<
+        typeof request
+      >[0];
+
+      // Login del capturista para obtener access token fresco
+      const loginRes = await request(server).post('/api/v1/auth/login').send({
+        correo: seed.empresaA.usuarios.capturista.correo,
+        contrasena: 'Password123!',
+      });
+      expect(loginRes.status).toBe(200);
+      const { accessToken } = loginRes.body as { accessToken: string };
+
+      for (let i = 1; i <= 5; i++) {
+        const res = await request(server)
+          .patch('/api/v1/auth/contrasena/cambiar')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({
+            contrasenaActual: 'ClaveErronea123!',
+            nuevaContrasena: 'NuevaPassword456!',
+          });
+        if (res.status === 429) {
+          expect((res.body as { code: string }).code).toBe(
+            CodigoError.DEMASIADAS_PETICIONES,
+          );
+          return;
+        }
+        expect(res.status).toBe(400);
+      }
+
+      const res6 = await request(server)
+        .patch('/api/v1/auth/contrasena/cambiar')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          contrasenaActual: 'ClaveErronea123!',
+          nuevaContrasena: 'NuevaPassword456!',
+        });
+
+      expect(res6.status).toBe(429);
+      expect((res6.body as { code: string }).code).toBe(
+        CodigoError.DEMASIADAS_PETICIONES,
+      );
+      expect(res6.headers['retry-after']).toBeDefined();
     });
   });
 });

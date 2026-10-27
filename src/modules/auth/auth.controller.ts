@@ -177,5 +177,4 @@ export class AuthController {
   ): Promise<MensajeResponseDto> {
     return this.authService.restablecerContrasena(dto, ip);
   }
-
 }
