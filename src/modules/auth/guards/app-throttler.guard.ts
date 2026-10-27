@@ -72,6 +72,28 @@ function esRutaAuthLoginORefresh(context: ExecutionContext): boolean {
   );
 }
 
+function esRutaSolicitarRecuperacion(context: ExecutionContext): boolean {
+  const className = context.getClass()?.name ?? '';
+  const handlerName = context.getHandler()?.name ?? '';
+  return (
+    className === 'AuthController' && handlerName === 'solicitarRecuperacion'
+  );
+}
+
+function esRutaRestablecer(context: ExecutionContext): boolean {
+  const className = context.getClass()?.name ?? '';
+  const handlerName = context.getHandler()?.name ?? '';
+  return (
+    className === 'AuthController' && handlerName === 'restablecerContrasena'
+  );
+}
+
+function esRutaCambiarContrasena(context: ExecutionContext): boolean {
+  const className = context.getClass()?.name ?? '';
+  const handlerName = context.getHandler()?.name ?? '';
+  return className === 'AuthController' && handlerName === 'cambiarContrasena';
+}
+
 export function crearThrottlerOptions(
   params: ThrottlerConfigParams,
 ): ThrottlerModuleOptions {

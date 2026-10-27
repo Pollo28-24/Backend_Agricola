@@ -353,7 +353,9 @@
               "ELIMINAR",
               "CERRAR_CICLO",
               "REABRIR_CICLO",
-              "INICIO_SESION"
+              "INICIO_SESION",
+              "CAMBIO_CONTRASENA",
+              "RESTABLECIMIENTO_CONTRASENA"
             ],
             "example": "CREAR",
             "type": "string"
@@ -490,6 +492,26 @@
           "accessToken",
           "refreshToken",
           "usuario"
+        ],
+        "type": "object"
+      },
+      "CambiarContrasenaDto": {
+        "properties": {
+          "contrasenaActual": {
+            "description": "Contraseña vigente del usuario",
+            "example": "ClaveActual2026!",
+            "type": "string"
+          },
+          "nuevaContrasena": {
+            "description": "Nueva contraseña que reemplazará a la actual",
+            "example": "NuevaClaveSegura2026!",
+            "minLength": 6,
+            "type": "string"
+          }
+        },
+        "required": [
+          "contrasenaActual",
+          "nuevaContrasena"
         ],
         "type": "object"
       },
@@ -1194,6 +1216,8 @@
           "VERSION_APP_OBSOLETA",
           "VERSION_APP_INVALIDA",
           "CONFLICTO",
+          "TOKEN_RECUPERACION_INVALIDO",
+          "CONTRASENA_ACTUAL_INCORRECTA",
           "ERROR_INTERNO"
         ],
         "type": "string"
@@ -3957,6 +3981,26 @@
         ],
         "type": "object"
       },
+      "RestablecerContrasenaDto": {
+        "properties": {
+          "nuevaContrasena": {
+            "description": "Nueva contraseña que reemplazará a la actual",
+            "example": "NuevaClaveSegura2026!",
+            "minLength": 6,
+            "type": "string"
+          },
+          "token": {
+            "description": "Token uniuso de recuperación recibido por correo",
+            "example": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "nuevaContrasena"
+        ],
+        "type": "object"
+      },
       "ResumenAlertasDto": {
         "properties": {
           "total": {
@@ -4022,6 +4066,19 @@
           "totalVencido",
           "totalVigente",
           "totalClientesMorosos"
+        ],
+        "type": "object"
+      },
+      "SolicitarRecuperacionDto": {
+        "properties": {
+          "correo": {
+            "description": "Correo electrónico registrado del usuario para restablecimiento de contraseña",
+            "example": "usuario@correo.com",
+            "type": "string"
+          }
+        },
+        "required": [
+          "correo"
         ],
         "type": "object"
       },
@@ -6348,7 +6405,9 @@
                 "ELIMINAR",
                 "CERRAR_CICLO",
                 "REABRIR_CICLO",
-                "INICIO_SESION"
+                "INICIO_SESION",
+                "CAMBIO_CONTRASENA",
+                "RESTABLECIMIENTO_CONTRASENA"
               ],
               "example": "CREAR",
               "type": "string"
@@ -6562,6 +6621,258 @@
         "summary": "Consultar el detalle de un registro puntual de auditoría por ID (RN-068)",
         "tags": [
           "Auditoría"
+        ]
+      }
+    },
+    "/api/v1/auth/contrasena/cambiar": {
+      "patch": {
+        "description": "Verifica la contraseña actual, actualiza al nuevo hash Argon2id, revoca todos los Refresh Tokens e invalida Access Tokens previos.",
+        "operationId": "AuthController_cambiarContrasena",
+        "parameters": [
+          {
+            "description": "Versión semántica del cliente móvil (MAYOR.MENOR.PARCHE). Si es menor a MIN_APP_VERSION responde 426 VERSION_APP_OBSOLETA.",
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "example": "1.0.0",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CambiarContrasenaDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensajeResponseDto"
+                }
+              }
+            },
+            "description": "Contraseña actualizada exitosamente"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Contraseña actual incorrecta o formato inválido"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "No autenticado o token inválido"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Permiso denegado o suscripción inactiva en escritura (PERMISO_DENEGADO / SUSCRIPCION_INACTIVA)"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Versión de la aplicación cliente obsoleta (VERSION_APP_OBSOLETA)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Límite de peticiones excedido (DEMASIADAS_PETICIONES)"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Cambiar contraseña del usuario autenticado (RN-076 y §3.23.1)",
+        "tags": [
+          "Autenticación"
+        ]
+      }
+    },
+    "/api/v1/auth/contrasena/restablecer": {
+      "post": {
+        "description": "Consume de forma atómica el token uniuso (SHA-256), actualiza la contraseña a Argon2id, revoca Refresh Tokens e invalida Access Tokens previos.",
+        "operationId": "AuthController_restablecerContrasena",
+        "parameters": [
+          {
+            "description": "Versión semántica del cliente móvil (MAYOR.MENOR.PARCHE). Si es menor a MIN_APP_VERSION responde 426 VERSION_APP_OBSOLETA.",
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "example": "1.0.0",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestablecerContrasenaDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensajeResponseDto"
+                }
+              }
+            },
+            "description": "Contraseña restablecida exitosamente"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Token inválido, expirado o ya utilizado"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Versión de la aplicación cliente obsoleta (VERSION_APP_OBSOLETA)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Límite de peticiones excedido (DEMASIADAS_PETICIONES)"
+          }
+        },
+        "security": [],
+        "summary": "Restablecer contraseña mediante token de recuperación uniuso (§3.23.1)",
+        "tags": [
+          "Autenticación"
+        ]
+      }
+    },
+    "/api/v1/auth/contrasena/solicitar-recuperacion": {
+      "post": {
+        "description": "Genera un token uniuso con hash SHA-256 (validez 15 min) y envía el enlace vía Brevo. Responde siempre 200 OK idéntico por anti-enumeración.",
+        "operationId": "AuthController_solicitarRecuperacion",
+        "parameters": [
+          {
+            "description": "Versión semántica del cliente móvil (MAYOR.MENOR.PARCHE). Si es menor a MIN_APP_VERSION responde 426 VERSION_APP_OBSOLETA.",
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "example": "1.0.0",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolicitarRecuperacionDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MensajeResponseDto"
+                }
+              }
+            },
+            "description": "Mensaje genérico de confirmación anti-enumeración"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Petición inválida o error de validación (PETICION_INVALIDA / VERSION_APP_INVALIDA)"
+          },
+          "426": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Versión de la aplicación cliente obsoleta (VERSION_APP_OBSOLETA)"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            },
+            "description": "Límite de peticiones excedido (DEMASIADAS_PETICIONES)"
+          }
+        },
+        "security": [],
+        "summary": "Solicitar restablecimiento de contraseña vía correo (RN-040 y §3.23.1)",
+        "tags": [
+          "Autenticación"
         ]
       }
     },

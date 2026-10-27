@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Body,
   Ip,
   UseGuards,
@@ -16,6 +17,9 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
+import { CambiarContrasenaDto } from './dto/cambiar-contrasena.dto';
+import { SolicitarRecuperacionDto } from './dto/solicitar-recuperacion.dto';
+import { RestablecerContrasenaDto } from './dto/restablecer-contrasena.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthResponseDto, UsuarioPerfilDto } from './dto/auth-response.dto';
@@ -97,4 +101,81 @@ export class AuthController {
   async me(@CurrentUser('id') usuarioId: number): Promise<UsuarioPerfilDto> {
     return this.authService.me(usuarioId);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('contrasena/cambiar')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Cambiar contraseña del usuario autenticado (RN-076 y §3.23.1)',
+    description:
+      'Verifica la contraseña actual, actualiza al nuevo hash Argon2id, revoca todos los Refresh Tokens e invalida Access Tokens previos.',
+  })
+  @ApiResponse({
+    status: 200,
+    type: MensajeResponseDto,
+    description: 'Contraseña actualizada exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Contraseña actual incorrecta o formato inválido',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autenticado o token inválido',
+  })
+  async cambiarContrasena(
+    @CurrentUser('id') usuarioId: number,
+    @Body() dto: CambiarContrasenaDto,
+    @Ip() ip: string,
+  ): Promise<MensajeResponseDto> {
+    return this.authService.cambiarContrasena(usuarioId, dto, ip);
+  }
+
+  @Public()
+  @Post('contrasena/solicitar-recuperacion')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Solicitar restablecimiento de contraseña vía correo (RN-040 y §3.23.1)',
+    description:
+      'Genera un token uniuso con hash SHA-256 (validez 15 min) y envía el enlace vía Brevo. Responde siempre 200 OK idéntico por anti-enumeración.',
+  })
+  @ApiResponse({
+    status: 200,
+    type: MensajeResponseDto,
+    description: 'Mensaje genérico de confirmación anti-enumeración',
+  })
+  async solicitarRecuperacion(
+    @Body() dto: SolicitarRecuperacionDto,
+    @Ip() ip: string,
+  ): Promise<MensajeResponseDto> {
+    return this.authService.solicitarRecuperacion(dto, ip);
+  }
+
+  @Public()
+  @Post('contrasena/restablecer')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Restablecer contraseña mediante token de recuperación uniuso (§3.23.1)',
+    description:
+      'Consume de forma atómica el token uniuso (SHA-256), actualiza la contraseña a Argon2id, revoca Refresh Tokens e invalida Access Tokens previos.',
+  })
+  @ApiResponse({
+    status: 200,
+    type: MensajeResponseDto,
+    description: 'Contraseña restablecida exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Token inválido, expirado o ya utilizado',
+  })
+  async restablecerContrasena(
+    @Body() dto: RestablecerContrasenaDto,
+    @Ip() ip: string,
+  ): Promise<MensajeResponseDto> {
+    return this.authService.restablecerContrasena(dto, ip);
+  }
+
 }

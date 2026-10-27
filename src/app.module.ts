@@ -23,6 +23,7 @@ import { CobrosModule } from './modules/cobros/cobros.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { AdjuntosModule } from './modules/adjuntos/adjuntos.module';
 import { ExportacionModule } from './modules/exportacion/exportacion.module';
+import { MailModule } from './modules/mail/mail.module';
 import { envValidationSchema } from './config/env.validation';
 import {
   AppThrottlerGuard,
@@ -91,6 +92,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     ReportesModule,
     AdjuntosModule,
     ExportacionModule,
+    MailModule,
   ],
   providers: [
     {

@@ -8,6 +8,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../prisma/audit.service';
 import { PasswordService } from '../../common/services/password.service';
 import { LoginDto } from './dto/login.dto';
+import { CambiarContrasenaDto } from './dto/cambiar-contrasena.dto';
+import { SolicitarRecuperacionDto } from './dto/solicitar-recuperacion.dto';
+import { RestablecerContrasenaDto } from './dto/restablecer-contrasena.dto';
+import { MailService } from '../mail/mail.service';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthResponseDto, UsuarioPerfilDto } from './dto/auth-response.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -30,6 +34,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly passwordService: PasswordService,
     private readonly auditService: AuditService,
+    private readonly mailService: MailService,
   ) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.jwtExpiresIn = this.configService.get<string>('JWT_EXPIRES_IN', '15m');
@@ -472,4 +477,304 @@ export class AuthService {
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
+
+  /**
+   * Cambia la contraseña del usuario autenticado (RN-076 y §3.23.1).
+   * Verifica la contraseña actual, actualiza al nuevo hash Argon2id,
+   * revoca transaccionalmente todos los Refresh Tokens del usuario y
+   * actualiza usuario.cambioContrasenaEn para invalidar Access Tokens previos.
+   */
+  async cambiarContrasena(
+    usuarioId: number,
+    dto: CambiarContrasenaDto,
+    ip?: string,
+  ): Promise<{ mensaje: string }> {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      include: {
+        empresa: {
+          select: {
+            id: true,
+            activo: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!usuario || usuario.deletedAt !== null || !usuario.activo) {
+      throw new DomainError(
+        CodigoError.NO_AUTENTICADO,
+        'Usuario no encontrado o inactivo',
+        401,
+      );
+    }
+
+    const contrasenaValida = await this.passwordService.verify(
+      usuario.contrasenaHash,
+      dto.contrasenaActual,
+    );
+
+    if (!contrasenaValida) {
+      throw new DomainError(
+        CodigoError.CONTRASENA_ACTUAL_INCORRECTA,
+        'La contraseña actual es incorrecta',
+        400,
+      );
+    }
+
+    const nuevoHash = await this.passwordService.hash(dto.nuevaContrasena);
+    const ahora = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.usuario.update({
+        where: { id: usuarioId },
+        data: {
+          contrasenaHash: nuevoHash,
+          cambioContrasenaEn: ahora,
+        },
+      });
+
+      // RN-076: Revoca transaccionalmente todos los Refresh Tokens activos del usuario
+      await tx.refreshToken.updateMany({
+        where: {
+          usuarioId,
+          revocado: false,
+        },
+        data: {
+          revocado: true,
+          revocadoEn: ahora,
+        },
+      });
+
+      // Bitácora de auditoría inmutable (RN-074: no exponer contraseñas ni hashes)
+      await this.auditService.registrar(
+        {
+          empresaId: usuario.empresaId,
+          usuarioId: usuario.id,
+          entidad: 'Usuario',
+          entidadId: usuario.id,
+          accion: AccionAuditoria.CAMBIO_CONTRASENA,
+          valoresAnteriores: null,
+          valoresNuevos: { cambioContrasena: true },
+          ip,
+        },
+        tx,
+      );
+    });
+
+    return {
+      mensaje:
+        'Contraseña actualizada exitosamente. Por favor, inicie sesión con su nueva clave.',
+    };
+  }
+
+  /**
+   * Solicita el restablecimiento de contraseña vía correo (RN-040 y §3.23.1).
+   * Genera un token aleatorio criptográfico seguro de 32 bytes (64 caracteres hex)
+   * y guarda su hash SHA-256 en password_reset_token con validez de 15 minutos.
+   * Política estricta de anti-enumeración de cuentas: responde siempre 200 OK idéntico.
+   */
+  async solicitarRecuperacion(
+    dto: SolicitarRecuperacionDto,
+    ip?: string,
+  ): Promise<{ mensaje: string }> {
+    const MENSAJE_RESPUESTA =
+      'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.';
+
+    const correoNormalizado = dto.correo.toLowerCase().trim();
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { correo: correoNormalizado },
+      include: {
+        empresa: {
+          select: {
+            id: true,
+            activo: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    // Anti-enumeración: si el usuario o la empresa no existen o están inactivos, responde idéntico
+    if (
+      !usuario ||
+      usuario.deletedAt !== null ||
+      !usuario.activo ||
+      !usuario.empresa ||
+      usuario.empresa.deletedAt !== null ||
+      !usuario.empresa.activo
+    ) {
+      await this.passwordService.verify(DUMMY_ARGON2ID_HASH, 'dummy-password');
+      return { mensaje: MENSAJE_RESPUESTA };
+    }
+
+    const tokenCrudo = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(tokenCrudo).digest('hex');
+    const minutosExpiracion = this.configService.get<number>(
+      'PASSWORD_RESET_EXPIRES_MINUTES',
+      15,
+    );
+    const expiraEn = new Date(Date.now() + minutosExpiracion * 60 * 1000);
+
+    // En BD revocar tokens previos y crear el nuevo token
+    const tokenRecord = await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetToken.updateMany({
+        where: {
+          usuarioId: usuario.id,
+          usadoEn: null,
+          revocadoEn: null,
+        },
+        data: {
+          revocadoEn: new Date(),
+        },
+      });
+
+      return tx.passwordResetToken.create({
+        data: {
+          usuarioId: usuario.id,
+          tokenHash,
+          expiraEn,
+          ipSolicitud: ip,
+        },
+      });
+    });
+
+    const baseUrl = this.configService.get<string>(
+      'PASSWORD_RESET_URL',
+      'http://localhost:3000/restablecer-contrasena',
+    );
+    const separador = baseUrl.includes('?') ? '&' : '?';
+    const enlaceRecuperacion = `${baseUrl}${separador}token=${tokenCrudo}`;
+
+    // Trampa 5: la llamada a Brevo ocurre FUERA de la transacción.
+    // Si Brevo falla, se revoca el token y se lanza la excepción.
+    try {
+      await this.mailService.enviarRecuperacionContrasena(
+        usuario.correo,
+        usuario.nombre,
+        enlaceRecuperacion,
+        tokenCrudo,
+      );
+    } catch (error: unknown) {
+      await this.prisma.passwordResetToken.update({
+        where: { id: tokenRecord.id },
+        data: { revocadoEn: new Date() },
+      });
+      throw new DomainError(
+        CodigoError.ERROR_INTERNO,
+        'No fue posible enviar el correo de recuperación. Intente más tarde.',
+        500,
+      );
+    }
+
+    return { mensaje: MENSAJE_RESPUESTA };
+  }
+
+  /**
+   * Restablece la contraseña utilizando el token uniuso (§3.23.1).
+   * Consume de manera atómica el token en BD (usadoEn = now()), actualiza
+   * la contraseña a su nuevo hash Argon2id, revoca todos los Refresh Tokens
+   * e invalida los Access Tokens previos.
+   */
+  async restablecerContrasena(
+    dto: RestablecerContrasenaDto,
+    ip?: string,
+  ): Promise<{ mensaje: string }> {
+    const tokenHash = crypto.createHash('sha256').update(dto.token).digest('hex');
+    const nuevoHash = await this.passwordService.hash(dto.nuevaContrasena);
+    const ahora = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      // Trampa 2: Consumo atómico con updateMany
+      const consumo = await tx.passwordResetToken.updateMany({
+        where: {
+          tokenHash,
+          usadoEn: null,
+          revocadoEn: null,
+          expiraEn: { gt: ahora },
+        },
+        data: {
+          usadoEn: ahora,
+        },
+      });
+
+      if (consumo.count === 0) {
+        throw new DomainError(
+          CodigoError.TOKEN_RECUPERACION_INVALIDO,
+          'El token de recuperación es inválido, expiró o ya fue utilizado',
+          400,
+        );
+      }
+
+      const resetToken = await tx.passwordResetToken.findUnique({
+        where: { tokenHash },
+        include: { usuario: true },
+      });
+
+      if (!resetToken || !resetToken.usuario || resetToken.usuario.deletedAt !== null) {
+        throw new DomainError(
+          CodigoError.TOKEN_RECUPERACION_INVALIDO,
+          'El usuario asociado al token no es válido o fue eliminado',
+          400,
+        );
+      }
+
+      const usuarioId = resetToken.usuarioId;
+
+      await tx.usuario.update({
+        where: { id: usuarioId },
+        data: {
+          contrasenaHash: nuevoHash,
+          cambioContrasenaEn: ahora,
+        },
+      });
+
+      // Revoca cualquier otro token de recuperación pendiente
+      await tx.passwordResetToken.updateMany({
+        where: {
+          usuarioId,
+          id: { not: resetToken.id },
+          usadoEn: null,
+          revocadoEn: null,
+        },
+        data: {
+          revocadoEn: ahora,
+        },
+      });
+
+      // RN-076: Revoca transaccionalmente todos los Refresh Tokens activos del usuario
+      await tx.refreshToken.updateMany({
+        where: {
+          usuarioId,
+          revocado: false,
+        },
+        data: {
+          revocado: true,
+          revocadoEn: ahora,
+        },
+      });
+
+      // Auditoría RESTABLECIMIENTO_CONTRASENA
+      await this.auditService.registrar(
+        {
+          empresaId: resetToken.usuario.empresaId,
+          usuarioId,
+          entidad: 'Usuario',
+          entidadId: usuarioId,
+          accion: AccionAuditoria.RESTABLECIMIENTO_CONTRASENA,
+          valoresAnteriores: null,
+          valoresNuevos: { restablecimientoContrasena: true },
+          ip,
+        },
+        tx,
+      );
+    });
+
+    return {
+      mensaje:
+        'Contraseña restablecida exitosamente. Inicie sesión con su nueva clave.',
+    };
+  }
+
 }

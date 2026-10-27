@@ -65,6 +65,8 @@ Todos los errores retornados por la API (salvo excepciones a nivel de proxy o ga
 | `VERSION_APP_OBSOLETA` | 426 | La versión instalada de Flutter es inferior a la requerida por el servidor (`MIN_APP_VERSION`). | `{ minVersion, clientVersion, storeUrl }` | **Mostrar pantalla modal bloqueante** que impida continuar y ofrezca un botón para abrir `storeUrl`. |
 | `VERSION_APP_INVALIDA` | 400 | El valor enviado en la cabecera `X-App-Version` no cumple con la especificación SemVer (ej. `1.0.0`). | `{ clientVersion }` | Asegurar que Flutter envíe la versión extraída de `package_info_plus` en formato SemVer limpio. |
 | `CONFLICTO` | 409 | Conflicto de concurrencia o unicidad en la base de datos (clave duplicada o dependencia foránea). | Opcional | Notificar al usuario que la información ya fue registrada o actualizada por otro proceso; refrescar vista. |
+| `TOKEN_RECUPERACION_INVALIDO` | 400 | El token de recuperación de contraseña es inexistente, expiró (TTL 15 min), ya fue utilizado o fue revocado. | Opcional | Notificar al usuario que el enlace no es válido y ofrecerle solicitar uno nuevo. |
+| `CONTRASENA_ACTUAL_INCORRECTA` | 400 | La contraseña actual proporcionada para el cambio autenticado no coincide con la registrada. | Opcional | Limpiar campo de contraseña actual y solicitar al usuario verificarla. |
 | `ERROR_INTERNO` | 500 | Error no controlado en el servidor. | Opcional | Mostrar mensaje general de error y proveer el `x-correlation-id` para asistencia técnica. |
 
 ---
