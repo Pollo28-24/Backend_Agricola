@@ -14,63 +14,125 @@ function sha256(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+interface MockUsuarioPrisma {
+  findUnique: jest.Mock<Promise<unknown>, [unknown?]>;
+  update: jest.Mock<Promise<unknown>, [unknown?]>;
+}
+
+interface MockRefreshTokenPrisma {
+  create: jest.Mock<Promise<unknown>, [unknown?]>;
+  findUnique: jest.Mock<Promise<unknown>, [unknown?]>;
+  update: jest.Mock<Promise<unknown>, [unknown?]>;
+  updateMany: jest.Mock<Promise<unknown>, [unknown?]>;
+}
+
+interface MockPasswordResetTokenPrisma {
+  count: jest.Mock<Promise<number>, [unknown?]>;
+  create: jest.Mock<Promise<unknown>, [unknown?]>;
+  findUnique: jest.Mock<Promise<unknown>, [unknown?]>;
+  update: jest.Mock<Promise<unknown>, [unknown?]>;
+  updateMany: jest.Mock<Promise<unknown>, [unknown?]>;
+}
+
+interface MockPrismaService {
+  usuario: MockUsuarioPrisma;
+  refreshToken: MockRefreshTokenPrisma;
+  passwordResetToken: MockPasswordResetTokenPrisma;
+  $transaction: jest.Mock<
+    Promise<unknown>,
+    [(tx: MockPrismaService) => Promise<unknown>]
+  >;
+}
+
+interface MockJwtService {
+  sign: jest.Mock<string, [{ sub?: number; jti?: string }?]>;
+  verify: jest.Mock<unknown, [string?, unknown?]>;
+}
+
+interface MockConfigService {
+  get: jest.Mock<unknown, [string, unknown?]>;
+}
+
+interface MockPasswordService {
+  verify: jest.Mock<Promise<boolean>, [string?, string?]>;
+  hash: jest.Mock<Promise<string>, [string?]>;
+  needsRehash: jest.Mock<boolean, [string?]>;
+}
+
+interface MockAuditService {
+  registrar: jest.Mock<Promise<void>, [unknown?, unknown?]>;
+}
+
+interface MockMailService {
+  enviarRecuperacionContrasena: jest.Mock<Promise<void>, [unknown?]>;
+}
+
 describe('AuthService', () => {
   let service: AuthService;
 
-  const mockPrismaService = {
+  const mockPrismaService: MockPrismaService = {
     usuario: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
+      findUnique: jest.fn<Promise<unknown>, [unknown?]>(),
+      update: jest.fn<Promise<unknown>, [unknown?]>(),
     },
     refreshToken: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
+      create: jest.fn<Promise<unknown>, [unknown?]>(),
+      findUnique: jest.fn<Promise<unknown>, [unknown?]>(),
+      update: jest.fn<Promise<unknown>, [unknown?]>(),
+      updateMany: jest.fn<Promise<unknown>, [unknown?]>(),
     },
     passwordResetToken: {
-      count: jest.fn(),
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
+      count: jest.fn<Promise<number>, [unknown?]>(),
+      create: jest.fn<Promise<unknown>, [unknown?]>(),
+      findUnique: jest.fn<Promise<unknown>, [unknown?]>(),
+      update: jest.fn<Promise<unknown>, [unknown?]>(),
+      updateMany: jest.fn<Promise<unknown>, [unknown?]>(),
     },
-    $transaction: jest.fn((cb: (tx: any) => Promise<any>) =>
+    $transaction: jest.fn<
+      Promise<unknown>,
+      [(tx: MockPrismaService) => Promise<unknown>]
+    >((cb: (tx: MockPrismaService) => Promise<unknown>): Promise<unknown> =>
       cb(mockPrismaService),
     ),
   };
 
-  const mockJwtService = {
-    sign: jest.fn(
-      (payload: { sub?: number; jti?: string }) =>
-        `token_mock_${payload.sub ?? payload.jti ?? ''}`,
+  const mockJwtService: MockJwtService = {
+    sign: jest.fn<string, [{ sub?: number; jti?: string }?]>(
+      (payload?: { sub?: number; jti?: string }) =>
+        `token_mock_${payload?.sub ?? payload?.jti ?? ''}`,
     ),
-    verify: jest.fn(),
+    verify: jest.fn<unknown, [string?, unknown?]>(),
   };
 
-  const mockConfigService = {
-    get: jest.fn((key: string, defaultValue?: string) => {
-      if (key === 'JWT_SECRET') return 'super_secret_jwt_key_test_123456';
-      if (key === 'JWT_EXPIRES_IN') return '15m';
-      if (key === 'JWT_REFRESH_SECRET')
-        return 'super_secret_jwt_refresh_key_test';
-      if (key === 'JWT_REFRESH_EXPIRES_IN') return '7d';
-      return defaultValue;
-    }),
+  const mockConfigService: MockConfigService = {
+    get: jest.fn<unknown, [string, unknown?]>(
+      (key: string, defaultValue?: unknown) => {
+        if (key === 'JWT_SECRET') return 'super_secret_jwt_key_test_123456';
+        if (key === 'JWT_EXPIRES_IN') return '15m';
+        if (key === 'JWT_REFRESH_SECRET')
+          return 'super_secret_jwt_refresh_key_test';
+        if (key === 'JWT_REFRESH_EXPIRES_IN') return '7d';
+        return defaultValue;
+      },
+    ),
   };
 
-  const mockPasswordService = {
-    verify: jest.fn(),
-    hash: jest.fn(),
-    needsRehash: jest.fn().mockReturnValue(false),
+  const mockPasswordService: MockPasswordService = {
+    verify: jest.fn<Promise<boolean>, [string?, string?]>(),
+    hash: jest.fn<Promise<string>, [string?]>(),
+    needsRehash: jest.fn<boolean, [string?]>().mockReturnValue(false),
   };
 
-  const mockAuditService = {
-    registrar: jest.fn().mockResolvedValue(undefined),
+  const mockAuditService: MockAuditService = {
+    registrar: jest
+      .fn<Promise<void>, [unknown?, unknown?]>()
+      .mockResolvedValue(undefined),
   };
 
-  const mockMailService = {
-    enviarRecuperacionContrasena: jest.fn().mockResolvedValue(undefined),
+  const mockMailService: MockMailService = {
+    enviarRecuperacionContrasena: jest
+      .fn<Promise<void>, [unknown?]>()
+      .mockResolvedValue(undefined),
   };
 
   const mockUsuario = {
@@ -581,16 +643,16 @@ describe('AuthService', () => {
           where: { id: 1 },
           data: expect.objectContaining({
             contrasenaHash: 'nuevo_hash_argon2id',
-            cambioContrasenaEn: expect.any(Date),
-          }),
+            cambioContrasenaEn: expect.any(Date) as Date,
+          }) as unknown,
         }),
       );
       expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
         where: { usuarioId: 1, revocado: false },
         data: expect.objectContaining({
           revocado: true,
-          revocadoEn: expect.any(Date),
-        }),
+          revocadoEn: expect.any(Date) as Date,
+        }) as unknown,
       });
       expect(mockAuditService.registrar).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -660,10 +722,10 @@ describe('AuthService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             usuarioId: 1,
-            tokenHash: expect.any(String),
-            expiraEn: expect.any(Date),
+            tokenHash: expect.any(String) as string,
+            expiraEn: expect.any(Date) as Date,
             ipSolicitud: '201.100.50.2',
-          }),
+          }) as unknown,
         }),
       );
       expect(mockMailService.enviarRecuperacionContrasena).toHaveBeenCalledWith(
@@ -672,7 +734,7 @@ describe('AuthService', () => {
         expect.stringContaining(
           'http://localhost:3000/restablecer-contrasena?token=',
         ),
-        expect.any(String),
+        expect.any(String) as string,
       );
     });
 
@@ -695,7 +757,9 @@ describe('AuthService', () => {
       expect(mockPrismaService.passwordResetToken.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 88 },
-          data: expect.objectContaining({ revocadoEn: expect.any(Date) }),
+          data: expect.objectContaining({
+            revocadoEn: expect.any(Date) as Date,
+          }) as unknown,
         }),
       );
     });
@@ -746,16 +810,16 @@ describe('AuthService', () => {
           where: { id: 1 },
           data: expect.objectContaining({
             contrasenaHash: 'nuevo_hash_restablecido',
-            cambioContrasenaEn: expect.any(Date),
-          }),
+            cambioContrasenaEn: expect.any(Date) as Date,
+          }) as unknown,
         }),
       );
       expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
         where: { usuarioId: 1, revocado: false },
         data: expect.objectContaining({
           revocado: true,
-          revocadoEn: expect.any(Date),
-        }),
+          revocadoEn: expect.any(Date) as Date,
+        }) as unknown,
       });
       expect(mockAuditService.registrar).toHaveBeenCalledWith(
         expect.objectContaining({
