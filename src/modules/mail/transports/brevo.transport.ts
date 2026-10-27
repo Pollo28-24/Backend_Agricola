@@ -4,6 +4,25 @@ import {
   IMailTransport,
 } from '../interfaces/mail-transport.interface';
 
+function sanitizarNombre(nombre: string): string {
+  return nombre.replace(/[<>&"']/g, (c) => {
+    switch (c) {
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '&':
+        return '&amp;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return c;
+    }
+  });
+}
+
 export class BrevoTransport implements IMailTransport {
   private readonly logger = new Logger(BrevoTransport.name);
 
@@ -24,7 +43,9 @@ export class BrevoTransport implements IMailTransport {
       to: [
         {
           email: opciones.destinatario,
-          name: opciones.nombreDestinatario || opciones.destinatario,
+          name: sanitizarNombre(
+            opciones.nombreDestinatario || opciones.destinatario,
+          ),
         },
       ],
       subject: opciones.asunto,

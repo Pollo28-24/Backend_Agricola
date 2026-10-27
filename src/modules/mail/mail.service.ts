@@ -9,6 +9,11 @@ import { MemoryTransport } from './transports/memory.transport';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly transport: IMailTransport;
+  private readonly enviosPendientes = new Set<Promise<void>>();
+
+  async esperarEnviosPendientes(): Promise<void> {
+    await Promise.allSettled(Array.from(this.enviosPendientes));
+  }
 
   constructor(private readonly configService: ConfigService) {
     const modoTransport =
@@ -67,20 +72,29 @@ export class MailService {
 
     const contenidoTexto = `Hola ${nombre},\n\nPara restablecer tu contraseña en Rentabilidad Agrícola, ingresa al siguiente enlace:\n${enlace}\n\nEste enlace expira en 15 minutos.\nSi no solicitaste este cambio, puedes ignorar este mensaje.`;
 
-    // Requisito §3.23.1: en local imprimir en logger el destinatario, token en crudo y URL completa
+    // Requisito §3.23.1: en desarrollo imprimir en logger el destinatario, token en crudo y URL completa SOLO con log transport
     const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    if (nodeEnv !== 'production') {
+    const mailTransport =
+      process.env.MAIL_TRANSPORT ||
+      this.configService.get<string>('MAIL_TRANSPORT', 'log');
+    if (nodeEnv === 'development' && mailTransport === 'log') {
       this.logger.log(
         `[RECUPERACIÓN LOCAL] Destinatario: ${destinatario} | Token: ${tokenCrudo || 'N/A'} | Enlace: ${enlace}`,
       );
     }
 
-    await this.transport.enviar({
+    const promesa = this.transport.enviar({
       destinatario,
       nombreDestinatario: nombre,
       asunto,
       contenidoHtml,
       contenidoTexto,
     });
+    this.enviosPendientes.add(promesa);
+    try {
+      await promesa;
+    } finally {
+      this.enviosPendientes.delete(promesa);
+    }
   }
 }

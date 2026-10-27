@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AccionAuditoria, EstadoSuscripcion, Prisma } from '@prisma/client';
@@ -23,6 +23,7 @@ const DUMMY_ARGON2ID_HASH =
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly jwtSecret: string;
   private readonly jwtExpiresIn: string;
   private readonly jwtRefreshSecret: string;
@@ -609,8 +610,23 @@ export class AuthService {
       return { mensaje: MENSAJE_RESPUESTA };
     }
 
+    const hace15Min = new Date(Date.now() - 15 * 60 * 1000);
+    const tokensRecientes = await this.prisma.passwordResetToken.count({
+      where: {
+        usuarioId: usuario.id,
+        createdAt: { gte: hace15Min },
+      },
+    });
+
+    if (tokensRecientes >= 3) {
+      return { mensaje: MENSAJE_RESPUESTA };
+    }
+
     const tokenCrudo = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(tokenCrudo).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(tokenCrudo)
+      .digest('hex');
     const minutosExpiracion = this.configService.get<number>(
       'PASSWORD_RESET_EXPIRES_MINUTES',
       15,
@@ -661,10 +677,10 @@ export class AuthService {
         where: { id: tokenRecord.id },
         data: { revocadoEn: new Date() },
       });
-      throw new DomainError(
-        CodigoError.ERROR_INTERNO,
-        'No fue posible enviar el correo de recuperación. Intente más tarde.',
-        500,
+      this.logger.error(
+        `Fallo al despachar correo de recuperación para usuarioId: ${usuario.id}. Token revocado. Motivo: ${
+          error instanceof Error ? error.message : 'Error desconocido'
+        }`,
       );
     }
 
@@ -681,7 +697,10 @@ export class AuthService {
     dto: RestablecerContrasenaDto,
     ip?: string,
   ): Promise<{ mensaje: string }> {
-    const tokenHash = crypto.createHash('sha256').update(dto.token).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(dto.token)
+      .digest('hex');
     const nuevoHash = await this.passwordService.hash(dto.nuevaContrasena);
     const ahora = new Date();
 
@@ -712,7 +731,11 @@ export class AuthService {
         include: { usuario: true },
       });
 
-      if (!resetToken || !resetToken.usuario || resetToken.usuario.deletedAt !== null) {
+      if (
+        !resetToken ||
+        !resetToken.usuario ||
+        resetToken.usuario.deletedAt !== null
+      ) {
         throw new DomainError(
           CodigoError.TOKEN_RECUPERACION_INVALIDO,
           'El usuario asociado al token no es válido o fue eliminado',
@@ -776,5 +799,4 @@ export class AuthService {
         'Contraseña restablecida exitosamente. Inicie sesión con su nueva clave.',
     };
   }
-
 }

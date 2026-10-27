@@ -5,8 +5,25 @@ import {
 
 export class MemoryTransport implements IMailTransport {
   private correos: EnviarCorreoOpciones[] = [];
+  private simularFallo = false;
+  private errorSimulado: Error | null = null;
+
+  simularFalloProximoEnvio(error?: Error): void {
+    this.simularFallo = true;
+    this.errorSimulado =
+      error || new Error('Fallo simulado en transporte de correo');
+  }
 
   async enviar(opciones: EnviarCorreoOpciones): Promise<void> {
+    await Promise.resolve();
+    if (this.simularFallo) {
+      this.simularFallo = false;
+      const err =
+        this.errorSimulado ||
+        new Error('Fallo simulado en transporte de correo');
+      this.errorSimulado = null;
+      throw err;
+    }
     this.correos.push({ ...opciones });
   }
 
