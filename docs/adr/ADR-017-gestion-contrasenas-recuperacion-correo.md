@@ -59,14 +59,17 @@ El sistema de Rentabilidad Agrícola requiere un flujo integral, resiliente y cr
 
 ---
 
-## 3. Matriz de Divergencias con el Documento Maestro v3.3
+## 3. Matriz de Divergencias con el Documento Maestro v3.3 (R1 a R7)
 
-| Referencia en Docx v3.3 | Texto o Requisito en Documento | Comportamiento Implementado en Código | Justificación Arquitectónica |
-|---|---|---|---|
-| **RN-078 (§3.23.1)** | "Si falla el envío con Brevo, responder 500/503 indicando fallo de entrega" | Responde 200 OK idéntico, revoca token en BD y registra fallo en logger interno | Anti-enumeración estricta (OWASP ASVS 4.0). Propagar 500/503 confirma la existencia del correo. |
-| **§3.23 (Tecnologías)** | "Mapea HTTP 429 al código DEMASIADAS_SOLICITUDES" | Mapea HTTP 429 al código canónico `DEMASIADAS_PETICIONES` | Coherencia con el enum canónico `CodigoError` y contrato OpenAPI sincronizado en 11C. |
-| **§3.23.1 (Throttling)** | Límites descritos genéricamente en minutos | Configurados explícitamente en milisegundos (`900_000` ms) con trackers compuestos | `@nestjs/throttler` v6 opera exclusivamente con TTL en milisegundos. |
-| **RN-038 (§3.23)** | Suscripción VENCIDA bloquea todas las mutaciones | `PATCH /api/v1/auth/contrasena/cambiar` está en allowlist de acceso vigente | Un usuario con suscripción vencida debe poder actualizar su contraseña por seguridad de su cuenta. |
+| Regla / Decisión | Referencia en Docx v3.3 | Requisito en Documento v3.3 | Comportamiento Implementado en Código | Justificación y Sincronización |
+|---|---|---|---|---|
+| **R1. Anti-enumeración y falla Brevo** | RN-078 (§3.23.1) | "Si falla el envío con Brevo, responder 500/503 indicando fallo de entrega" | Responde HTTP 200 OK idéntico, revoca token en BD (`revocadoEn = now()`) y registra en logger sin fugar correo ni token | Anti-enumeración estricta (OWASP ASVS 4.0). Propagar 500/503 confirma la existencia del correo al atacante. Cuota de 3 tokens/15 min. |
+| **R2. URL de recuperación** | §3.23.1 (Rutas de Recuperación) | URL base configurable en entorno | Valida `PASSWORD_RESET_URL` en Joi exigiendo obligatoriamente `https://` en entorno de producción | Cifrado mandatorio en tránsito de tokens uniuso en producción para prevenir intercepción de credenciales. |
+| **R3. Hash de token en BD** | RN-077 (§3.23.1) | Almacenamiento seguro del token de recuperación | Se genera token criptográfico de 32 bytes (64 hex); en BD solo se guarda su digest SHA-256 (`tokenHash`) | Si la base de datos se filtra, los tokens almacenados no pueden usarse sin conocer el valor crudo original. |
+| **R4. Transportes, log local y remitente** | §3.23.1 / Tecnologías | Envío por Brevo / log en desarrollo con remitente institucional | Patrón Strategy desacoplado (`BrevoTransport`, `LogTransport`, `MemoryTransport`). Remitente configurable por ENV; prohibido Gmail personal no autenticado en prod; log en consola solo con `NODE_ENV=development` y `MAIL_TRANSPORT=log` | Aislamiento modular, seguridad de credenciales y testing determinista sin llamadas de red externas. |
+| **R5. Throttling y código de error** | RN-079 (§3.23 y §3.23.1) | "Mapea HTTP 429 al código DEMASIADAS_SOLICITUDES" y límites en minutos | Mapea HTTP 429 al código canónico `DEMASIADAS_PETICIONES`; TTLs configurados en milisegundos (`900_000` ms) en `@nestjs/throttler` v6 | Coherencia con el enum `CodigoError` y contrato OpenAPI sincronizado en 11A/11D. `@nestjs/throttler` v6 opera exclusivamente en ms. |
+| **R6. Invalidación de sesiones** | RN-076 (§3.23.1) | Invalidación inmediata de tokens y actualización de cambio de contraseña | Columna canónica `cambioContrasenaEn` en MySQL/Prisma; `JwtStrategy` trunca a segundos enteros (`Math.floor`) contra `payload.iat`; revocación atómica de todos los refresh tokens | Evita desajustes por resolución subsegundo entre MySQL y el estándar JWT; revoca sesiones activas de inmediato. |
+| **R7. Exclusión de binario docx** | Anexo / Gestión documental | Control del archivo de especificación maestro | Archivo `Rentabilidad_Agricola_v3.3_Completa.docx` desversionado de git e ignorado en `.gitignore`; permanece en disco local como solo-lectura | Previene hinchamiento del historial `.git` por binarios sin diff textual y evita conflictos de merge accidentales. |
 
 ---
 
