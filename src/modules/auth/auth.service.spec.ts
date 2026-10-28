@@ -17,6 +17,7 @@ function sha256(token: string): string {
 interface MockUsuarioPrisma {
   findUnique: jest.Mock<Promise<unknown>, [unknown?]>;
   update: jest.Mock<Promise<unknown>, [unknown?]>;
+  updateMany: jest.Mock<Promise<unknown>, [unknown?]>;
 }
 
 interface MockRefreshTokenPrisma {
@@ -66,15 +67,21 @@ interface MockAuditService {
 interface MockMailService {
   enviarRecuperacionContrasena: jest.Mock<Promise<void>, [unknown?]>;
   registrarEnvio: jest.Mock<void, [Promise<unknown>]>;
+  esperarEnviosPendientes: jest.Mock<Promise<void>, []>;
 }
 
 describe('AuthService', () => {
   let service: AuthService;
 
+  const enviosPendientesMock = new Set<Promise<unknown>>();
+
   const mockPrismaService: MockPrismaService = {
     usuario: {
       findUnique: jest.fn<Promise<unknown>, [unknown?]>(),
       update: jest.fn<Promise<unknown>, [unknown?]>(),
+      updateMany: jest
+        .fn<Promise<unknown>, [unknown?]>()
+        .mockResolvedValue({ count: 1 }),
     },
     refreshToken: {
       create: jest.fn<Promise<unknown>, [unknown?]>(),
@@ -134,7 +141,13 @@ describe('AuthService', () => {
     enviarRecuperacionContrasena: jest
       .fn<Promise<void>, [unknown?]>()
       .mockResolvedValue(undefined),
-    registrarEnvio: jest.fn<void, [Promise<unknown>]>(),
+    registrarEnvio: jest.fn<void, [Promise<unknown>]>((p: Promise<unknown>) => {
+      enviosPendientesMock.add(p);
+      void p.finally(() => enviosPendientesMock.delete(p));
+    }),
+    esperarEnviosPendientes: jest.fn<Promise<void>, []>(async () => {
+      await Promise.allSettled(Array.from(enviosPendientesMock));
+    }),
   };
 
   const mockUsuario = {
@@ -621,9 +634,11 @@ describe('AuthService', () => {
   describe('cambiarContrasena (Hito 11E)', () => {
     it('debe cambiar la contraseña exitosamente, actualizar cambioContrasenaEn y revocar todos los refresh tokens (RN-076)', async () => {
       mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
-      mockPasswordService.verify.mockResolvedValue(true);
+      mockPasswordService.verify.mockImplementation((hash, plain) =>
+        Promise.resolve(plain === 'ClaveVieja123!'),
+      );
       mockPasswordService.hash.mockResolvedValue('nuevo_hash_argon2id');
-      mockPrismaService.usuario.update.mockResolvedValue({});
+      mockPrismaService.usuario.updateMany.mockResolvedValue({ count: 1 });
       mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 2 });
 
       const res = await service.cambiarContrasena(
@@ -640,9 +655,9 @@ describe('AuthService', () => {
         mockUsuario.contrasenaHash,
         'ClaveVieja123!',
       );
-      expect(mockPrismaService.usuario.update).toHaveBeenCalledWith(
+      expect(mockPrismaService.usuario.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 1 },
+          where: { id: 1, contrasenaHash: mockUsuario.contrasenaHash },
           data: expect.objectContaining({
             contrasenaHash: 'nuevo_hash_argon2id',
             cambioContrasenaEn: expect.any(Date) as Date,
@@ -687,6 +702,20 @@ describe('AuthService', () => {
         }),
       ).rejects.toThrow('Usuario no encontrado o inactivo');
     });
+
+    it('debe rechazar con 400 PETICION_INVALIDA si la nueva contraseña es igual a la actual (B3)', async () => {
+      mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
+      mockPasswordService.verify.mockResolvedValue(true);
+
+      await expect(
+        service.cambiarContrasena(1, {
+          contrasenaActual: 'ClaveActual123!',
+          nuevaContrasena: 'ClaveActual123!',
+        }),
+      ).rejects.toThrow(
+        'La nueva contraseña no puede ser igual a la contraseña actual',
+      );
+    });
   });
 
   describe('solicitarRecuperacion (Hito 11E)', () => {
@@ -697,6 +726,7 @@ describe('AuthService', () => {
       const res = await service.solicitarRecuperacion({
         correo: 'inexistente@correo.com',
       });
+      await mockMailService.esperarEnviosPendientes();
 
       expect(res.mensaje).toContain('Si el correo electrónico está registrado');
       expect(
@@ -718,6 +748,7 @@ describe('AuthService', () => {
         { correo: 'ramon@correo.com' },
         '201.100.50.2',
       );
+      await mockMailService.esperarEnviosPendientes();
 
       expect(res.mensaje).toContain('Si el correo electrónico está registrado');
       expect(mockPrismaService.passwordResetToken.create).toHaveBeenCalledWith(
@@ -734,7 +765,7 @@ describe('AuthService', () => {
         'ramon@correo.com',
         'Ramón',
         expect.stringContaining(
-          'http://localhost:3000/restablecer-contrasena?token=',
+          'http://localhost:3000/restablecer-contrasena#token=',
         ),
         expect.any(String) as string,
       );
@@ -754,7 +785,7 @@ describe('AuthService', () => {
       const res = await service.solicitarRecuperacion({
         correo: 'ramon@correo.com',
       });
-      await new Promise((resolve) => setImmediate(resolve));
+      await mockMailService.esperarEnviosPendientes();
 
       expect(res.mensaje).toContain('Si el correo electrónico está registrado');
       expect(mockPrismaService.passwordResetToken.update).toHaveBeenCalledWith(
@@ -774,7 +805,7 @@ describe('AuthService', () => {
       const res = await service.solicitarRecuperacion({
         correo: 'ramon@correo.com',
       });
-      await new Promise((resolve) => setImmediate(resolve));
+      await mockMailService.esperarEnviosPendientes();
 
       expect(res.mensaje).toContain('Si el correo electrónico está registrado');
       expect(
@@ -820,18 +851,51 @@ describe('AuthService', () => {
         await respuestaPromise;
       }
     });
+
+    it('B1 Anti-enumeración: solicitarRecuperacion debe responder inmediatamente sin esperar a que Prisma resuelva la búsqueda de usuario', async () => {
+      let resolverPrisma!: (val: unknown) => void;
+      const promesaPrismaPendiente = new Promise((resolve) => {
+        resolverPrisma = resolve;
+      });
+      mockPrismaService.usuario.findUnique.mockReturnValue(
+        promesaPrismaPendiente,
+      );
+
+      const respuestaPromise = service.solicitarRecuperacion({
+        correo: 'ramon@correo.com',
+      });
+
+      const timeoutPromise = new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), 50),
+      );
+
+      const resultado = await Promise.race([respuestaPromise, timeoutPromise]);
+      try {
+        expect(resultado).not.toBe('timeout');
+        expect((resultado as { mensaje: string }).mensaje).toContain(
+          'Si el correo electrónico está registrado',
+        );
+      } finally {
+        resolverPrisma(mockUsuario);
+        await respuestaPromise;
+      }
+    });
   });
 
   describe('restablecerContrasena (Hito 11E)', () => {
     it('debe consumir el token de forma atómica, actualizar la contraseña y revocar refresh tokens (Trampa 2)', async () => {
       mockPasswordService.hash.mockResolvedValue('nuevo_hash_restablecido');
-      mockPrismaService.passwordResetToken.updateMany.mockResolvedValue({
-        count: 1,
-      });
       mockPrismaService.passwordResetToken.findUnique.mockResolvedValue({
         id: 10,
+        tokenHash: 'token_valido_hex_123',
+        usadoEn: null,
+        revocadoEn: null,
+        expiraEn: new Date(Date.now() + 100000),
         usuarioId: 1,
         usuario: mockUsuario,
+      });
+      mockPrismaService.passwordResetToken.updateMany.mockResolvedValue({
+        count: 1,
       });
       mockPrismaService.usuario.update.mockResolvedValue({});
       mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 3 });
@@ -867,6 +931,71 @@ describe('AuthService', () => {
           usuarioId: 1,
         }),
         expect.anything(),
+      );
+    });
+
+    it('B2(a) Pre-chequeo barato: no debe invocar passwordService.hash si el token es inválido o no existe', async () => {
+      mockPrismaService.passwordResetToken.findUnique.mockResolvedValue(null);
+      mockPasswordService.hash.mockClear();
+
+      await expect(
+        service.restablecerContrasena({
+          token: 'token_inexistente',
+          nuevaContrasena: 'NuevaClave123!',
+        }),
+      ).rejects.toThrow(
+        'El token de recuperación es inválido, expiró o ya fue utilizado',
+      );
+
+      expect(mockPasswordService.hash).not.toHaveBeenCalled();
+    });
+
+    it('B2(b) ROJA: debe rechazar con 400 TOKEN_RECUPERACION_INVALIDO si el usuario asociado está inactivo', async () => {
+      mockPrismaService.passwordResetToken.findUnique.mockResolvedValue({
+        id: 10,
+        tokenHash: 'hash123',
+        usadoEn: null,
+        revocadoEn: null,
+        expiraEn: new Date(Date.now() + 100000),
+        usuario: { ...mockUsuario, activo: false },
+      });
+      mockPrismaService.passwordResetToken.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      await expect(
+        service.restablecerContrasena({
+          token: 'token_usuario_inactivo',
+          nuevaContrasena: 'NuevaClave123!',
+        }),
+      ).rejects.toThrow(
+        'El token de recuperación es inválido, expiró o ya fue utilizado',
+      );
+    });
+
+    it('B2(b) ROJA: debe rechazar con 400 TOKEN_RECUPERACION_INVALIDO si la empresa asociada está inactiva', async () => {
+      mockPrismaService.passwordResetToken.findUnique.mockResolvedValue({
+        id: 10,
+        tokenHash: 'hash123',
+        usadoEn: null,
+        revocadoEn: null,
+        expiraEn: new Date(Date.now() + 100000),
+        usuario: {
+          ...mockUsuario,
+          empresa: { id: 1, activo: false, deletedAt: null },
+        },
+      });
+      mockPrismaService.passwordResetToken.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      await expect(
+        service.restablecerContrasena({
+          token: 'token_empresa_inactiva',
+          nuevaContrasena: 'NuevaClave123!',
+        }),
+      ).rejects.toThrow(
+        'El token de recuperación es inválido, expiró o ya fue utilizado',
       );
     });
 

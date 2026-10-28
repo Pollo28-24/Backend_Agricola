@@ -524,17 +524,42 @@ export class AuthService {
       );
     }
 
+    // B3(a): Nueva igual a la actual -> 400 PETICION_INVALIDA
+    const esMismaContrasena = await this.passwordService.verify(
+      usuario.contrasenaHash,
+      dto.nuevaContrasena,
+    );
+    if (esMismaContrasena) {
+      throw new DomainError(
+        CodigoError.PETICION_INVALIDA,
+        'La nueva contraseña no puede ser igual a la contraseña actual',
+        400,
+      );
+    }
+
     const nuevoHash = await this.passwordService.hash(dto.nuevaContrasena);
     const ahora = new Date();
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.usuario.update({
-        where: { id: usuarioId },
+      // B3(b): Actualización condicionada con concurrencia optimista
+      const resultadoUpdate = await tx.usuario.updateMany({
+        where: {
+          id: usuarioId,
+          contrasenaHash: usuario.contrasenaHash,
+        },
         data: {
           contrasenaHash: nuevoHash,
           cambioContrasenaEn: ahora,
         },
       });
+
+      if (resultadoUpdate.count === 0) {
+        throw new DomainError(
+          CodigoError.CONFLICTO,
+          'Conflicto de concurrencia al actualizar la contraseña',
+          409,
+        );
+      }
 
       // RN-076: Revoca transaccionalmente todos los Refresh Tokens activos del usuario
       await tx.refreshToken.updateMany({
@@ -574,131 +599,137 @@ export class AuthService {
    * Solicita el restablecimiento de contraseña vía correo (RN-040 y §3.23.1).
    * Genera un token aleatorio criptográfico seguro de 32 bytes (64 caracteres hex)
    * y guarda su hash SHA-256 en password_reset_token con validez de 15 minutos.
-   * Política estricta de anti-enumeración de cuentas: responde siempre 200 OK idéntico.
+   * Política estricta de anti-enumeración por tiempo: responde inmediatamente 200 OK idéntico
+   * y despacha toda la lógica de validación, creación de token y envío en segundo plano.
    */
-  async solicitarRecuperacion(
+  solicitarRecuperacion(
     dto: SolicitarRecuperacionDto,
     ip?: string,
   ): Promise<{ mensaje: string }> {
     const MENSAJE_RESPUESTA =
       'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.';
 
+    // B1: Anti-enumeración por tiempo. Responde inmediatamente con mensaje genérico.
+    // Toda la lógica restante corre en una tarea diferida registrada para poder esperarla en pruebas.
     const correoNormalizado = dto.correo.toLowerCase().trim();
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { correo: correoNormalizado },
-      include: {
-        empresa: {
-          select: {
-            id: true,
-            activo: true,
-            deletedAt: true,
+
+    const tareaDiferida = (async () => {
+      let usuarioIdLog: number | undefined;
+      try {
+        const usuario = await this.prisma.usuario.findUnique({
+          where: { correo: correoNormalizado },
+          include: {
+            empresa: {
+              select: {
+                id: true,
+                activo: true,
+                deletedAt: true,
+              },
+            },
           },
-        },
-      },
-    });
+        });
 
-    // Anti-enumeración: si el usuario o la empresa no existen o están inactivos, responde idéntico
-    if (
-      !usuario ||
-      usuario.deletedAt !== null ||
-      !usuario.activo ||
-      !usuario.empresa ||
-      usuario.empresa.deletedAt !== null ||
-      !usuario.empresa.activo
-    ) {
-      await this.passwordService.verify(DUMMY_ARGON2ID_HASH, 'dummy-password');
-      return { mensaje: MENSAJE_RESPUESTA };
-    }
+        if (
+          !usuario ||
+          usuario.deletedAt !== null ||
+          !usuario.activo ||
+          !usuario.empresa ||
+          usuario.empresa.deletedAt !== null ||
+          !usuario.empresa.activo
+        ) {
+          return;
+        }
 
-    const hace15Min = new Date(Date.now() - 15 * 60 * 1000);
-    const tokensRecientes = await this.prisma.passwordResetToken.count({
-      where: {
-        usuarioId: usuario.id,
-        createdAt: { gte: hace15Min },
-      },
-    });
+        usuarioIdLog = usuario.id;
 
-    if (tokensRecientes >= 3) {
-      return { mensaje: MENSAJE_RESPUESTA };
-    }
+        const hace15Min = new Date(Date.now() - 15 * 60 * 1000);
+        const tokensRecientes = await this.prisma.passwordResetToken.count({
+          where: {
+            usuarioId: usuario.id,
+            createdAt: { gte: hace15Min },
+          },
+        });
 
-    const tokenCrudo = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(tokenCrudo)
-      .digest('hex');
-    const minutosExpiracion = this.configService.get<number>(
-      'PASSWORD_RESET_EXPIRES_MINUTES',
-      15,
-    );
-    const expiraEn = new Date(Date.now() + minutosExpiracion * 60 * 1000);
+        if (tokensRecientes >= 3) {
+          return;
+        }
 
-    // En BD revocar tokens previos y crear el nuevo token
-    const tokenRecord = await this.prisma.$transaction(async (tx) => {
-      await tx.passwordResetToken.updateMany({
-        where: {
-          usuarioId: usuario.id,
-          usadoEn: null,
-          revocadoEn: null,
-        },
-        data: {
-          revocadoEn: new Date(),
-        },
-      });
+        const tokenCrudo = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto
+          .createHash('sha256')
+          .update(tokenCrudo)
+          .digest('hex');
+        const minutosExpiracion = this.configService.get<number>(
+          'PASSWORD_RESET_EXPIRES_MINUTES',
+          15,
+        );
+        const expiraEn = new Date(Date.now() + minutosExpiracion * 60 * 1000);
 
-      return tx.passwordResetToken.create({
-        data: {
-          usuarioId: usuario.id,
-          tokenHash,
-          expiraEn,
-          ipSolicitud: ip,
-        },
-      });
-    });
-
-    const baseUrl = this.configService.get<string>(
-      'PASSWORD_RESET_URL',
-      'http://localhost:3000/restablecer-contrasena',
-    );
-    const separador = baseUrl.includes('?') ? '&' : '?';
-    const enlaceRecuperacion = `${baseUrl}${separador}token=${tokenCrudo}`;
-
-    // Trampa 5: la llamada a Brevo ocurre FUERA de la transacción.
-    // Si Brevo falla, se revoca el token y se registra sin propagar 500/503 (R1).
-    // B2: el envío se despacha de forma desacoplada del camino de respuesta HTTP
-    // para evitar demoras, fugas de tiempo (timing attacks) y responder 200 inmediatamente.
-    const despachoPromise = this.mailService
-      .enviarRecuperacionContrasena(
-        usuario.correo,
-        usuario.nombre,
-        enlaceRecuperacion,
-        tokenCrudo,
-      )
-      .catch(async (error: unknown) => {
-        try {
-          await this.prisma.passwordResetToken.update({
-            where: { id: tokenRecord.id },
-            data: { revocadoEn: new Date() },
+        // En BD revocar tokens previos y crear el nuevo token
+        const tokenRecord = await this.prisma.$transaction(async (tx) => {
+          await tx.passwordResetToken.updateMany({
+            where: {
+              usuarioId: usuario.id,
+              usadoEn: null,
+              revocadoEn: null,
+            },
+            data: {
+              revocadoEn: new Date(),
+            },
           });
-        } catch (revocationError: unknown) {
+
+          return tx.passwordResetToken.create({
+            data: {
+              usuarioId: usuario.id,
+              tokenHash,
+              expiraEn,
+              ipSolicitud: ip,
+            },
+          });
+        });
+
+        const baseUrl = this.configService.get<string>(
+          'PASSWORD_RESET_URL',
+          'http://localhost:3000/restablecer-contrasena',
+        );
+        // B7: Enlace con fragmento #token=
+        const enlaceRecuperacion = `${baseUrl}#token=${tokenCrudo}`;
+
+        try {
+          await this.mailService.enviarRecuperacionContrasena(
+            usuario.correo,
+            usuario.nombre,
+            enlaceRecuperacion,
+            tokenCrudo,
+          );
+        } catch {
+          try {
+            await this.prisma.passwordResetToken.update({
+              where: { id: tokenRecord.id },
+              data: { revocadoEn: new Date() },
+            });
+          } catch {
+            this.logger.error(
+              `Fallo al revocar token tras error en transporte de correo para usuarioId: ${usuario.id}`,
+            );
+          }
           this.logger.error(
-            `Fallo al revocar token tras error en transporte de correo: ${
-              revocationError instanceof Error
-                ? revocationError.message
-                : 'Error desconocido'
-            }`,
+            `Fallo al despachar correo de recuperación para usuarioId: ${usuario.id}. Token revocado.`,
           );
         }
+      } catch (err: unknown) {
+        // Catch final que registra SOLO el usuarioId, NUNCA correo ni token
         this.logger.error(
-          `Fallo al despachar correo de recuperación para usuarioId: ${usuario.id}. Token revocado. Motivo: ${
-            error instanceof Error ? error.message : 'Error desconocido'
-          }`,
+          `Error en tarea diferida de recuperación${
+            usuarioIdLog ? ` para usuarioId: ${usuarioIdLog}` : ''
+          }: ${err instanceof Error ? err.message : 'Error desconocido'}`,
         );
-      });
+      }
+    })();
 
-    this.mailService.registrarEnvio(despachoPromise);
+    this.mailService.registrarEnvio(tareaDiferida);
 
-    return { mensaje: MENSAJE_RESPUESTA };
+    return Promise.resolve({ mensaje: MENSAJE_RESPUESTA });
   }
 
   /**
@@ -711,12 +742,33 @@ export class AuthService {
     dto: RestablecerContrasenaDto,
     ip?: string,
   ): Promise<{ mensaje: string }> {
+    const MENSAJE_TOKEN_INVALIDO =
+      'El token de recuperación es inválido, expiró o ya fue utilizado';
+    const ahora = new Date();
     const tokenHash = crypto
       .createHash('sha256')
       .update(dto.token)
       .digest('hex');
+
+    // B2(a): Pre-chequeo barato por tokenHash ANTES de hashear con Argon2id
+    const tokenExistente = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+    });
+
+    if (
+      !tokenExistente ||
+      tokenExistente.usadoEn !== null ||
+      tokenExistente.revocadoEn !== null ||
+      tokenExistente.expiraEn <= ahora
+    ) {
+      throw new DomainError(
+        CodigoError.TOKEN_RECUPERACION_INVALIDO,
+        MENSAJE_TOKEN_INVALIDO,
+        400,
+      );
+    }
+
     const nuevoHash = await this.passwordService.hash(dto.nuevaContrasena);
-    const ahora = new Date();
 
     await this.prisma.$transaction(async (tx) => {
       // Trampa 2: Consumo atómico con updateMany
@@ -735,24 +787,42 @@ export class AuthService {
       if (consumo.count === 0) {
         throw new DomainError(
           CodigoError.TOKEN_RECUPERACION_INVALIDO,
-          'El token de recuperación es inválido, expiró o ya fue utilizado',
+          MENSAJE_TOKEN_INVALIDO,
           400,
         );
       }
 
       const resetToken = await tx.passwordResetToken.findUnique({
         where: { tokenHash },
-        include: { usuario: true },
+        include: {
+          usuario: {
+            include: {
+              empresa: {
+                select: {
+                  id: true,
+                  activo: true,
+                  deletedAt: true,
+                },
+              },
+            },
+          },
+        },
       });
 
+      // B2(b): Valida usuario activo, no eliminado y empresa activa y no eliminada.
+      // Cualquier fallo arroja el MISMO código y mensaje, y revierte la transacción.
       if (
         !resetToken ||
         !resetToken.usuario ||
-        resetToken.usuario.deletedAt !== null
+        resetToken.usuario.deletedAt !== null ||
+        !resetToken.usuario.activo ||
+        !resetToken.usuario.empresa ||
+        resetToken.usuario.empresa.deletedAt !== null ||
+        !resetToken.usuario.empresa.activo
       ) {
         throw new DomainError(
           CodigoError.TOKEN_RECUPERACION_INVALIDO,
-          'El usuario asociado al token no es válido o fue eliminado',
+          MENSAJE_TOKEN_INVALIDO,
           400,
         );
       }
