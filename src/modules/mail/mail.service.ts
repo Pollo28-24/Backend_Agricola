@@ -9,7 +9,14 @@ import { MemoryTransport } from './transports/memory.transport';
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly transport: IMailTransport;
-  private readonly enviosPendientes = new Set<Promise<void>>();
+  private readonly enviosPendientes = new Set<Promise<unknown>>();
+
+  registrarEnvio(promesa: Promise<unknown>): void {
+    this.enviosPendientes.add(promesa);
+    void promesa.finally(() => {
+      this.enviosPendientes.delete(promesa);
+    });
+  }
 
   async esperarEnviosPendientes(): Promise<void> {
     await Promise.allSettled(Array.from(this.enviosPendientes));
@@ -83,18 +90,12 @@ export class MailService {
       );
     }
 
-    const promesa = this.transport.enviar({
+    await this.transport.enviar({
       destinatario,
       nombreDestinatario: nombre,
       asunto,
       contenidoHtml,
       contenidoTexto,
     });
-    this.enviosPendientes.add(promesa);
-    try {
-      await promesa;
-    } finally {
-      this.enviosPendientes.delete(promesa);
-    }
   }
 }

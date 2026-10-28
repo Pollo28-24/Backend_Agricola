@@ -2363,7 +2363,9 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
         'Alerta $num ($codigo) evaluada independientemente por API',
         async ({ codigo, severidad, getCicloId, verificar }) => {
           const res = await testRequest(app)
-            .get('/api/v1/reportes/alertas?limit=100&hoy=2026-10-21')
+            .get(
+              `/api/v1/reportes/alertas?limit=100&hoy=2026-10-21&severidad=${severidad}`,
+            )
             .set('Authorization', tokenA_Admin);
           expect(res.status).toBe(200);
           const cId = getCicloId();

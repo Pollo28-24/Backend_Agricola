@@ -20,6 +20,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
   let prisma: PrismaService;
   let seed: E2eSeedData;
   let memoryTransport: MemoryTransport;
+  let mailService: MailService;
 
   beforeAll(async () => {
     const testApp = await createTestApp();
@@ -27,7 +28,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     await app.listen(0);
     prisma = testApp.prisma;
     seed = await getOrLoadSeedData(prisma);
-    const mailService = app.get(MailService);
+    mailService = app.get(MailService);
     memoryTransport = mailService.getTransport() as MemoryTransport;
   });
 
@@ -37,10 +38,11 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     }
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     if (memoryTransport && typeof memoryTransport.limpiar === 'function') {
       memoryTransport.limpiar();
     }
+    await prisma.passwordResetToken.deleteMany({});
   });
 
   afterEach(async () => {
@@ -82,9 +84,11 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         contrasena: 'Password123!',
       });
       expect(loginRes.status).toBe(200);
-      const { accessToken: oldAccessToken } = loginRes.body as {
-        accessToken: string;
-      };
+      const { accessToken: oldAccessToken, refreshToken: oldRefreshToken } =
+        loginRes.body as {
+          accessToken: string;
+          refreshToken: string;
+        };
 
       // 2. Cambiar contraseña exitosamente
       const nuevaClave = 'NuevaPassword456!';
@@ -116,6 +120,12 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       expect((meRes.body as { code: string }).code).toBe(
         CodigoError.NO_AUTENTICADO,
       );
+
+      // RN-076: El refresh token previo debe haber sido revocado y no permitir rotación
+      const refreshViejoRes = await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: oldRefreshToken });
+      expect(refreshViejoRes.status).toBe(401);
 
       // Ajustar cambioContrasenaEn al pasado para permitir login con nuevo token emitido ahora
       await prisma.usuario.update({
@@ -267,6 +277,8 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
       );
 
+      await mailService.esperarEnviosPendientes();
+
       const enviados = memoryTransport.obtenerCorreos();
       expect(enviados.length).toBe(1);
       expect(enviados[0].destinatario).toBe(
@@ -301,6 +313,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
           .send({ correo: correoUsuario });
         expect(res.status).toBe(200);
       }
+      await mailService.esperarEnviosPendientes();
 
       expect(memoryTransport.obtenerCorreos().length).toBe(3);
       const tokensAntes = await prisma.passwordResetToken.count({
@@ -311,6 +324,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       const res4 = await request(server)
         .post('/api/v1/auth/contrasena/solicitar-recuperacion')
         .send({ correo: correoUsuario });
+      await mailService.esperarEnviosPendientes();
 
       expect(res4.status).toBe(200);
       expect((res4.body as { mensaje: string }).mensaje).toContain(
@@ -341,6 +355,8 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
       );
 
+      await mailService.esperarEnviosPendientes();
+
       const tokens = await prisma.passwordResetToken.findMany({
         where: { usuarioId },
         orderBy: { id: 'desc' },
@@ -348,6 +364,110 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       });
       expect(tokens.length).toBe(1);
       expect(tokens[0].revocadoEn).not.toBeNull();
+    });
+
+    it('B3 Anti-enumeración exhaustiva: compara status 200, body, content-type y content-length exacto entre los 6 casos', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const adminA = seed.empresaA.usuarios.admin;
+      const capturistaA = seed.empresaA.usuarios.capturista;
+      const contadorA = seed.empresaA.usuarios.contador;
+      const adminB = seed.empresaB.usuarios.admin;
+
+      // 1. Correo inexistente
+      const resInexistente = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: 'inexistente_b3_xyz987@dominio-fantasma.com' });
+
+      // 2. Usuario inactivo
+      await prisma.usuario.update({
+        where: { id: capturistaA.id },
+        data: { activo: false },
+      });
+      let resUsuarioInactivo: request.Response;
+      try {
+        resUsuarioInactivo = await request(server)
+          .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+          .send({ correo: capturistaA.correo });
+      } finally {
+        await prisma.usuario.update({
+          where: { id: capturistaA.id },
+          data: { activo: true },
+        });
+      }
+
+      // 3. Empresa inactiva
+      await prisma.empresa.update({
+        where: { id: seed.empresaB.id },
+        data: { activo: false },
+      });
+      let resEmpresaInactiva: request.Response;
+      try {
+        resEmpresaInactiva = await request(server)
+          .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+          .send({ correo: adminB.correo });
+      } finally {
+        await prisma.empresa.update({
+          where: { id: seed.empresaB.id },
+          data: { activo: true },
+        });
+      }
+
+      // 4. Cuota de 3 tokens excedida
+      await prisma.passwordResetToken.deleteMany({
+        where: { usuarioId: contadorA.id },
+      });
+      for (let i = 0; i < 3; i++) {
+        await prisma.passwordResetToken.create({
+          data: {
+            usuarioId: contadorA.id,
+            tokenHash: `hash_mock_cuota_${i}_${Date.now()}`,
+            expiraEn: new Date(Date.now() + 15 * 60 * 1000),
+            createdAt: new Date(),
+          },
+        });
+      }
+      const resCuota = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: contadorA.correo });
+
+      // 5. Fallo de Brevo (transporte)
+      memoryTransport.simularFalloProximoEnvio(
+        new Error('Brevo timeout connection simulated 504'),
+      );
+      const resFalloBrevo = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: adminA.correo });
+
+      // 6. Caso feliz
+      memoryTransport.limpiar();
+      const resCasoFeliz = await request(server)
+        .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+        .send({ correo: adminA.correo });
+
+      await mailService.esperarEnviosPendientes();
+
+      const respuestas = [
+        { nombre: 'correo inexistente', res: resInexistente },
+        { nombre: 'usuario inactivo', res: resUsuarioInactivo },
+        { nombre: 'empresa inactiva', res: resEmpresaInactiva },
+        { nombre: 'cuota excedida', res: resCuota },
+        { nombre: 'fallo transporte Brevo', res: resFalloBrevo },
+        { nombre: 'caso feliz', res: resCasoFeliz },
+      ];
+
+      const longitudEsperada = resInexistente.headers['content-length'];
+
+      for (const item of respuestas) {
+        expect(item.res.status).toBe(200);
+        expect(item.res.headers['content-type']).toBe(
+          'application/json; charset=utf-8',
+        );
+        expect(item.res.body).toEqual({
+          mensaje:
+            'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
+        });
+        expect(item.res.headers['content-length']).toBe(longitudEsperada);
+      }
     });
   });
 
@@ -358,11 +478,25 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     it('debe consumir el token de forma atómica y actualizar la contraseña (Trampa 2)', async () => {
       const server = app.getHttpServer() as Parameters<typeof request>[0];
 
+      // Login inicial del contador para obtener sesión activa previa
+      const loginPrevioRes = await request(server)
+        .post('/api/v1/auth/login')
+        .send({
+          correo: seed.empresaA.usuarios.contador.correo,
+          contrasena: 'Password123!',
+        });
+      expect(loginPrevioRes.status).toBe(200);
+      const { refreshToken: oldRefreshToken } = loginPrevioRes.body as {
+        refreshToken: string;
+      };
+
       await request(server)
         .post('/api/v1/auth/contrasena/solicitar-recuperacion')
         .send({
           correo: seed.empresaA.usuarios.contador.correo,
         });
+
+      await mailService.esperarEnviosPendientes();
 
       const enviados = memoryTransport.obtenerCorreos();
       expect(enviados.length).toBe(1);
@@ -408,6 +542,12 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         contrasena: nuevaClave,
       });
       expect(loginRes.status).toBe(200);
+
+      // RN-076: El refresh token previo al restablecimiento debe haber sido revocado
+      const refreshViejoRes = await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: oldRefreshToken });
+      expect(refreshViejoRes.status).toBe(401);
     });
 
     it('5 peticiones concurrentes con el mismo token: exactamente 1 tiene éxito y 4 son rechazadas con 400 TOKEN_RECUPERACION_INVALIDO', async () => {
@@ -462,6 +602,8 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         .send({
           correo: seed.empresaA.usuarios.contador.correo,
         });
+
+      await mailService.esperarEnviosPendientes();
 
       const enviados = memoryTransport.obtenerCorreos();
       const match =

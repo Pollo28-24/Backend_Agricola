@@ -65,6 +65,7 @@ interface MockAuditService {
 
 interface MockMailService {
   enviarRecuperacionContrasena: jest.Mock<Promise<void>, [unknown?]>;
+  registrarEnvio: jest.Mock<void, [Promise<unknown>]>;
 }
 
 describe('AuthService', () => {
@@ -133,6 +134,7 @@ describe('AuthService', () => {
     enviarRecuperacionContrasena: jest
       .fn<Promise<void>, [unknown?]>()
       .mockResolvedValue(undefined),
+    registrarEnvio: jest.fn<void, [Promise<unknown>]>(),
   };
 
   const mockUsuario = {
@@ -752,6 +754,7 @@ describe('AuthService', () => {
       const res = await service.solicitarRecuperacion({
         correo: 'ramon@correo.com',
       });
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(res.mensaje).toContain('Si el correo electrónico está registrado');
       expect(mockPrismaService.passwordResetToken.update).toHaveBeenCalledWith(
@@ -771,6 +774,7 @@ describe('AuthService', () => {
       const res = await service.solicitarRecuperacion({
         correo: 'ramon@correo.com',
       });
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(res.mensaje).toContain('Si el correo electrónico está registrado');
       expect(
@@ -779,6 +783,42 @@ describe('AuthService', () => {
       expect(
         mockMailService.enviarRecuperacionContrasena,
       ).not.toHaveBeenCalled();
+    });
+
+    it('B2 Anti-enumeración: el envío de correo no debe bloquear la respuesta HTTP (debe responder inmediatamente)', async () => {
+      mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
+      mockPrismaService.passwordResetToken.count.mockResolvedValue(0);
+      mockPrismaService.passwordResetToken.updateMany.mockResolvedValue({
+        count: 0,
+      });
+      mockPrismaService.passwordResetToken.create.mockResolvedValue({ id: 99 });
+
+      let resolverEnvio!: () => void;
+      const promesaEnvioPendiente = new Promise<void>((resolve) => {
+        resolverEnvio = resolve;
+      });
+      mockMailService.enviarRecuperacionContrasena.mockReturnValue(
+        promesaEnvioPendiente,
+      );
+
+      const respuestaPromise = service.solicitarRecuperacion({
+        correo: 'ramon@correo.com',
+      });
+
+      const timeoutPromise = new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), 50),
+      );
+
+      const resultado = await Promise.race([respuestaPromise, timeoutPromise]);
+      try {
+        expect(resultado).not.toBe('timeout');
+        expect((resultado as { mensaje: string }).mensaje).toContain(
+          'Si el correo electrónico está registrado',
+        );
+      } finally {
+        resolverEnvio();
+        await respuestaPromise;
+      }
     });
   });
 

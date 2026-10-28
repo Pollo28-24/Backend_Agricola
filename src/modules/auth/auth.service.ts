@@ -664,25 +664,39 @@ export class AuthService {
     const enlaceRecuperacion = `${baseUrl}${separador}token=${tokenCrudo}`;
 
     // Trampa 5: la llamada a Brevo ocurre FUERA de la transacción.
-    // Si Brevo falla, se revoca el token y se lanza la excepción.
-    try {
-      await this.mailService.enviarRecuperacionContrasena(
+    // Si Brevo falla, se revoca el token y se registra sin propagar 500/503 (R1).
+    // B2: el envío se despacha de forma desacoplada del camino de respuesta HTTP
+    // para evitar demoras, fugas de tiempo (timing attacks) y responder 200 inmediatamente.
+    const despachoPromise = this.mailService
+      .enviarRecuperacionContrasena(
         usuario.correo,
         usuario.nombre,
         enlaceRecuperacion,
         tokenCrudo,
-      );
-    } catch (error: unknown) {
-      await this.prisma.passwordResetToken.update({
-        where: { id: tokenRecord.id },
-        data: { revocadoEn: new Date() },
+      )
+      .catch(async (error: unknown) => {
+        try {
+          await this.prisma.passwordResetToken.update({
+            where: { id: tokenRecord.id },
+            data: { revocadoEn: new Date() },
+          });
+        } catch (revocationError: unknown) {
+          this.logger.error(
+            `Fallo al revocar token tras error en transporte de correo: ${
+              revocationError instanceof Error
+                ? revocationError.message
+                : 'Error desconocido'
+            }`,
+          );
+        }
+        this.logger.error(
+          `Fallo al despachar correo de recuperación para usuarioId: ${usuario.id}. Token revocado. Motivo: ${
+            error instanceof Error ? error.message : 'Error desconocido'
+          }`,
+        );
       });
-      this.logger.error(
-        `Fallo al despachar correo de recuperación para usuarioId: ${usuario.id}. Token revocado. Motivo: ${
-          error instanceof Error ? error.message : 'Error desconocido'
-        }`,
-      );
-    }
+
+    this.mailService.registrarEnvio(despachoPromise);
 
     return { mensaje: MENSAJE_RESPUESTA };
   }
