@@ -32,9 +32,17 @@ export class MailService {
 
   registrarEnvio(promesa: Promise<unknown>): void {
     this.enviosPendientes.add(promesa);
-    void promesa.finally(() => {
-      this.enviosPendientes.delete(promesa);
-    });
+    void promesa
+      .catch((err: unknown) => {
+        const errorClase =
+          err instanceof Error ? err.constructor.name : typeof err;
+        this.logger.error(
+          `Error no manejado en envío registrado: ${errorClase}`,
+        );
+      })
+      .finally(() => {
+        this.enviosPendientes.delete(promesa);
+      });
   }
 
   async esperarEnviosPendientes(): Promise<void> {

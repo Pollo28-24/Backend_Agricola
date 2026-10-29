@@ -297,5 +297,30 @@ describe('MailService (Hito 11E)', () => {
       expect(spyLog).not.toHaveBeenCalled();
       spyLog.mockRestore();
     });
+
+    it('B1: registrarEnvio captura rechazos defensivamente sin disparar unhandledRejection', async () => {
+      configService.get.mockReturnValue('memory');
+      const service = new MailService(configService);
+
+      const unhandledRejections: unknown[] = [];
+      const onUnhandled = (reason: unknown) => {
+        unhandledRejections.push(reason);
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const promesaRechazada = Promise.reject(
+          new Error('Fallo de red simulado'),
+        );
+        service.registrarEnvio(promesaRechazada);
+
+        await service.esperarEnviosPendientes();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        expect(unhandledRejections).toHaveLength(0);
+      } finally {
+        process.removeListener('unhandledRejection', onUnhandled);
+      }
+    });
   });
 });

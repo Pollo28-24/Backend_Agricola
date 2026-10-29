@@ -718,11 +718,13 @@ export class AuthService {
           );
         }
       } catch (err: unknown) {
-        // Catch final que registra SOLO el usuarioId, NUNCA correo ni token
+        // Catch final que registra SOLO el usuarioId (si se conoce) y nombre de clase del error, NUNCA correo, token ni mensaje interno
+        const errorClase =
+          err instanceof Error ? err.constructor.name : typeof err;
         this.logger.error(
           `Error en tarea diferida de recuperación${
             usuarioIdLog ? ` para usuarioId: ${usuarioIdLog}` : ''
-          }: ${err instanceof Error ? err.message : 'Error desconocido'}`,
+          }: ${errorClase}`,
         );
       }
     })();

@@ -816,6 +816,35 @@ describe('AuthService', () => {
       ).not.toHaveBeenCalled();
     });
 
+    it('B1: la tarea diferida nunca rechaza ante error en count (sin unhandledRejection)', async () => {
+      mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
+      mockPrismaService.passwordResetToken.count.mockRejectedValue(
+        new Error('DB failure in count'),
+      );
+
+      const unhandledRejections: unknown[] = [];
+      const onUnhandled = (reason: unknown) => {
+        unhandledRejections.push(reason);
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const res = await service.solicitarRecuperacion({
+          correo: 'ramon@correo.com',
+        });
+        expect(res.mensaje).toContain(
+          'Si el correo electrónico está registrado',
+        );
+
+        await mockMailService.esperarEnviosPendientes();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        expect(unhandledRejections).toHaveLength(0);
+      } finally {
+        process.removeListener('unhandledRejection', onUnhandled);
+      }
+    });
+
     it('B2 Anti-enumeración: el envío de correo no debe bloquear la respuesta HTTP (debe responder inmediatamente)', async () => {
       mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
       mockPrismaService.passwordResetToken.count.mockResolvedValue(0);

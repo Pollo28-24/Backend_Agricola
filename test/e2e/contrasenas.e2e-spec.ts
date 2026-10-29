@@ -551,6 +551,57 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         expect(item.res.headers['content-length']).toBe(longitudEsperada);
       }
     });
+
+    it('B2: 5 solicitudes concurrentes de recuperación para el mismo correo responden 200 idéntico y existe <= 1 token activo en BD', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const correo = seed.empresaA.usuarios.admin.correo;
+      const unhandledRejections: unknown[] = [];
+      const onUnhandled = (reason: unknown) => {
+        unhandledRejections.push(reason);
+      };
+      process.on('unhandledRejection', onUnhandled);
+
+      try {
+        const promesas = Array.from({ length: 5 }, () =>
+          request(server)
+            .post('/api/v1/auth/contrasena/solicitar-recuperacion')
+            .send({ correo }),
+        );
+
+        const respuestas = await Promise.all(promesas);
+
+        // Todas responden 200 idéntico con mensaje genérico
+        const primerCuerpo = respuestas[0].body as { mensaje: string };
+        for (const res of respuestas) {
+          expect(res.status).toBe(200);
+          expect(res.body).toEqual(primerCuerpo);
+          expect(primerCuerpo.mensaje).toContain(
+            'Si el correo electrónico está registrado',
+          );
+        }
+
+        // Esperar que finalicen los envíos diferidos en background
+        await mailService.esperarEnviosPendientes();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        expect(unhandledRejections).toHaveLength(0);
+
+        // Verificar en BD que hay como máximo 1 token activo (no usado, no revocado, no vencido)
+        const ahora = new Date();
+        const tokensActivos = await prisma.passwordResetToken.findMany({
+          where: {
+            usuarioId: seed.empresaA.usuarios.admin.id,
+            usadoEn: null,
+            revocadoEn: null,
+            expiraEn: { gt: ahora },
+          },
+        });
+
+        expect(tokensActivos.length).toBeLessThanOrEqual(1);
+      } finally {
+        process.removeListener('unhandledRejection', onUnhandled);
+      }
+    });
   });
 
   // ===========================================================================
