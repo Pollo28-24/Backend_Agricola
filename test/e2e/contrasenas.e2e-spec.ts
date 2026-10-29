@@ -182,7 +182,11 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       const empresaB = await prisma.empresa.findUniqueOrThrow({
         where: { id: seed.empresaB.id },
       });
+      const usuarioB = await prisma.usuario.findUniqueOrThrow({
+        where: { id: seed.empresaB.usuarios.admin.id },
+      });
       const estadoOriginal = empresaB.estadoSuscripcion;
+      const hashOriginal = usuarioB.contrasenaHash;
 
       await prisma.empresa.update({
         where: { id: empresaB.id },
@@ -202,14 +206,92 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
           .set('Authorization', `Bearer ${accessToken}`)
           .send({
             contrasenaActual: 'Password123!',
-            nuevaContrasena: 'Password123!',
+            nuevaContrasena: 'NuevaPassword123!',
           });
 
         expect(res.status).toBe(200);
       } finally {
+        await prisma.usuario.update({
+          where: { id: seed.empresaB.usuarios.admin.id },
+          data: { contrasenaHash: hashOriginal },
+        });
         await prisma.empresa.update({
           where: { id: empresaB.id },
           data: { estadoSuscripcion: estadoOriginal },
+        });
+      }
+    });
+
+    it('debe rechazar con 400 PETICION_INVALIDA si la nueva contraseña es igual a la actual', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+
+      const loginRes = await request(server).post('/api/v1/auth/login').send({
+        correo: seed.empresaA.usuarios.admin.correo,
+        contrasena: 'Password123!',
+      });
+      expect(loginRes.status).toBe(200);
+      const { accessToken } = loginRes.body as { accessToken: string };
+
+      const res = await request(server)
+        .patch('/api/v1/auth/contrasena/cambiar')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          contrasenaActual: 'Password123!',
+          nuevaContrasena: 'Password123!',
+        });
+
+      expect(res.status).toBe(400);
+      expect((res.body as { code: string }).code).toBe(
+        CodigoError.PETICION_INVALIDA,
+      );
+    });
+
+    it('maneja carreras concurrentes de cambio de contraseña: exactamente 1 éxito (200) y 1 conflicto (409 CONFLICTO)', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+
+      const usuarioContador = seed.empresaA.usuarios.contador;
+      const loginRes = await request(server).post('/api/v1/auth/login').send({
+        correo: usuarioContador.correo,
+        contrasena: 'Password123!',
+      });
+      expect(loginRes.status).toBe(200);
+      const { accessToken } = loginRes.body as { accessToken: string };
+
+      const hashOriginal = (
+        await prisma.usuario.findUniqueOrThrow({
+          where: { id: usuarioContador.id },
+        })
+      ).contrasenaHash;
+
+      try {
+        const [res1, res2] = await Promise.all([
+          request(server)
+            .patch('/api/v1/auth/contrasena/cambiar')
+            .set('Authorization', `Bearer ${accessToken}`)
+            .send({
+              contrasenaActual: 'Password123!',
+              nuevaContrasena: 'ConcurrenteClave1!',
+            }),
+          request(server)
+            .patch('/api/v1/auth/contrasena/cambiar')
+            .set('Authorization', `Bearer ${accessToken}`)
+            .send({
+              contrasenaActual: 'Password123!',
+              nuevaContrasena: 'ConcurrenteClave2!',
+            }),
+        ]);
+
+        const statusCodes = [res1.status, res2.status].sort();
+        expect(statusCodes).toEqual([200, 409]);
+
+        const resConflicto = res1.status === 409 ? res1 : res2;
+        expect((resConflicto.body as { code: string }).code).toBe(
+          CodigoError.CONFLICTO,
+        );
+      } finally {
+        await prisma.usuario.update({
+          where: { id: usuarioContador.id },
+          data: { contrasenaHash: hashOriginal },
         });
       }
     });
@@ -312,8 +394,8 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
           .post('/api/v1/auth/contrasena/solicitar-recuperacion')
           .send({ correo: correoUsuario });
         expect(res.status).toBe(200);
+        await mailService.esperarEnviosPendientes();
       }
-      await mailService.esperarEnviosPendientes();
 
       expect(memoryTransport.obtenerCorreos().length).toBe(3);
       const tokensAntes = await prisma.passwordResetToken.count({
@@ -563,6 +645,8 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         .send({
           correo: seed.empresaA.usuarios.capturista.correo,
         });
+
+      await mailService.esperarEnviosPendientes();
 
       const enviados = memoryTransport.obtenerCorreos();
       const match =
