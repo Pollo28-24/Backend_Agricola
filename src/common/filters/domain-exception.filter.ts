@@ -108,6 +108,22 @@ export class DomainExceptionFilter implements ExceptionFilter {
         code = CodigoError.PETICION_INVALIDA;
         message = exception.message || 'Error en la subida de archivo';
       }
+    } else if (
+      exception instanceof Error &&
+      (typeof (exception as { status?: number }).status === 'number' ||
+        typeof (exception as { statusCode?: number }).statusCode === 'number')
+    ) {
+      const httpErr = exception as {
+        status?: number;
+        statusCode?: number;
+        message: string;
+      };
+      statusCode =
+        httpErr.status ??
+        httpErr.statusCode ??
+        HttpStatus.INTERNAL_SERVER_ERROR;
+      code = this.mapStatusToCode(statusCode);
+      message = exception.message || 'Error en la petici?n';
     } else if (exception instanceof Error) {
       this.logger.error({
         correlationId,

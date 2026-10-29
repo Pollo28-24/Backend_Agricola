@@ -18,7 +18,8 @@ export class PaginationQueryDto {
     example: 50,
     default: 50,
     maximum: 100,
-    description: 'Cantidad de registros por página (máximo 100, valor por defecto 50 según docx §3.23)',
+    description:
+      'Cantidad de registros por página (máximo 100, valor por defecto 50 según docx §3.23)',
   })
   @IsOptional()
   @Type(() => Number)

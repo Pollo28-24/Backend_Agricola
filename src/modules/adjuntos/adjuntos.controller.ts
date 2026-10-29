@@ -351,9 +351,7 @@ export class AdjuntosController {
     if (!req || !req.headers) {
       return undefined;
     }
-    const auth =
-      (req.headers['authorization'] as string | undefined) ||
-      (req.headers['Authorization'] as string | undefined);
+    const auth = req.headers['authorization'] || req.headers['Authorization'];
     if (typeof auth === 'string') {
       const match = auth.match(
         /^Bearer\s+([A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*)$/i,
