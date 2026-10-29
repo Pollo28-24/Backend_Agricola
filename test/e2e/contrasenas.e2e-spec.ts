@@ -22,6 +22,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
   let seed: E2eSeedData;
   let memoryTransport: MemoryTransport;
   let mailService: MailService;
+  let hashOriginal: string;
 
   beforeAll(async () => {
     const testApp = await createTestApp();
@@ -31,9 +32,18 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     seed = await getOrLoadSeedData(prisma);
     mailService = app.get(MailService);
     memoryTransport = mailService.getTransport() as MemoryTransport;
+    hashOriginal = await argon2.hash('Password123!', {
+      type: argon2.argon2id,
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
   });
 
   afterAll(async () => {
+    if (mailService) {
+      await mailService.esperarEnviosPendientes();
+    }
     if (app) {
       await app.close();
     }
@@ -50,12 +60,9 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
   });
 
   afterEach(async () => {
-    const hashOriginal = await argon2.hash('Password123!', {
-      type: argon2.argon2id,
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
+    if (mailService) {
+      await mailService.esperarEnviosPendientes();
+    }
     await prisma.usuario.updateMany({
       where: {
         id: {
