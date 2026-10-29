@@ -909,6 +909,42 @@ describe('AuthService', () => {
         await respuestaPromise;
       }
     });
+
+    it('DT-17: reintenta ante P2034 / deadlock en la creaci?n del token y tiene ?xito en el segundo intento', async () => {
+      mockPrismaService.usuario.findUnique.mockResolvedValue(mockUsuario);
+      mockPrismaService.passwordResetToken.count.mockResolvedValue(0);
+
+      let llamadasTx = 0;
+      mockPrismaService.$transaction
+        .mockImplementationOnce(() => {
+          llamadasTx++;
+          const err = new Error(
+            'Transaction failed due to a deadlock',
+          ) as Error & { code: string };
+          err.code = 'P2034';
+          return Promise.reject(err);
+        })
+        .mockImplementationOnce(() => {
+          llamadasTx++;
+          return Promise.resolve({
+            id: 1,
+            tokenHash: 'hash_test_123',
+            expiraEn: new Date(Date.now() + 900_000),
+          });
+        });
+
+      const res = await service.solicitarRecuperacion(
+        { correo: 'ramon@correo.com' },
+        '127.0.0.1',
+      );
+
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(res.mensaje).toMatch(/recibir/);
+      expect(llamadasTx).toBe(2);
+      expect(mockMailService.enviarRecuperacionContrasena).toHaveBeenCalled();
+    });
   });
 
   describe('restablecerContrasena (Hito 11E)', () => {
