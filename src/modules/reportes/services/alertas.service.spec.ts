@@ -741,5 +741,67 @@ describe('AlertasService (Unitario)', () => {
       expect(res.data[1].severidad).toBe(SeveridadAlerta.MEDIA);
       expect(res.data[1].cicloId).toBe(1);
     });
+
+    it('RN-073 frontera con reloj falso en CICLO_SIN_CAPTURA: 2026-11-01T03:30:00Z (CDMX 2026-10-31) no genera alerta; 2026-11-01T06:00:00Z (CDMX 2026-11-01) sí genera alerta', async () => {
+      jest.useFakeTimers();
+      try {
+        const setupMockCiclo = () => {
+          prismaMock.cicloProduccion.findMany.mockResolvedValueOnce([
+            {
+              id: 99,
+              nombre: 'Ciclo Frontera RN-073',
+              estado: EstadoCiclo.ACTIVO,
+              fechaInicio: new Date('2026-10-01T00:00:00Z'),
+              fechaFin: null,
+              cerradoEn: null,
+              superficieSembrada: 5,
+              metaProduccionKg: null,
+              parcelaId: 1,
+              variedadId: 1,
+              variedad: { duracionCicloDias: 120 },
+            },
+          ]);
+
+          prismaMock.$queryRaw
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([]);
+
+          // Último gasto registrado hace exactamente 15 días respecto a 2026-10-31
+          prismaMock.gasto.groupBy.mockResolvedValueOnce([
+            { cicloId: 99, _max: { fecha: new Date('2026-10-16T00:00:00Z') } },
+          ]);
+
+          prismaMock.empresa.findUnique.mockResolvedValueOnce(null);
+          prismaMock.parcela.count.mockResolvedValueOnce(0);
+          prismaMock.usuario.count.mockResolvedValueOnce(0);
+        };
+
+        // 1. 2026-11-01T03:30:00Z = 2026-10-31 21:30:00 en CDMX (hoy = 2026-10-31)
+        // Inactividad: 2026-10-31 - 2026-10-16 = 15 días (<= 15, no supera umbral)
+        jest.setSystemTime(new Date('2026-11-01T03:30:00Z'));
+        setupMockCiclo();
+        const resAntesMedianoche = await service.obtenerAlertas(empresaId, {});
+        const alertaSinCapturaAntes = resAntesMedianoche.data.find(
+          (a) => a.codigo === CodigoAlerta.CICLO_SIN_CAPTURA,
+        );
+        expect(alertaSinCapturaAntes).toBeUndefined();
+
+        // 2. 2026-11-01T06:00:00Z = 2026-11-01 00:00:00 en CDMX (hoy = 2026-11-01)
+        // Inactividad: 2026-11-01 - 2026-10-16 = 16 días (> 15, genera alerta)
+        jest.setSystemTime(new Date('2026-11-01T06:00:00Z'));
+        setupMockCiclo();
+        const resEnMedianoche = await service.obtenerAlertas(empresaId, {});
+        const alertaSinCapturaDespues = resEnMedianoche.data.find(
+          (a) => a.codigo === CodigoAlerta.CICLO_SIN_CAPTURA,
+        );
+        expect(alertaSinCapturaDespues).toBeDefined();
+        expect(alertaSinCapturaDespues?.cicloId).toBe(99);
+        expect(alertaSinCapturaDespues?.observado).toBe('16 días');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 });

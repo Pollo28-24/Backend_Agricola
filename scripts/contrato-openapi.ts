@@ -1,3 +1,12 @@
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL ||
+  'mysql://root:pass@localhost:3306/rentabilidad_agricola_test';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'a'.repeat(64);
+process.env.JWT_REFRESH_SECRET =
+  process.env.JWT_REFRESH_SECRET || 'b'.repeat(64);
+process.env.THROTTLE_ENABLED = process.env.THROTTLE_ENABLED || 'false';
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { Test } from '@nestjs/testing';
@@ -9,15 +18,6 @@ import {
 } from '../src/config/openapi.config';
 
 export async function generarContratoOpenApi(): Promise<string> {
-  process.env.NODE_ENV = 'test';
-  process.env.DATABASE_URL =
-    process.env.DATABASE_URL ||
-    'mysql://root:pass@localhost:3306/rentabilidad_agricola_test';
-  process.env.JWT_SECRET = process.env.JWT_SECRET || 'a'.repeat(64);
-  process.env.JWT_REFRESH_SECRET =
-    process.env.JWT_REFRESH_SECRET || 'b'.repeat(64);
-  process.env.THROTTLE_ENABLED = 'false';
-
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
   })

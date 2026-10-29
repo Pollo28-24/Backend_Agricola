@@ -26,6 +26,7 @@ export function loadTestEnv(): void {
   }
 
   process.env.NODE_ENV = 'test';
+  process.env.MAIL_TRANSPORT = 'memory';
   if (process.env.THROTTLE_ENABLED === undefined) {
     process.env.THROTTLE_ENABLED = 'false';
   }

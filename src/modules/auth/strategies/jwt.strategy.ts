@@ -80,6 +80,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
+    // Invalida AccessTokens emitidos antes del último cambio de contraseña (RN-076 y §3.23.1).
+    // Importante: se trunca cambioContrasenaEn a segundos para evitar falsos positivos por milisegundos.
+    if (usuario.cambioContrasenaEn && payload.iat) {
+      const cambioContrasenaSec = Math.floor(
+        usuario.cambioContrasenaEn.getTime() / 1000,
+      );
+      if (payload.iat < cambioContrasenaSec) {
+        throw new DomainError(
+          CodigoError.NO_AUTENTICADO,
+          'Sesión invalidada por cambio de contraseña. Inicie sesión nuevamente.',
+          401,
+        );
+      }
+    }
+
     const permisos = usuario.rol.permisos.map((rp) => rp.permiso.codigo);
 
     // Propagar al contexto por petición (CLS) para auditoría y multi-tenancy

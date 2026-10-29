@@ -188,11 +188,11 @@ describe('Contrato OpenAPI y Control de Versión (Hito 11D - D2 y D3)', () => {
   });
 
   describe('D3: Validaciones Automáticas del Contrato', () => {
-    it('1. el total de rutas registradas en DiscoveryService coincide exactamente con las 106 del catálogo', () => {
-      expect(rutasDiscovery).toHaveLength(106);
+    it('1. el total de rutas registradas en DiscoveryService coincide exactamente con las 109 del catálogo', () => {
+      expect(rutasDiscovery).toHaveLength(109);
     });
 
-    it('2. cada una de las 106 rutas de DiscoveryService existe en OpenAPI paths con su método correspondiente', () => {
+    it('2. cada una de las 109 rutas de DiscoveryService existe en OpenAPI paths con su método correspondiente', () => {
       for (const r of rutasDiscovery) {
         const openApiPath = r.path.replace(/:([a-zA-Z0-9_]+)/g, '{$1}');
         const pathItem = openApiDoc.paths[openApiPath];
@@ -407,14 +407,14 @@ describe('Contrato OpenAPI y Control de Versión (Hito 11D - D2 y D3)', () => {
       }
     });
 
-    it('las 106 rutas de DiscoveryService deben estar documentadas en docs/contrato/matriz-permisos.md', () => {
+    it('las 109 rutas de DiscoveryService deben estar documentadas en docs/contrato/matriz-permisos.md', () => {
       const matrizMdPath = path.resolve(
         __dirname,
         '../../docs/contrato/matriz-permisos.md',
       );
       const contenidoMd = fs.readFileSync(matrizMdPath, 'utf-8');
 
-      expect(rutasDiscovery.length).toBe(106);
+      expect(rutasDiscovery.length).toBe(109);
       for (const r of rutasDiscovery) {
         const filaConBackticks = '| `' + r.method + '` | `' + r.path + '` |';
         const filaSinBackticks = '| ' + r.method + ' | ' + r.path + ' |';

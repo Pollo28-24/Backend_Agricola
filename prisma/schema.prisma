@@ -85,6 +85,8 @@ enum AccionAuditoria {
   CERRAR_CICLO
   REABRIR_CICLO
   INICIO_SESION
+  CAMBIO_CONTRASENA
+  RESTABLECIMIENTO_CONTRASENA
 }
 
 // =====================================================================
@@ -182,6 +184,7 @@ model Usuario {
   telefono       String?   @db.VarChar(30)
   activo         Boolean   @default(true)
   ultimoAcceso   DateTime?
+  cambioContrasenaEn DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -201,6 +204,7 @@ model Usuario {
   adjuntosSubidos        Adjunto[]           @relation("AdjuntoSubidoPor")
   eventosAuditoria       BitacoraAuditoria[]
   refreshTokens          RefreshToken[]
+  passwordResetTokens    PasswordResetToken[]
 
   @@index([empresaId])
   @@index([rolId])
@@ -224,6 +228,22 @@ model RefreshToken {
   @@index([usuarioId])
   @@index([familiaId])
   @@map("refresh_token")
+}
+
+model PasswordResetToken {
+  id          Int       @id @default(autoincrement())
+  usuarioId   Int
+  tokenHash   String    @unique @db.VarChar(64)
+  expiraEn    DateTime
+  usadoEn     DateTime?
+  revocadoEn  DateTime?
+  ipSolicitud String?   @db.VarChar(45)
+  createdAt   DateTime  @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, expiraEn])
+  @@map("password_reset_token")
 }
 
 // =====================================================================

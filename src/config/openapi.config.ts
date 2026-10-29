@@ -15,6 +15,8 @@ export const ENDPOINTS_PUBLICOS_OPENAPI = new Set<string>([
   'POST /api/v1/auth/refresh',
   'POST /api/v1/empresas/registro',
   'GET /api/v1/adjuntos/descarga',
+  'POST /api/v1/auth/contrasena/solicitar-recuperacion',
+  'POST /api/v1/auth/contrasena/restablecer',
 ]);
 
 export const ENDPOINTS_EXCLUIDOS_VERSION_APP = new Set<string>([

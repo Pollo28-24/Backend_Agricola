@@ -209,6 +209,15 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
   });
 
   afterAll(async () => {
+    const planProfesional = await prisma.planSuscripcion.findFirst({
+      where: { codigo: 'PROFESIONAL' },
+    });
+    if (planProfesional) {
+      await prisma.empresa.update({
+        where: { id: seed.empresaA.id },
+        data: { planId: planProfesional.id },
+      });
+    }
     await app.close();
   });
 
@@ -2354,7 +2363,9 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
         'Alerta $num ($codigo) evaluada independientemente por API',
         async ({ codigo, severidad, getCicloId, verificar }) => {
           const res = await testRequest(app)
-            .get('/api/v1/reportes/alertas?limit=100&hoy=2026-10-21')
+            .get(
+              `/api/v1/reportes/alertas?limit=100&hoy=2026-10-21&severidad=${severidad}`,
+            )
             .set('Authorization', tokenA_Admin);
           expect(res.status).toBe(200);
           const cId = getCicloId();
@@ -2608,6 +2619,18 @@ describe('Hito 9A: Módulo de Indicadores y Reportes Financieros (E2E)', () => {
           spyEmpresaFind.mockRestore();
           spyParcelaCount.mockRestore();
           spyUsuarioCount.mockRestore();
+        }
+      });
+
+      afterAll(async () => {
+        const planProfesional = await prisma.planSuscripcion.findFirst({
+          where: { codigo: 'PROFESIONAL' },
+        });
+        if (planProfesional) {
+          await prisma.empresa.update({
+            where: { id: seed.empresaA.id },
+            data: { planId: planProfesional.id },
+          });
         }
       });
     });

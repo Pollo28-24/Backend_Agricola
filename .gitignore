@@ -61,3 +61,7 @@ storage_uploads_test/
 storage_uploads*
 scratch/
 
+
+# Documentos maestros binarios (fuera de control de versiones)
+*.docx
+Rentabilidad_Agricola_v3.3_Completa.docx

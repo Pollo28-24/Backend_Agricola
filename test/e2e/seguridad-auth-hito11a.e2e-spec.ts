@@ -23,6 +23,7 @@ const ALLOWLIST_RN038 = new Set([
   'POST /api/v1/auth/refresh',
   'POST /api/v1/auth/logout',
   'POST /api/v1/empresas/registro',
+  'PATCH /api/v1/auth/contrasena/cambiar',
 ]);
 
 describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-037, RN-074 (E2E)', () => {

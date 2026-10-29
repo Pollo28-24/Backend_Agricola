@@ -1,6 +1,6 @@
 # Matriz de Permisos y Control de Acceso por Ruta
 
-Este documento define la matriz exhaustiva de permisos requeridos por cada una de las **106 rutas registradas** en la API del Sistema de Rentabilidad Agrícola (Hito 11D - ADR-015).
+Este documento define la matriz exhaustiva de permisos requeridos por cada una de las **109 rutas registradas** en la API del Sistema de Rentabilidad Agrícola (Hito 11D - ADR-015).
 
 ## Roles Predefinidos del Sistema
 
@@ -34,7 +34,7 @@ El sistema cuenta con 19 permisos atómicos organizados por dominio funcional, a
 | 18 | `VER_REPORTES` | Inteligencia y Analítica | Sí | Sí | No |
 | 19 | `EXPORTAR_DATOS` | Exportación de Datos | Sí | No | No |
 
-## Mapeo Exhaustivo de Endpoints (106 Rutas)
+## Mapeo Exhaustivo de Endpoints (109 Rutas)
 
 | Método | Endpoint | Acceso / Permisos Requeridos | Controlador | Handler |
 |---|---|---|---|---|
@@ -54,6 +54,9 @@ El sistema cuenta con 19 permisos atómicos organizados por dominio funcional, a
 | `POST` | `/api/v1/auth/logout` | 🔵 Autenticado (Cualquier rol activo) | `AuthController` | `logout` |
 | `GET` | `/api/v1/auth/me` | 🔵 Autenticado (Cualquier rol activo) | `AuthController` | `me` |
 | `POST` | `/api/v1/auth/refresh` | 🟢 **Público** (Sin auth) | `AuthController` | `refresh` |
+| `PATCH` | `/api/v1/auth/contrasena/cambiar` | 🔵 Autenticado (Cualquier rol activo) | `AuthController` | `cambiarContrasena` |
+| `POST` | `/api/v1/auth/contrasena/solicitar-recuperacion` | 🟢 **Público** (Sin auth) | `AuthController` | `solicitarRecuperacion` |
+| `POST` | `/api/v1/auth/contrasena/restablecer` | 🟢 **Público** (Sin auth) | `AuthController` | `restablecerContrasena` |
 | `GET` | `/api/v1/catalogos/categorias-gasto` | 🔵 Autenticado (Cualquier rol activo) | `CatalogosController` | `obtenerCategoriasGasto` |
 | `POST` | `/api/v1/catalogos/categorias-gasto` | `catalogo:administrar` | `CatalogosController` | `crearCategoriaGasto` |
 | `GET` | `/api/v1/catalogos/cultivos` | 🔵 Autenticado (Cualquier rol activo) | `CatalogosController` | `obtenerCultivos` |

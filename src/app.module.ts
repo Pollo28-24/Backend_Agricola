@@ -23,6 +23,7 @@ import { CobrosModule } from './modules/cobros/cobros.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { AdjuntosModule } from './modules/adjuntos/adjuntos.module';
 import { ExportacionModule } from './modules/exportacion/exportacion.module';
+import { MailModule } from './modules/mail/mail.module';
 import { envValidationSchema } from './config/env.validation';
 import {
   AppThrottlerGuard,
@@ -61,6 +62,38 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
             'THROTTLE_LOGIN_BLOCK_MS',
             900_000,
           ),
+          recuperarIpLimit: config.get<number>(
+            'THROTTLE_RECUPERAR_IP_LIMIT',
+            5,
+          ),
+          recuperarIpTtlMs: config.get<number>(
+            'THROTTLE_RECUPERAR_IP_TTL_MS',
+            900_000,
+          ),
+          recuperarCorreoLimit: config.get<number>(
+            'THROTTLE_RECUPERAR_CORREO_LIMIT',
+            3,
+          ),
+          recuperarCorreoTtlMs: config.get<number>(
+            'THROTTLE_RECUPERAR_CORREO_TTL_MS',
+            900_000,
+          ),
+          restablecerIpLimit: config.get<number>(
+            'THROTTLE_RESTABLECER_IP_LIMIT',
+            10,
+          ),
+          restablecerIpTtlMs: config.get<number>(
+            'THROTTLE_RESTABLECER_IP_TTL_MS',
+            900_000,
+          ),
+          cambiarUsuarioLimit: config.get<number>(
+            'THROTTLE_CAMBIAR_USUARIO_LIMIT',
+            5,
+          ),
+          cambiarUsuarioTtlMs: config.get<number>(
+            'THROTTLE_CAMBIAR_USUARIO_TTL_MS',
+            900_000,
+          ),
         }),
     }),
     ClsModule.forRoot({
@@ -91,6 +124,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
     ReportesModule,
     AdjuntosModule,
     ExportacionModule,
+    MailModule,
   ],
   providers: [
     {

@@ -51,8 +51,12 @@ export class AccesoVigenteGuard implements CanActivate {
 
       // Permitir logout (cierre de sesión, exento de mutación de negocio en RN-038)
       const esLogout = request.url.includes('/auth/logout');
+      // Permitir cambio de contraseña personal incluso con suscripción vencida/cancelada (§3.23.1 Trampa 1)
+      const esCambioContrasena =
+        request.url.includes('/auth/contrasena/cambiar') ||
+        request.url.includes('/auth/password/change');
 
-      if (!esLectura && !esLogout) {
+      if (!esLectura && !esLogout && !esCambioContrasena) {
         throw new DomainError(
           CodigoError.SUSCRIPCION_INACTIVA,
           'La suscripción de la empresa se encuentra vencida o cancelada. El acceso está restringido a solo lectura (RN-038).',

@@ -239,3 +239,50 @@ docker run --rm \
   -o /local/generated-flutter-client \
   --additional-properties=pubName=rentabilidad_api,nullableFields=true
 ```
+
+
+---
+
+## 8. Gestión de Contraseñas y Recuperación por Correo (Hito 11E - ADR-017)
+
+El Hito 11E incorpora tres endpoints para la gestión de credenciales, con rate limiting granular y protección anti-enumeración.
+
+### 8.1 Cambio Autenticado de Contraseña
+- **Ruta**: `PATCH /api/v1/auth/contrasena/cambiar`
+- **Autenticación**: Obligatoria (`Authorization: Bearer <accessToken>`).
+- **Rate Limiting**: Throttler `cambiar-usuario` (máximo 5 peticiones cada 15 minutos por usuario).
+- **Body**: `{ "contrasenaActual": "...", "nuevaContrasena": "..." }`
+- **Respuesta 200 OK**: `{ "mensaje": "Contraseña actualizada exitosamente. Todas las sesiones activas han sido invalidadas." }`
+- **Efecto de Seguridad**: Invalida inmediatamente el Access Token actual y revoca todos los Refresh Tokens vigentes. El cliente Flutter debe purgar sus tokens en memoria y redigir al usuario al login con la nueva contraseña.
+- **Errores**:
+  - `400 CONTRASENA_ACTUAL_INCORRECTA`: Si la contraseña actual proporcionada no coincide.
+  - `400 PETICION_INVALIDA`: Si la nueva contraseña es idéntica a la actual.
+  - `409 CONFLICTO`: Si una petición concurrente modificó la contraseña simultáneamente.
+  - `429 DEMASIADAS_PETICIONES`: Si se exceden 5 intentos en 15 minutos (cabecera `Retry-After`).
+
+### 8.2 Solicitar Recuperación por Correo
+- **Ruta**: `POST /api/v1/auth/contrasena/solicitar-recuperacion`
+- **Autenticación**: Pública (`@Public()`).
+- **Rate Limiting**: Throttler `recuperar-ip` (5 peticiones / 15 min) y `recuperar-correo` (3 peticiones / 15 min).
+- **Body**: `{ "correo": "usuario@correo.com" }`
+- **Respuesta 200 OK (Anti-enumeración)**:
+  ```json
+  {
+    "mensaje": "Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña."
+  }
+  ```
+  *Nota Flutter*: Esta respuesta es emitida de forma inmediata (vía tarea diferida) y es idéntica si el correo existe o no, o si el servicio de correo experimentó fallas. No intente inferir la existencia del usuario ni el tiempo de despacho.
+- **Formato del Enlace Despachado**:
+  El correo contiene un enlace con formato de fragmento URI: `${PASSWORD_RESET_URL}#token=<hex-64>`.
+  La aplicación Flutter o Web App receptora debe parsear el token desde el hash/fragmento (`Uri.base.fragment` o deep link `...#token=...`) para aislarlo de cabeceras `Referer` y enviarlo en el body de restablecimiento.
+- **Errores**: `400 VALIDACION_FALLIDA`, `429 DEMASIADAS_PETICIONES`.
+
+### 8.3 Restablecer Contraseña con Token Uniuso
+- **Ruta**: `POST /api/v1/auth/contrasena/restablecer`
+- **Autenticación**: Pública (`@Public()`).
+- **Rate Limiting**: Throttler `restablecer-ip` (10 peticiones / 15 min por IP).
+- **Body**: `{ "token": "<hex-64>", "nuevaContrasena": "NuevaClaveSegura123!" }`
+- **Respuesta 200 OK**: `{ "mensaje": "Contraseña restablecida exitosamente. Puede iniciar sesión con sus nuevas credenciales." }`
+- **Errores**:
+  - `400 TOKEN_RECUPERACION_INVALIDO`: Si el token no existe, ya fue consumido, transcurrieron más de 15 minutos de su emisión, o si la cuenta/empresa asociada se encuentra inactiva o eliminada.
+  - `429 DEMASIADAS_PETICIONES`: Si se exceden las 10 peticiones por IP en 15 minutos.

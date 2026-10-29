@@ -17,6 +17,14 @@ export interface ThrottlerConfigParams {
   loginCorreoLimit?: number;
   loginCorreoTtlMs?: number;
   loginCorreoBlockDurationMs?: number;
+  recuperarIpLimit?: number;
+  recuperarIpTtlMs?: number;
+  recuperarCorreoLimit?: number;
+  recuperarCorreoTtlMs?: number;
+  restablecerIpLimit?: number;
+  restablecerIpTtlMs?: number;
+  cambiarUsuarioLimit?: number;
+  cambiarUsuarioTtlMs?: number;
 }
 
 export function extraerIpCliente(req: Record<string, unknown>): string {
@@ -72,6 +80,73 @@ function esRutaAuthLoginORefresh(context: ExecutionContext): boolean {
   );
 }
 
+function esRutaSolicitarRecuperacion(context: ExecutionContext): boolean {
+  const className = context.getClass()?.name ?? '';
+  const handlerName = context.getHandler()?.name ?? '';
+  return (
+    className === 'AuthController' && handlerName === 'solicitarRecuperacion'
+  );
+}
+
+export function obtenerTrackerRecuperarCorreo(
+  req: Record<string, unknown>,
+): string {
+  const ip = extraerIpCliente(req);
+  const body = req.body as Record<string, unknown> | undefined;
+  const rawCorreo =
+    body && typeof body.correo === 'string'
+      ? body.correo.toLowerCase().trim()
+      : '';
+  const hashCorreo = crypto
+    .createHash('sha256')
+    .update(rawCorreo)
+    .digest('hex');
+  return `${ip}:${hashCorreo}`;
+}
+
+export function obtenerTrackerCambiarUsuario(
+  req: Record<string, unknown>,
+): string {
+  const ip = extraerIpCliente(req);
+  const user = req.user as { id?: number } | undefined;
+  if (user?.id) {
+    return `${ip}:user:${user.id}`;
+  }
+  const headers = req.headers as Record<string, string> | undefined;
+  const authHeader = headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(
+          Buffer.from(parts[1], 'base64url').toString('utf8'),
+        ) as { sub?: number };
+        if (payload?.sub) {
+          return `${ip}:user:${payload.sub}`;
+        }
+      }
+    } catch {
+      // Ignorar fallo de decodificación y fallback a IP
+    }
+  }
+  return ip;
+}
+
+function esRutaRestablecer(context: ExecutionContext): boolean {
+  const className = context.getClass()?.name ?? '';
+  const handlerName = context.getHandler()?.name ?? '';
+  return (
+    className === 'AuthController' && handlerName === 'restablecerContrasena'
+  );
+}
+
+function esRutaCambiarContrasena(context: ExecutionContext): boolean {
+  const className = context.getClass()?.name ?? '';
+  const handlerName = context.getHandler()?.name ?? '';
+  return className === 'AuthController' && handlerName === 'cambiarContrasena';
+}
+
 export function crearThrottlerOptions(
   params: ThrottlerConfigParams,
 ): ThrottlerModuleOptions {
@@ -108,6 +183,39 @@ export function crearThrottlerOptions(
         getTracker: (req: Record<string, unknown>) =>
           obtenerTrackerLoginCorreo(req),
         skipIf: (ctx: ExecutionContext) => !enabled || !esRutaAuthLogin(ctx),
+      },
+      {
+        name: 'recuperar-ip',
+        ttl: params.recuperarIpTtlMs ?? 900_000,
+        limit: params.recuperarIpLimit ?? 5,
+        getTracker: (req: Record<string, unknown>) => extraerIpCliente(req),
+        skipIf: (ctx: ExecutionContext) =>
+          !enabled || !esRutaSolicitarRecuperacion(ctx),
+      },
+      {
+        name: 'recuperar-correo',
+        ttl: params.recuperarCorreoTtlMs ?? 900_000,
+        limit: params.recuperarCorreoLimit ?? 3,
+        getTracker: (req: Record<string, unknown>) =>
+          obtenerTrackerRecuperarCorreo(req),
+        skipIf: (ctx: ExecutionContext) =>
+          !enabled || !esRutaSolicitarRecuperacion(ctx),
+      },
+      {
+        name: 'restablecer-ip',
+        ttl: params.restablecerIpTtlMs ?? 900_000,
+        limit: params.restablecerIpLimit ?? 10,
+        getTracker: (req: Record<string, unknown>) => extraerIpCliente(req),
+        skipIf: (ctx: ExecutionContext) => !enabled || !esRutaRestablecer(ctx),
+      },
+      {
+        name: 'cambiar-usuario',
+        ttl: params.cambiarUsuarioTtlMs ?? 900_000,
+        limit: params.cambiarUsuarioLimit ?? 5,
+        getTracker: (req: Record<string, unknown>) =>
+          obtenerTrackerCambiarUsuario(req),
+        skipIf: (ctx: ExecutionContext) =>
+          !enabled || !esRutaCambiarContrasena(ctx),
       },
     ],
   };

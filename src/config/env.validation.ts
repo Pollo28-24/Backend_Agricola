@@ -2,8 +2,9 @@ import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test', 'provision')
-    .default('development'),
+    .valid('development', 'production', 'test')
+    .required()
+    .description('Entorno de ejecución (development, test o production)'),
   PORT: Joi.number().port().default(3000),
   DATABASE_URL: Joi.string()
     .required()
@@ -62,4 +63,89 @@ export const envValidationSchema = Joi.object({
       'https://play.google.com/store/apps/details?id=com.rentabilidad.agricola',
     )
     .description('URL de descarga o actualización en tienda de aplicaciones'),
+  // =====================================================================
+  // CORREO ELECTRÓNICO Y RECUPERACIÓN DE CONTRASEÑA (HITO 11E)
+  // =====================================================================
+  MAIL_TRANSPORT: Joi.string()
+    .valid('brevo', 'log', 'memory')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().valid('brevo').invalid('log', 'memory').required(),
+      otherwise: Joi.when('NODE_ENV', {
+        is: 'test',
+        then: Joi.string().default('memory'),
+        otherwise: Joi.string().default('log'),
+      }),
+    })
+    .description('Transporte de envío de correos (brevo, log o memory)'),
+  BREVO_API_KEY: Joi.string()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().min(20).required(),
+      otherwise: Joi.when('MAIL_TRANSPORT', {
+        is: 'brevo',
+        then: Joi.string().min(20).required(),
+        otherwise: Joi.optional().allow('', null),
+      }),
+    })
+    .description(
+      'Clave de API de Brevo para envío transaccional (mínimo 20 caracteres)',
+    ),
+  MAIL_FROM_EMAIL: Joi.string()
+    .email()
+    .default('no-reply@rentabilidad-agricola.com')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    })
+    .description('Dirección remitente para correos transaccionales'),
+  MAIL_FROM_NAME: Joi.string()
+    .min(2)
+    .default('Rentabilidad Agrícola')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    })
+    .description(
+      'Nombre remitente para correos transaccionales (mínimo 2 caracteres)',
+    ),
+  PASSWORD_RESET_URL: Joi.string()
+    .custom((value: string, helpers) => {
+      if (typeof value !== 'string') return helpers.error('any.invalid');
+      if (value.includes('#') || value.includes('?')) {
+        return helpers.error('any.invalid');
+      }
+      try {
+        const parsed = new URL(value);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return helpers.error('string.uri');
+        }
+      } catch {
+        return helpers.error('string.uri');
+      }
+      return value;
+    })
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri({ scheme: ['https'] })
+        .required(),
+      otherwise: Joi.string()
+        .uri({ scheme: ['http', 'https'] })
+        .default('http://localhost:3000/restablecer-contrasena'),
+    })
+    .description('URL base para enlace de restablecimiento de contraseña'),
+  PASSWORD_RESET_EXPIRES_MINUTES: Joi.number()
+    .integer()
+    .min(5)
+    .max(60)
+    .default(15)
+    .description('Tiempo de expiración del token de recuperación en minutos'),
+  THROTTLE_RECUPERAR_IP_LIMIT: Joi.number().integer().min(1).default(5),
+  THROTTLE_RECUPERAR_CORREO_LIMIT: Joi.number().integer().min(1).default(3),
+  THROTTLE_RESTABLECER_IP_LIMIT: Joi.number().integer().min(1).default(5),
+  THROTTLE_CAMBIAR_USUARIO_LIMIT: Joi.number().integer().min(1).default(5),
+  THROTTLE_PASSWORD_TTL_MS: Joi.number().integer().min(100).default(900000),
 });

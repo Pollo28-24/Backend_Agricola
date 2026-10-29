@@ -6,10 +6,10 @@
 -- Los datos de prueba viven dentro de una transacción que termina en ROLLBACK:
 -- no queda ningún dato persistido en la base. Si la ejecución se interrumpe: ROLLBACK;
 --
--- DELTAS JUSTIFICADOS HITO 11A / 11C:
---   - Tablas base: 27 (docx) -> 28 (+refresh_token por rotación de sesión)
---   - Llaves foráneas: 48 (docx) -> 49 (+refresh_token -> usuario)
---   - FK ON DELETE CASCADE: 3 (docx) -> 4 (+refresh_token.usuarioId ON DELETE CASCADE)
+-- DELTAS JUSTIFICADOS HITO 11A / 11C / 11E:
+--   - Tablas base: 27 (docx) -> 29 (+refresh_token, +password_reset_token)
+--   - Llaves foráneas: 48 (docx) -> 50 (+refresh_token -> usuario, +password_reset_token -> usuario)
+--   - FK ON DELETE CASCADE: 3 (docx) -> 5 (+refresh_token.usuarioId, +password_reset_token.usuarioId)
 -- =====================================================================
 
 DROP TEMPORARY TABLE IF EXISTS tmp_chk;
@@ -49,16 +49,16 @@ DELIMITER ;
 INSERT INTO tmp_chk (prueba, esperado, obtenido)
 SELECT 'Base en utf8mb4', 1, COUNT(*) FROM information_schema.SCHEMATA
  WHERE SCHEMA_NAME = DATABASE() AND DEFAULT_CHARACTER_SET_NAME = 'utf8mb4'
-UNION ALL SELECT 'Tablas (sin _prisma_migrations)', 28, COUNT(*) FROM information_schema.TABLES
+UNION ALL SELECT 'Tablas (sin _prisma_migrations)', 29, COUNT(*) FROM information_schema.TABLES
  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> '_prisma_migrations'
 UNION ALL SELECT 'Vistas', 5, COUNT(*) FROM information_schema.VIEWS
  WHERE TABLE_SCHEMA = DATABASE()
-UNION ALL SELECT 'Llaves foráneas', 49, COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS
+UNION ALL SELECT 'Llaves foráneas', 50, COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS
  WHERE CONSTRAINT_SCHEMA = DATABASE()
 UNION ALL SELECT 'FK con ON UPDATE RESTRICT (3 relaciones, 3.12)', 3, COUNT(*)
  FROM information_schema.REFERENTIAL_CONSTRAINTS
  WHERE CONSTRAINT_SCHEMA = DATABASE() AND UPDATE_RULE = 'RESTRICT'
-UNION ALL SELECT 'FK con ON DELETE CASCADE (rol_permiso x2, detalle_venta, refresh_token)', 4, COUNT(*)
+UNION ALL SELECT 'FK con ON DELETE CASCADE (rol_permiso x2, detalle_venta, refresh_token, password_reset_token)', 5, COUNT(*)
  FROM information_schema.REFERENTIAL_CONSTRAINTS
  WHERE CONSTRAINT_SCHEMA = DATABASE() AND DELETE_RULE = 'CASCADE'
 UNION ALL SELECT 'FK con ON DELETE SET NULL (bitacora_auditoria.usuarioId)', 1, COUNT(*)
