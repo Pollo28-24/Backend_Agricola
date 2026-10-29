@@ -4,25 +4,6 @@ import {
   IMailTransport,
 } from '../interfaces/mail-transport.interface';
 
-function sanitizarNombre(nombre: string): string {
-  return nombre.replace(/[<>&"']/g, (c) => {
-    switch (c) {
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '&':
-        return '&amp;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#39;';
-      default:
-        return c;
-    }
-  });
-}
-
 export class BrevoTransport implements IMailTransport {
   private readonly logger = new Logger(BrevoTransport.name);
 
@@ -35,6 +16,7 @@ export class BrevoTransport implements IMailTransport {
   async enviar(opciones: EnviarCorreoOpciones): Promise<void> {
     const url = 'https://api.brevo.com/v3/smtp/email';
 
+    // B5: to.name va crudo en el JSON de Brevo
     const payload = {
       sender: {
         name: this.remitenteNombre,
@@ -43,9 +25,7 @@ export class BrevoTransport implements IMailTransport {
       to: [
         {
           email: opciones.destinatario,
-          name: sanitizarNombre(
-            opciones.nombreDestinatario || opciones.destinatario,
-          ),
+          name: opciones.nombreDestinatario || opciones.destinatario,
         },
       ],
       subject: opciones.asunto,
@@ -68,24 +48,17 @@ export class BrevoTransport implements IMailTransport {
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
+        // B6: No registrar cuerpo de la respuesta de Brevo ni datos personales
         this.logger.error(
-          `Fallo al enviar correo vía Brevo HTTP [Status ${response.status}]: ${errorBody}`,
+          `Fallo al enviar correo vía Brevo HTTP [Status ${response.status}]`,
         );
-        throw new Error(
-          `Brevo API HTTP error: ${response.status} - ${errorBody}`,
-        );
+        throw new Error(`Brevo API HTTP error: ${response.status}`);
       }
 
-      this.logger.log(
-        `Correo enviado exitosamente vía Brevo a ${opciones.destinatario}`,
-      );
+      // B6: No registrar el correo destinatario en logs
+      this.logger.log('Correo enviado exitosamente vía Brevo');
     } catch (error: unknown) {
-      const err = error as Error;
-      this.logger.error(
-        `Error de comunicación con Brevo API: ${err.message}`,
-        err.stack,
-      );
+      this.logger.error('Error de comunicación con Brevo API');
       throw error;
     }
   }

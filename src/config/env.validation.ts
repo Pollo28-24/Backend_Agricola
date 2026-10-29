@@ -2,8 +2,9 @@ import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test', 'provision')
-    .default('development'),
+    .valid('development', 'production', 'test')
+    .required()
+    .description('Entorno de ejecución (development, test o production)'),
   PORT: Joi.number().port().default(3000),
   DATABASE_URL: Joi.string()
     .required()
@@ -111,6 +112,21 @@ export const envValidationSchema = Joi.object({
       'Nombre remitente para correos transaccionales (mínimo 2 caracteres)',
     ),
   PASSWORD_RESET_URL: Joi.string()
+    .custom((value: string, helpers) => {
+      if (typeof value !== 'string') return helpers.error('any.invalid');
+      if (value.includes('#') || value.includes('?')) {
+        return helpers.error('any.invalid');
+      }
+      try {
+        const parsed = new URL(value);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          return helpers.error('string.uri');
+        }
+      } catch {
+        return helpers.error('string.uri');
+      }
+      return value;
+    })
     .when('NODE_ENV', {
       is: 'production',
       then: Joi.string()

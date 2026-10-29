@@ -234,5 +234,30 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
       const result = envValidationSchema.validate(baseProductionEnv);
       expect(result.error).toBeUndefined();
     });
+
+    it('B4: debe fallar si NODE_ENV está ausente (fail-closed, sin default)', () => {
+      const envSinNodeEnv = { ...baseProductionEnv };
+      delete (envSinNodeEnv as Record<string, unknown>).NODE_ENV;
+
+      const result = envValidationSchema.validate(envSinNodeEnv);
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toContain('"NODE_ENV" is required');
+    });
+
+    it('B7: debe rechazar PASSWORD_RESET_URL con fragmento # o query ?', () => {
+      const resFragmento = envValidationSchema.validate({
+        ...baseProductionEnv,
+        PASSWORD_RESET_URL: 'https://app.com/restablecer#token=123',
+      });
+      expect(resFragmento.error).toBeDefined();
+      expect(resFragmento.error?.message).toContain('PASSWORD_RESET_URL');
+
+      const resQuery = envValidationSchema.validate({
+        ...baseProductionEnv,
+        PASSWORD_RESET_URL: 'https://app.com/restablecer?token=123',
+      });
+      expect(resQuery.error).toBeDefined();
+      expect(resQuery.error?.message).toContain('PASSWORD_RESET_URL');
+    });
   });
 });

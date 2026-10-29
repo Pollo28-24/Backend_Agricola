@@ -5,6 +5,25 @@ import { BrevoTransport } from './transports/brevo.transport';
 import { LogTransport } from './transports/log.transport';
 import { MemoryTransport } from './transports/memory.transport';
 
+function escapeHtml(texto: string): string {
+  return texto.replace(/[<>&"']/g, (c) => {
+    switch (c) {
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '&':
+        return '&amp;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return c;
+    }
+  });
+}
+
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -23,9 +42,8 @@ export class MailService {
   }
 
   constructor(private readonly configService: ConfigService) {
-    const modoTransport =
-      process.env.MAIL_TRANSPORT ||
-      this.configService.get<string>('MAIL_TRANSPORT', 'log');
+    // B4: Lectura solo vía ConfigService sin process.env ni defaults inseguros
+    const modoTransport = this.configService.get<string>('MAIL_TRANSPORT');
     const apiKey = this.configService.get<string>('BREVO_API_KEY');
     const remitenteEmail = this.configService.get<string>(
       'MAIL_FROM_EMAIL',
@@ -45,7 +63,7 @@ export class MailService {
         remitenteNombre,
       );
     } else {
-      this.transport = new LogTransport();
+      this.transport = new LogTransport(this.configService);
     }
   }
 
@@ -60,10 +78,12 @@ export class MailService {
     tokenCrudo?: string,
   ): Promise<void> {
     const asunto = 'Restablecimiento de Contraseña - Rentabilidad Agrícola';
+    // B5: Escapar nombre en el cuerpo HTML
+    const nombreEscapado = escapeHtml(nombre);
     const contenidoHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
         <h2 style="color: #2e7d32;">Rentabilidad Agrícola</h2>
-        <p>Hola, <strong>${nombre}</strong>:</p>
+        <p>Hola, <strong>${nombreEscapado}</strong>:</p>
         <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
         <p style="margin: 25px 0;">
           <a href="${enlace}" style="background-color: #2e7d32; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
@@ -79,11 +99,9 @@ export class MailService {
 
     const contenidoTexto = `Hola ${nombre},\n\nPara restablecer tu contraseña en Rentabilidad Agrícola, ingresa al siguiente enlace:\n${enlace}\n\nEste enlace expira en 15 minutos.\nSi no solicitaste este cambio, puedes ignorar este mensaje.`;
 
-    // Requisito §3.23.1: en desarrollo imprimir en logger el destinatario, token en crudo y URL completa SOLO con log transport
-    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    const mailTransport =
-      process.env.MAIL_TRANSPORT ||
-      this.configService.get<string>('MAIL_TRANSPORT', 'log');
+    // B4: en desarrollo imprimir en logger el destinatario, token en crudo y URL completa SOLO con log transport y NODE_ENV===development
+    const nodeEnv = this.configService.get<string>('NODE_ENV');
+    const mailTransport = this.configService.get<string>('MAIL_TRANSPORT');
     if (nodeEnv === 'development' && mailTransport === 'log') {
       this.logger.log(
         `[RECUPERACIÓN LOCAL] Destinatario: ${destinatario} | Token: ${tokenCrudo || 'N/A'} | Enlace: ${enlace}`,

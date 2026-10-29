@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MailService } from './mail.service';
 import { MemoryTransport } from './transports/memory.transport';
@@ -152,7 +153,149 @@ describe('MailService (Hito 11E)', () => {
           asunto: 'Prueba',
           contenidoHtml: '<p>Hola</p>',
         }),
-      ).rejects.toThrow('Brevo API HTTP error: 401 - Key not found');
+      ).rejects.toThrow('Brevo API HTTP error: 401');
+    });
+
+    it('B5/B6: BrevoTransport envía to.name crudo y no registra correo ni errorBody en logs', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        text: jest.fn().mockResolvedValue(JSON.stringify({ messageId: '123' })),
+      });
+      global.fetch = mockFetch;
+
+      const transport = new BrevoTransport('api-key', 'rem@test.com', 'Rem');
+      const spyLog = jest.spyOn(Logger.prototype, 'log');
+
+      await transport.enviar({
+        destinatario: 'victima@test.com',
+        nombreDestinatario: '<script>x</script>',
+        asunto: 'Asunto',
+        contenidoHtml: '<p>Hola</p>',
+      });
+
+      const fetchCallArgs = mockFetch.mock.calls[0] as unknown as [
+        string,
+        { body: string },
+      ];
+      const body = JSON.parse(fetchCallArgs[1].body) as {
+        to: Array<{ email: string; name: string }>;
+      };
+      expect(body.to[0].name).toBe('<script>x</script>');
+      expect(spyLog).toHaveBeenCalledWith(
+        'Correo enviado exitosamente vía Brevo',
+      );
+      expect(spyLog).not.toHaveBeenCalledWith(
+        expect.stringContaining('victima@test.com'),
+      );
+      spyLog.mockRestore();
+    });
+  });
+
+  describe('NODE_ENV fail-closed y escape HTML (B4 y B5)', () => {
+    it('B4: development + log imprime destinatario y enlace en logger; production o test nunca imprimen', async () => {
+      const spyLogger = jest.spyOn(Logger.prototype, 'log');
+
+      // Caso 1: development + log -> imprime
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAIL_TRANSPORT') return 'log';
+          if (key === 'NODE_ENV') return 'development';
+          return defaultValue;
+        },
+      );
+      const serviceDev = new MailService(configService);
+      await serviceDev.enviarRecuperacionContrasena(
+        'dev@test.com',
+        'Dev User',
+        'http://localhost#token=123',
+        '123',
+      );
+      expect(spyLogger).toHaveBeenCalledWith(
+        expect.stringContaining('[RECUPERACIÓN LOCAL]'),
+      );
+
+      spyLogger.mockClear();
+
+      // Caso 2: production + log -> no imprime
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAIL_TRANSPORT') return 'log';
+          if (key === 'NODE_ENV') return 'production';
+          return defaultValue;
+        },
+      );
+      const serviceProd = new MailService(configService);
+      await serviceProd.enviarRecuperacionContrasena(
+        'prod@test.com',
+        'Prod User',
+        'https://app#token=123',
+        '123',
+      );
+      expect(spyLogger).not.toHaveBeenCalled();
+
+      // Caso 3: NODE_ENV ausente -> no imprime
+      spyLogger.mockClear();
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAIL_TRANSPORT') return 'log';
+          if (key === 'NODE_ENV') return undefined;
+          return defaultValue;
+        },
+      );
+      const serviceNoEnv = new MailService(configService);
+      await serviceNoEnv.enviarRecuperacionContrasena(
+        'noenv@test.com',
+        'NoEnv User',
+        'http://localhost#token=123',
+        '123',
+      );
+      expect(spyLogger).not.toHaveBeenCalled();
+
+      spyLogger.mockRestore();
+    });
+
+    it('B5: escapa nombre con caracteres HTML en contenidoHtml', async () => {
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: unknown) => {
+          if (key === 'MAIL_TRANSPORT') return 'memory';
+          if (key === 'NODE_ENV') return 'test';
+          return defaultValue;
+        },
+      );
+      const service = new MailService(configService);
+      const transport = service.getTransport() as MemoryTransport;
+
+      await service.enviarRecuperacionContrasena(
+        'xss@test.com',
+        '<script>x</script>',
+        'http://localhost#token=abc',
+      );
+
+      const [correo] = transport.obtenerCorreos();
+      expect(correo.contenidoHtml).toContain('&lt;script&gt;x&lt;/script&gt;');
+      expect(correo.contenidoHtml).not.toContain('<script>x</script>');
+    });
+
+    it('B4: LogTransport no registra nada si NODE_ENV no es development o transport no es log', async () => {
+      const configServiceMock = {
+        get: jest.fn().mockImplementation((key: string) => {
+          if (key === 'NODE_ENV') return 'production';
+          if (key === 'MAIL_TRANSPORT') return 'log';
+          return undefined;
+        }),
+      } as unknown as ConfigService;
+
+      const logTransport = new LogTransport(configServiceMock);
+      const spyLog = jest.spyOn(Logger.prototype, 'log');
+
+      await logTransport.enviar({
+        destinatario: 'test@example.com',
+        asunto: 'Test',
+      });
+
+      expect(spyLog).not.toHaveBeenCalled();
+      spyLog.mockRestore();
     });
   });
 });

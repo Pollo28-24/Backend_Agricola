@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   EnviarCorreoOpciones,
   IMailTransport,
@@ -7,9 +8,12 @@ import {
 export class LogTransport implements IMailTransport {
   private readonly logger = new Logger(LogTransport.name);
 
+  constructor(private readonly configService?: ConfigService) {}
+
   async enviar(opciones: EnviarCorreoOpciones): Promise<void> {
-    const nodeEnv = process.env.NODE_ENV || 'development';
-    const transport = process.env.MAIL_TRANSPORT || 'log';
+    // B4: NODE_ENV fail-closed solo vía ConfigService sin valor por defecto
+    const nodeEnv = this.configService?.get<string>('NODE_ENV');
+    const transport = this.configService?.get<string>('MAIL_TRANSPORT');
 
     if (nodeEnv === 'development' && transport === 'log') {
       this.logger.log(
