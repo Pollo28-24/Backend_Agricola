@@ -16,7 +16,7 @@ El servicio de correo se gobierna mediante las siguientes variables validadas en
 | `BREVO_API_KEY` | String | Sí | Mínimo 20 caracteres | Clave de API v3 generada en el panel de Brevo |
 | `MAIL_FROM_EMAIL` | String | Sí | `no-reply@rentabilidad-agricola.com` | Dirección remitente verificada en Brevo |
 | `MAIL_FROM_NAME` | String | Sí | `Rentabilidad Agrícola` (mínimo 2 chars) | Nombre del remitente mostrado al usuario |
-| `PASSWORD_RESET_URL` | String | Sí (`https://`) | `http://localhost:3000/restablecer-contrasena` | URL base para el formulario de recuperación |
+| `PASSWORD_RESET_URL` | String | Sí (`https://` en prod) | `http://localhost:3000/restablecer-contrasena` | URL base para el formulario de recuperación (URI absoluta sin `#` ni `?`) |
 | `PASSWORD_RESET_EXPIRES_MINUTES` | Number | No | `15` (rango permitido: 5 a 60 minutos) | Tiempo de vida del token de recuperación |
 
 ---
@@ -62,7 +62,7 @@ El servicio de correo se gobierna mediante las siguientes variables validadas en
    ```
 3. Observar la salida en la consola del backend:
    ```text
-   [MailService] [RECUPERACIÓN LOCAL] Destinatario: admin@empresa-a.com | Token: <token_64_hex> | Enlace: http://localhost:3000/restablecer-contrasena?token=<token_64_hex>
+   [MailService] [RECUPERACIÓN LOCAL] Destinatario: admin@empresa-a.com | Token: <token_64_hex> | Enlace: http://localhost:3000/restablecer-contrasena#token=<token_64_hex>
    ```
 
 ### 4.2 Verificación Real con `BrevoTransport`
@@ -76,4 +76,4 @@ El servicio de correo se gobierna mediante las siguientes variables validadas en
    PASSWORD_RESET_URL=https://app.tu-dominio.com/restablecer-contrasena
    ```
 3. Ejecutar la petición curl con un correo real de destino.
-4. Revisar la bandeja de entrada del correo receptor y confirmar la llegada del correo con plantilla HTML verde corporativa y el enlace con token hex de 64 caracteres.
+4. Revisar la bandeja de entrada del correo receptor y confirmar la llegada del correo con plantilla HTML verde corporativa y el enlace con fragmento URI `#token=<token_64_hex>`.

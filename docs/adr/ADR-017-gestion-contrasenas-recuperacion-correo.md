@@ -57,9 +57,28 @@ El sistema de Rentabilidad Agrícola requiere un flujo integral, resiliente y cr
 - **Decisión:** El documento `Rentabilidad_Agricola_v3.3_Completa.docx` se desacopla del historial de git mediante `git rm --cached` y se agrega a `.gitignore`. El archivo permanece físicamente en el disco de trabajo como especificación de referencia solo-lectura.
 - **Justificación:** Evita la inflación desmedida del repositorio `.git` por binarios propietarios que no generan diffs textuales y previene conflictos de merge accidentales.
 
+### R8. Formato del Enlace de Restablecimiento con Fragmento Criptográfico (`#token=`)
+- **Decisión:** El enlace de restablecimiento despachado en el correo electrónico se estructura bajo el estándar de fragmento URI: `${PASSWORD_RESET_URL}#token=${tokenCrudo}` (en lugar de query parameter `?token=`).
+- **Justificación de Seguridad:** Según RFC 3986 y RFC 7231, los fragmentos tras `#` residen exclusivamente en el agente de usuario (navegador o cliente móvil) y JAMÁS son enviados al servidor en peticiones HTTP ni propagados en cabeceras `Referer` hacia recursos externos. Esto previene que tokens de restablecimiento se filtren en logs de servidores intermedios, firewalls, proxies o proveedores analíticos de terceros.
+- **Validación Joi:** Se valida en `src/config/env.validation.ts` que `PASSWORD_RESET_URL` sea una URI absoluta sin `#` ni `?` y exija `https://` obligatorio en producción.
+
+### B1. Anti-enumeración Temporal Estricta con Tarea Diferida
+- **Decisión:** `solicitarRecuperacion` retorna una respuesta HTTP 200 OK genérica de forma inmediata vía `Promise.resolve({ mensaje: ... })`. Toda la lógica de búsqueda de usuario en BD, comprobación de estados de usuario/empresa, validación de cuota (3 tokens / 15 min), hashing SHA-256 y despacho de correo se ejecuta en una tarea diferida asíncrona registrada en `MailService.registrarEnvio`.
+- **Justificación:** Cierra de forma absoluta cualquier canal lateral de medición de tiempos de respuesta (timing attack). La respuesta HTTP se emite en milisegundos idénticos sin importar si el correo existe, no existe o si el proveedor SMTP experimenta latencia o fallos.
+
+### B2. Pre-chequeo Económico de Tokens y Validación Uniforme de Cuentas
+- **Decisión:** `restablecerContrasena` realiza una consulta ligera inicial (`findUnique`) sobre `tokenHash` para verificar existencia, no-consumo y no-expiración ANTES de invocar el algoritmo criptográfico costoso `passwordService.hash` (Argon2id). Además, dentro de la transacción se valida que el usuario y la empresa no estén inactivos ni eliminados; si fallan, la transacción se revierte arrojando `400 TOKEN_RECUPERACION_INVALIDO` con mensaje genérico idéntico.
+- **Justificación:** Previene ataques de DoS por agotamiento de CPU derivados de forzar cálculos masivos de Argon2id con tokens aleatorios falsos, y garantiza el principio de no revelación del estado de cuentas.
+
+### B3. Validación de Contraseña Previa y Control de Concurrencia Optimista
+- **Decisión:** En `cambiarContrasena`:
+  - Se valida que `nuevaContrasena` no sea idéntica a `contrasenaActual` (respondiendo `400 PETICION_INVALIDA`).
+  - La actualización en BD se realiza de forma condicionada con `updateMany({ where: { id: usuarioId, contrasenaHash: usuario.contrasenaHash } })`. Si `count === 0` (indicando que otra petición cambió la clave en paralelo), se cancela la transacción y se responde `409 CONFLICTO`.
+- **Justificación:** Previene operaciones redundantes y resuelve carreras concurrentes garantizando consistencia transaccional y respuesta explícita al cliente.
+
 ---
 
-## 3. Matriz de Divergencias con el Documento Maestro v3.3 (R1 a R7)
+## 3. Matriz de Divergencias y Decisiones de Seguridad (R1 a R8, B1 a B3)
 
 | Regla / Decisión | Referencia en Docx v3.3 | Requisito en Documento v3.3 | Comportamiento Implementado en Código | Justificación y Sincronización |
 |---|---|---|---|---|
@@ -70,6 +89,10 @@ El sistema de Rentabilidad Agrícola requiere un flujo integral, resiliente y cr
 | **R5. Throttling y código de error** | RN-079 (§3.23 y §3.23.1) | "Mapea HTTP 429 al código DEMASIADAS_SOLICITUDES" y límites en minutos | Mapea HTTP 429 al código canónico `DEMASIADAS_PETICIONES`; TTLs configurados en milisegundos (`900_000` ms) en `@nestjs/throttler` v6 | Coherencia con el enum `CodigoError` y contrato OpenAPI sincronizado en 11A/11D. `@nestjs/throttler` v6 opera exclusivamente en ms. |
 | **R6. Invalidación de sesiones** | RN-076 (§3.23.1) | Invalidación inmediata de tokens y actualización de cambio de contraseña | Columna canónica `cambioContrasenaEn` en MySQL/Prisma; `JwtStrategy` trunca a segundos enteros (`Math.floor`) contra `payload.iat`; revocación atómica de todos los refresh tokens | Evita desajustes por resolución subsegundo entre MySQL y el estándar JWT; revoca sesiones activas de inmediato. |
 | **R7. Exclusión de binario docx** | Anexo / Gestión documental | Control del archivo de especificación maestro | Archivo `Rentabilidad_Agricola_v3.3_Completa.docx` desversionado de git e ignorado en `.gitignore`; permanece en disco local como solo-lectura | Previene hinchamiento del historial `.git` por binarios sin diff textual y evita conflictos de merge accidentales. |
+| **R8. Enlace con fragmento URI** | §3.23.1 (Formato enlace) | Enlace de restablecimiento por query param `?token=` | Enlace generado como `${PASSWORD_RESET_URL}#token=<token>`; `PASSWORD_RESET_URL` validado sin `#` ni `?` | Los fragmentos URI nunca viajan al servidor ni se filtran en cabeceras `Referer` ni logs de proxies intermedios. |
+| **B1. Anti-enumeración temporal** | RN-078 (§3.23.1) | Respuesta sincrónica tras procesar envío | Respuesta HTTP 200 OK inmediata con `Promise.resolve`; procesamiento de BD, cuota y envío desacoplado en tarea diferida | Inmunidad absoluta contra ataques de canal lateral basados en tiempos de respuesta (timing attacks). |
+| **B2. Pre-chequeo barato y validación de cuenta** | RN-077 / Trampa 2 | Cálculo de hash de contraseña previo a comprobaciones | Pre-chequeo ligero de `tokenHash` antes de invocar Argon2id; validación de usuario y empresa activa revirtiendo con 400 `TOKEN_RECUPERACION_INVALIDO` | Mitiga DoS por consumo de CPU con tokens inválidos y preserva respuesta genérica uniforme sin fugar estado de cuentas. |
+| **B3. Nueva contraseña y concurrencia optimista** | RN-076 / Seguridad | Cambio directo de contraseña sin verificación de igualdad | Rechazo de contraseña nueva igual a actual (400 `PETICION_INVALIDA`); `updateMany` con `where: { contrasenaHash }` retornando 409 `CONFLICTO` si count = 0 | Previene cambios redundantes y resuelve carreras concurrentes garantizando atomicidad transaccional. |
 
 ---
 
