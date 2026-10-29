@@ -25,6 +25,7 @@ export class PrismaService
       user: dbUrl.username,
       password: dbUrl.password ? decodeURIComponent(dbUrl.password) : undefined,
       database: dbUrl.pathname.substring(1),
+      allowPublicKeyRetrieval: true,
     });
 
     super({

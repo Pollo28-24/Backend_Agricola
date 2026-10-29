@@ -10,6 +10,7 @@ function createPrismaClient(): PrismaClient {
     user: dbUrl.username,
     password: dbUrl.password ? decodeURIComponent(dbUrl.password) : undefined,
     database: dbUrl.pathname.substring(1),
+    allowPublicKeyRetrieval: true,
   });
 
   return new PrismaClient({ adapter });
@@ -34,12 +35,16 @@ const PERMISOS: Record<string, string> = {
   'venta:crear': 'Crear y editar ventas',
   'venta:cancelar': 'Cancelar ventas',
   'cobro:crear': 'Registrar y anular cobros',
-  'registro:administrar': 'Editar y eliminar cualquier actividad, gasto, cosecha o merma',
+  'registro:administrar':
+    'Editar y eliminar cualquier actividad, gasto, cosecha o merma',
   'reporte:ver': 'Tablero, indicadores y alertas',
   'reporte:exportar': 'Exportar reportes',
 };
 
-const ROLES: Record<string, { nombre: string; descripcion: string; permisos: string[] }> = {
+const ROLES: Record<
+  string,
+  { nombre: string; descripcion: string; permisos: string[] }
+> = {
   ADMIN: {
     nombre: 'Administrador',
     descripcion: 'Dueño o productor con acceso total al sistema',
@@ -47,12 +52,19 @@ const ROLES: Record<string, { nombre: string; descripcion: string; permisos: str
   },
   CAPTURISTA: {
     nombre: 'Capturista de campo',
-    descripcion: 'Encargado de registrar actividades, gastos, cosechas y mermas en campo',
-    permisos: ['actividad:crear', 'gasto:crear', 'cosecha:crear', 'merma:crear'],
+    descripcion:
+      'Encargado de registrar actividades, gastos, cosechas y mermas en campo',
+    permisos: [
+      'actividad:crear',
+      'gasto:crear',
+      'cosecha:crear',
+      'merma:crear',
+    ],
   },
   CONTADOR: {
     nombre: 'Contador',
-    descripcion: 'Administración de gastos, ventas, cobros y reportes financieros',
+    descripcion:
+      'Administración de gastos, ventas, cobros y reportes financieros',
     permisos: [
       'tercero:administrar',
       'gasto:crear',
@@ -93,17 +105,47 @@ const PLANES = [
   },
 ];
 
-const UNIDADES_MEDIDA: Array<{ codigo: string; nombre: string; tipo: TipoUnidad; factorABase: number }> = [
+const UNIDADES_MEDIDA: Array<{
+  codigo: string;
+  nombre: string;
+  tipo: TipoUnidad;
+  factorABase: number;
+}> = [
   { codigo: 'KG', nombre: 'Kilogramo', tipo: TipoUnidad.PESO, factorABase: 1 },
-  { codigo: 'TON', nombre: 'Tonelada', tipo: TipoUnidad.PESO, factorABase: 1000 },
+  {
+    codigo: 'TON',
+    nombre: 'Tonelada',
+    tipo: TipoUnidad.PESO,
+    factorABase: 1000,
+  },
   { codigo: 'G', nombre: 'Gramo', tipo: TipoUnidad.PESO, factorABase: 0.001 },
-  { codigo: 'CAJA_20KG', nombre: 'Caja de 20 kg', tipo: TipoUnidad.PESO, factorABase: 20 },
-  { codigo: 'COSTAL_50KG', nombre: 'Costal de 50 kg', tipo: TipoUnidad.PESO, factorABase: 50 },
+  {
+    codigo: 'CAJA_20KG',
+    nombre: 'Caja de 20 kg',
+    tipo: TipoUnidad.PESO,
+    factorABase: 20,
+  },
+  {
+    codigo: 'COSTAL_50KG',
+    nombre: 'Costal de 50 kg',
+    tipo: TipoUnidad.PESO,
+    factorABase: 50,
+  },
   { codigo: 'L', nombre: 'Litro', tipo: TipoUnidad.VOLUMEN, factorABase: 1 },
-  { codigo: 'ML', nombre: 'Mililitro', tipo: TipoUnidad.VOLUMEN, factorABase: 0.001 },
+  {
+    codigo: 'ML',
+    nombre: 'Mililitro',
+    tipo: TipoUnidad.VOLUMEN,
+    factorABase: 0.001,
+  },
   { codigo: 'HA', nombre: 'Hectárea', tipo: TipoUnidad.AREA, factorABase: 1 },
   { codigo: 'HR', nombre: 'Hora', tipo: TipoUnidad.TIEMPO, factorABase: 1 },
-  { codigo: 'JORNAL', nombre: 'Jornal', tipo: TipoUnidad.TIEMPO, factorABase: 1 },
+  {
+    codigo: 'JORNAL',
+    nombre: 'Jornal',
+    tipo: TipoUnidad.TIEMPO,
+    factorABase: 1,
+  },
   { codigo: 'PIEZA', nombre: 'Pieza', tipo: TipoUnidad.CONTEO, factorABase: 1 },
 ];
 
@@ -201,7 +243,9 @@ async function main() {
       await tx.rolPermiso.deleteMany({ where: { rolId: rol.id } });
 
       for (const permCodigo of r.permisos) {
-        const permiso = await tx.permiso.findUniqueOrThrow({ where: { codigo: permCodigo } });
+        const permiso = await tx.permiso.findUniqueOrThrow({
+          where: { codigo: permCodigo },
+        });
         await tx.rolPermiso.create({
           data: {
             rolId: rol.id,
@@ -314,7 +358,8 @@ async function main() {
     create: {
       cultivoId: cultivo.id,
       nombre: 'Saladette',
-      descripcion: 'Variedad de tomate Saladette para consumo en fresco e industria',
+      descripcion:
+        'Variedad de tomate Saladette para consumo en fresco e industria',
       duracionCicloDias: 120,
       activo: true,
     },

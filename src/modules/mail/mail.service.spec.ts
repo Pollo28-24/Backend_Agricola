@@ -322,5 +322,102 @@ describe('MailService (Hito 11E)', () => {
         process.removeListener('unhandledRejection', onUnhandled);
       }
     });
+
+    it('B6: Logger nunca filtra PII ni cuerpo de respuesta sensible en BrevoTransport ni en MailService', async () => {
+      const spyLog = jest.spyOn(Logger.prototype, 'log');
+      const spyError = jest.spyOn(Logger.prototype, 'error');
+      const spyWarn = jest.spyOn(Logger.prototype, 'warn');
+
+      const extraerMensajes = (spies: jest.SpyInstance[]): string => {
+        let texto = '';
+        for (const spy of spies) {
+          const calls = spy.mock.calls as unknown as Array<Array<unknown>>;
+          for (const callArgs of calls) {
+            for (const arg of callArgs) {
+              texto += ' ' + String(arg);
+            }
+          }
+        }
+        return texto;
+      };
+
+      try {
+        // 1. BrevoTransport en caso de fallo HTTP (error 500 con cuerpo sensible)
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          text: jest.fn().mockResolvedValue(
+            JSON.stringify({
+              code: 'internal_error',
+              sensitive_db_leak: 'mysql://user:pass@internal-cluster',
+            }),
+          ),
+        });
+
+        const transport = new BrevoTransport(
+          'api-key-test',
+          'rem@test.com',
+          'Rem',
+        );
+        await expect(
+          transport.enviar({
+            destinatario: 'usuario.confidencial@empresa.com',
+            nombreDestinatario: 'Usuario Confidencial',
+            asunto: 'Restablecimiento',
+            contenidoHtml: '<p>token=secret_plain_token_12345</p>',
+          }),
+        ).rejects.toThrow('Brevo API HTTP error: 500');
+
+        const todosLosMensajes = extraerMensajes([spyLog, spyError, spyWarn]);
+
+        expect(todosLosMensajes).not.toContain(
+          'usuario.confidencial@empresa.com',
+        );
+        expect(todosLosMensajes).not.toContain('secret_plain_token_12345');
+        expect(todosLosMensajes).not.toContain('sensitive_db_leak');
+        expect(todosLosMensajes).not.toContain('internal-cluster');
+
+        // 2. MailService con NODE_ENV=production
+        configService.get.mockImplementation(
+          (key: string, defaultValue?: unknown) => {
+            if (key === 'MAIL_TRANSPORT') return 'brevo';
+            if (key === 'NODE_ENV') return 'production';
+            if (key === 'BREVO_API_KEY')
+              return 'api-key-production-valid-length';
+            return defaultValue;
+          },
+        );
+
+        spyLog.mockClear();
+        spyError.mockClear();
+        spyWarn.mockClear();
+
+        global.fetch = jest.fn().mockResolvedValue({
+          ok: true,
+          status: 201,
+          text: jest
+            .fn()
+            .mockResolvedValue(JSON.stringify({ messageId: 'msg-999' })),
+        });
+
+        const serviceProd = new MailService(configService);
+        await serviceProd.enviarRecuperacionContrasena(
+          'paciente@secreto.org',
+          'Paciente Seguro',
+          'https://seguro.org/reset#token=token_prod_998877',
+          'token_prod_998877',
+        );
+
+        const logsProd = extraerMensajes([spyLog, spyError, spyWarn]);
+
+        expect(logsProd).not.toContain('paciente@secreto.org');
+        expect(logsProd).not.toContain('token_prod_998877');
+        expect(logsProd).not.toContain('https://seguro.org');
+      } finally {
+        spyLog.mockRestore();
+        spyError.mockRestore();
+        spyWarn.mockRestore();
+      }
+    });
   });
 });
