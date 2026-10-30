@@ -12,6 +12,7 @@ $ErrorActionPreference = "Continue"
 
 # Asegurar suficiente espacio de heap para Jest en Node 24 con VM Modules (evita 0xC0000409)
 $env:NODE_OPTIONS = "--max-old-space-size=4096"
+$env:UV_THREADPOOL_SIZE = "16"
 
 if (-not (Test-Path $Salida)) {
   New-Item -ItemType Directory -Force -Path $Salida | Out-Null
