@@ -1062,7 +1062,7 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
       expect(res.status).toBe(415);
       expect(res.body).toMatchObject({
         statusCode: 415,
-        code: CodigoError.TIPO_ARCHIVO_NO_PERMITIDO,
+        code: CodigoError.PETICION_INVALIDA,
       });
     });
 

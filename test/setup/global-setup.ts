@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import * as mariadb from 'mariadb';
+import { permitirRecuperacionClavePublica } from '../../src/config/database-security.config';
 import {
   loadTestEnv,
   assertDatabaseUrlEsValida,
@@ -24,7 +25,7 @@ export default async function globalSetup(): Promise<void> {
     port: dbParams.port,
     user: dbParams.user,
     password: dbParams.password,
-    allowPublicKeyRetrieval: true,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
   });
 
   try {

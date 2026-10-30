@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as mariadb from 'mariadb';
 import { ejecutarVerificacion, parsearDatabaseUrl } from './db-verify';
+import { permitirRecuperacionClavePublica } from '../src/config/database-security.config';
 
 export async function ejecutarPruebaRestauracion(): Promise<void> {
   const connParams = parsearDatabaseUrl();
@@ -27,7 +28,7 @@ export async function ejecutarPruebaRestauracion(): Promise<void> {
     port: connParams.port,
     user: connParams.user,
     password: connParams.password,
-    allowPublicKeyRetrieval: true,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
   });
 
   try {

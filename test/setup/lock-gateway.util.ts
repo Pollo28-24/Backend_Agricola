@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import mariadb, { Connection } from 'mariadb';
 import { assertDatabaseUrlEsValida } from './e2e-env';
+import { permitirRecuperacionClavePublica } from '../../src/config/database-security.config';
 
 export interface LockHolder {
   commit: () => Promise<void>;
@@ -22,7 +23,7 @@ export async function holdCicloLock(
     user: dbParams.user,
     password: dbParams.password,
     database: dbParams.database,
-    allowPublicKeyRetrieval: true,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
   });
 
   await conn.beginTransaction();
@@ -72,7 +73,7 @@ export async function waitUntilBlocked(
     user: dbParams.user,
     password: dbParams.password,
     database: dbParams.database,
-    allowPublicKeyRetrieval: true,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
   });
 
   const start = Date.now();

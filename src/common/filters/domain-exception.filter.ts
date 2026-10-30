@@ -183,8 +183,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
       [HttpStatus.NOT_FOUND]: CodigoError.RECURSO_NO_ENCONTRADO,
       [HttpStatus.CONFLICT]: CodigoError.CONFLICTO,
       [HttpStatus.PAYLOAD_TOO_LARGE]: CodigoError.ARCHIVO_DEMASIADO_GRANDE,
-      [HttpStatus.UNSUPPORTED_MEDIA_TYPE]:
-        CodigoError.TIPO_ARCHIVO_NO_PERMITIDO,
+      [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: CodigoError.PETICION_INVALIDA,
       [HttpStatus.TOO_MANY_REQUESTS]: CodigoError.DEMASIADAS_PETICIONES,
     };
     return statusMap[status] ?? CodigoError.ERROR_INTERNO;

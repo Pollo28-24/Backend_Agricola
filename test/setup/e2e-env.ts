@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaClient } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { permitirRecuperacionClavePublica } from '../../src/config/database-security.config';
 
 export function loadTestEnv(): void {
   const envTestPath = path.resolve(__dirname, '../../.env.test');
@@ -27,6 +28,7 @@ export function loadTestEnv(): void {
 
   process.env.NODE_ENV = 'test';
   process.env.MAIL_TRANSPORT = 'memory';
+  process.env.DB_ALLOW_PUBLIC_KEY_RETRIEVAL = 'true';
   if (process.env.THROTTLE_ENABLED === undefined) {
     process.env.THROTTLE_ENABLED = 'false';
   }
@@ -115,7 +117,7 @@ export function createE2ePrismaClient(): PrismaClient {
     password: params.password,
     database: params.database,
     connectionLimit: 25,
-    allowPublicKeyRetrieval: true,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
   });
 
   return new PrismaClient({ adapter });

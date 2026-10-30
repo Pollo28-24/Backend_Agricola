@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PrismaClient, TipoUnidad } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { permitirRecuperacionClavePublica } from '../src/config/database-security.config';
 
 function createPrismaClient(): PrismaClient {
   const dbUrl = new URL(process.env.DATABASE_URL!);
@@ -10,7 +11,7 @@ function createPrismaClient(): PrismaClient {
     user: dbUrl.username,
     password: dbUrl.password ? decodeURIComponent(dbUrl.password) : undefined,
     database: dbUrl.pathname.substring(1),
-    allowPublicKeyRetrieval: true,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
   });
 
   return new PrismaClient({ adapter });
