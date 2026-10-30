@@ -278,7 +278,8 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
           DB_ALLOW_PUBLIC_KEY_RETRIEVAL: true,
         });
         expect(res.error).toBeUndefined();
-        expect(res.value.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(true);
+        const val = res.value as { DB_ALLOW_PUBLIC_KEY_RETRIEVAL: boolean };
+        expect(val.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(true);
       });
 
       it('si esta ausente debe asignar false por defecto en cualquier entorno', () => {
@@ -288,11 +289,17 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
           MAIL_TRANSPORT: 'log',
         });
         expect(resDev.error).toBeUndefined();
-        expect(resDev.value.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(false);
+        const valDev = resDev.value as {
+          DB_ALLOW_PUBLIC_KEY_RETRIEVAL: boolean;
+        };
+        expect(valDev.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(false);
 
         const resProd = envValidationSchema.validate(baseProductionEnv);
         expect(resProd.error).toBeUndefined();
-        expect(resProd.value.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(false);
+        const valProd = resProd.value as {
+          DB_ALLOW_PUBLIC_KEY_RETRIEVAL: boolean;
+        };
+        expect(valProd.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(false);
       });
     });
   });

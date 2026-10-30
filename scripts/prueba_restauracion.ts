@@ -61,7 +61,7 @@ export async function ejecutarPruebaRestauracion(): Promise<void> {
     console.log(
       `🔍 4. Ejecutando verificación estructural y semántica sobre '${restoreDbName}'...`,
     );
-    const resumen = await ejecutarVerificacion(restoreDbName);
+    const resumen = ejecutarVerificacion(restoreDbName);
 
     console.log(
       '\n| #  | Concepto Estructural / Semántico        | Esperado | Obtenido | Estado |',
