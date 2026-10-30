@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '@prisma/client';
+import { permitirRecuperacionClavePublica } from '../config/database-security.config';
 
 @Injectable()
 export class PrismaService
@@ -25,6 +26,7 @@ export class PrismaService
       user: dbUrl.username,
       password: dbUrl.password ? decodeURIComponent(dbUrl.password) : undefined,
       database: dbUrl.pathname.substring(1),
+      allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
     });
 
     super({

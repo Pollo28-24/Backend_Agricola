@@ -665,28 +665,52 @@ export class AuthService {
         );
         const expiraEn = new Date(Date.now() + minutosExpiracion * 60 * 1000);
 
-        // En BD revocar tokens previos y crear el nuevo token
-        const tokenRecord = await this.prisma.$transaction(async (tx) => {
-          await tx.passwordResetToken.updateMany({
-            where: {
-              usuarioId: usuario.id,
-              usadoEn: null,
-              revocadoEn: null,
-            },
-            data: {
-              revocadoEn: new Date(),
-            },
-          });
+        // En BD revocar tokens previos y crear el nuevo token con reintento acotado ante deadlock (DT-17)
+        let tokenRecord:
+          { id: number; tokenHash: string; expiraEn: Date } | undefined;
+        const maxIntentos = 3;
+        for (let intento = 1; intento <= maxIntentos; intento++) {
+          try {
+            tokenRecord = await this.prisma.$transaction(async (tx) => {
+              await tx.passwordResetToken.updateMany({
+                where: {
+                  usuarioId: usuario.id,
+                  usadoEn: null,
+                  revocadoEn: null,
+                },
+                data: {
+                  revocadoEn: new Date(),
+                },
+              });
 
-          return tx.passwordResetToken.create({
-            data: {
-              usuarioId: usuario.id,
-              tokenHash,
-              expiraEn,
-              ipSolicitud: ip,
-            },
-          });
-        });
+              return tx.passwordResetToken.create({
+                data: {
+                  usuarioId: usuario.id,
+                  tokenHash,
+                  expiraEn,
+                  ipSolicitud: ip,
+                },
+              });
+            });
+            break;
+          } catch (txErr: unknown) {
+            const errObj = txErr as { code?: string; message?: string };
+            const esDeadlock =
+              errObj?.code === 'P2034' ||
+              (typeof errObj?.message === 'string' &&
+                (errObj.message.includes('deadlock') ||
+                  errObj.message.includes('1213')));
+            if (esDeadlock && intento < maxIntentos) {
+              await new Promise((resolve) => setImmediate(resolve));
+              continue;
+            }
+            throw txErr;
+          }
+        }
+
+        if (!tokenRecord) {
+          return;
+        }
 
         const baseUrl = this.configService.get<string>(
           'PASSWORD_RESET_URL',

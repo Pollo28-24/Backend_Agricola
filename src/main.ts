@@ -1,14 +1,15 @@
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { DomainExceptionFilter } from './common/filters/domain-exception.filter';
 import { SerializacionInterceptor } from './common/interceptors/serializacion.interceptor';
-import { crearDocumentoOpenApi } from './config/openapi.config';
+import { configurarSwagger } from './config/openapi.config';
+import { configurarBodyParsers } from './config/body-parser.config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  configurarBodyParsers(app);
 
   // Configuración de confianza en proxy reverso (por defecto sin confianza)
   const trustProxy = process.env.TRUST_PROXY;
@@ -47,13 +48,8 @@ async function bootstrap() {
     }),
   );
 
-  // Documentación OpenAPI / Swagger
-  const document = crearDocumentoOpenApi(app);
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
-  });
+  // Documentación OpenAPI / Swagger (solo montado fuera de producción)
+  configurarSwagger(app);
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

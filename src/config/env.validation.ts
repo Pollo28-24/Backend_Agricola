@@ -9,6 +9,16 @@ export const envValidationSchema = Joi.object({
   DATABASE_URL: Joi.string()
     .required()
     .description('URL de conexión MySQL/MariaDB'),
+  DB_ALLOW_PUBLIC_KEY_RETRIEVAL: Joi.boolean()
+    .default(false)
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.boolean().valid(false).default(false),
+      otherwise: Joi.boolean().default(false),
+    })
+    .description(
+      'Permite recuperacion de clave publica RSA en MySQL/MariaDB (solo desarrollo/pruebas, prohibido en production)',
+    ),
   JWT_SECRET: Joi.string()
     .min(64)
     .required()

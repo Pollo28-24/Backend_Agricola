@@ -14,6 +14,7 @@ import { MemoryTransport } from '../../src/modules/mail/transports/memory.transp
 import { DomainExceptionFilter } from '../../src/common/filters/domain-exception.filter';
 import { SerializacionInterceptor } from '../../src/common/interceptors/serializacion.interceptor';
 import { crearThrottlerOptions } from '../../src/modules/auth/guards/app-throttler.guard';
+import { obtenerCorreosSincronizados } from '../setup/mail-test.helper';
 
 describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesiones (E2E)', () => {
   let app: INestApplication;
@@ -21,6 +22,7 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
   let seed: E2eSeedData;
   let memoryTransport: MemoryTransport;
   let mailService: MailService;
+  let hashOriginal: string;
 
   beforeAll(async () => {
     const testApp = await createTestApp();
@@ -30,15 +32,27 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
     seed = await getOrLoadSeedData(prisma);
     mailService = app.get(MailService);
     memoryTransport = mailService.getTransport() as MemoryTransport;
+    hashOriginal = await argon2.hash('Password123!', {
+      type: argon2.argon2id,
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
   });
 
   afterAll(async () => {
+    if (mailService) {
+      await mailService.esperarEnviosPendientes();
+    }
     if (app) {
       await app.close();
     }
   });
 
   beforeEach(async () => {
+    if (mailService) {
+      await mailService.esperarEnviosPendientes();
+    }
     if (memoryTransport && typeof memoryTransport.limpiar === 'function') {
       memoryTransport.limpiar();
     }
@@ -46,12 +60,9 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
   });
 
   afterEach(async () => {
-    const hashOriginal = await argon2.hash('Password123!', {
-      type: argon2.argon2id,
-      memoryCost: 19456,
-      timeCost: 2,
-      parallelism: 1,
-    });
+    if (mailService) {
+      await mailService.esperarEnviosPendientes();
+    }
     await prisma.usuario.updateMany({
       where: {
         id: {
@@ -314,7 +325,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       expect((res.body as { mensaje: string }).mensaje).toContain(
         'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
       );
-      expect(memoryTransport.obtenerCorreos().length).toBe(0);
+      expect(
+        (await obtenerCorreosSincronizados(mailService, memoryTransport))
+          .length,
+      ).toBe(0);
     });
 
     it('anti-enumeración: responde 200 con mensaje genérico y no envía correo si el usuario está inactivo', async () => {
@@ -336,7 +350,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         expect((res.body as { mensaje: string }).mensaje).toContain(
           'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
         );
-        expect(memoryTransport.obtenerCorreos().length).toBe(0);
+        expect(
+          (await obtenerCorreosSincronizados(mailService, memoryTransport))
+            .length,
+        ).toBe(0);
       } finally {
         await prisma.usuario.update({
           where: { id: seed.empresaA.usuarios.capturista.id },
@@ -359,9 +376,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
       );
 
-      await mailService.esperarEnviosPendientes();
-
-      const enviados = memoryTransport.obtenerCorreos();
+      const enviados = await obtenerCorreosSincronizados(
+        mailService,
+        memoryTransport,
+      );
       expect(enviados.length).toBe(1);
       expect(enviados[0].destinatario).toBe(
         seed.empresaA.usuarios.admin.correo,
@@ -397,7 +415,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
         await mailService.esperarEnviosPendientes();
       }
 
-      expect(memoryTransport.obtenerCorreos().length).toBe(3);
+      expect(
+        (await obtenerCorreosSincronizados(mailService, memoryTransport))
+          .length,
+      ).toBe(3);
       const tokensAntes = await prisma.passwordResetToken.count({
         where: { usuarioId },
       });
@@ -412,7 +433,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
       expect((res4.body as { mensaje: string }).mensaje).toContain(
         'Si el correo electrónico está registrado, recibirá las instrucciones para restablecer su contraseña.',
       );
-      expect(memoryTransport.obtenerCorreos().length).toBe(3);
+      expect(
+        (await obtenerCorreosSincronizados(mailService, memoryTransport))
+          .length,
+      ).toBe(3);
       const tokensDespues = await prisma.passwordResetToken.count({
         where: { usuarioId },
       });
@@ -629,9 +653,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
           correo: seed.empresaA.usuarios.contador.correo,
         });
 
-      await mailService.esperarEnviosPendientes();
-
-      const enviados = memoryTransport.obtenerCorreos();
+      const enviados = await obtenerCorreosSincronizados(
+        mailService,
+        memoryTransport,
+      );
       expect(enviados.length).toBe(1);
       const emailBody = enviados[0].contenidoHtml;
 
@@ -697,9 +722,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
           correo: seed.empresaA.usuarios.capturista.correo,
         });
 
-      await mailService.esperarEnviosPendientes();
-
-      const enviados = memoryTransport.obtenerCorreos();
+      const enviados = await obtenerCorreosSincronizados(
+        mailService,
+        memoryTransport,
+      );
       const match =
         enviados[enviados.length - 1].contenidoHtml.match(
           /token=([a-f0-9]{64})/,
@@ -738,9 +764,10 @@ describe('Hito 11E: Gestión de Contraseñas, Recuperación por Correo y Sesione
           correo: seed.empresaA.usuarios.contador.correo,
         });
 
-      await mailService.esperarEnviosPendientes();
-
-      const enviados = memoryTransport.obtenerCorreos();
+      const enviados = await obtenerCorreosSincronizados(
+        mailService,
+        memoryTransport,
+      );
       const match =
         enviados[enviados.length - 1].contenidoHtml.match(
           /token=([a-f0-9]{64})/,

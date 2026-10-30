@@ -30,6 +30,7 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
   let app: INestApplication;
   let prisma: PrismaService;
   let seed: E2eSeedData;
+  let hashPasswordTest: string;
 
   beforeAll(async () => {
     const testApp = await createTestApp();
@@ -37,6 +38,12 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
     await app.listen(0);
     prisma = testApp.prisma;
     seed = await getOrLoadSeedData(prisma);
+    hashPasswordTest = await argon2.hash('Password123!', {
+      type: argon2.argon2id,
+      memoryCost: 19456,
+      timeCost: 2,
+      parallelism: 1,
+    });
   });
 
   afterAll(async () => {
@@ -243,7 +250,7 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
       const rolCapturista = await prisma.rol.findUniqueOrThrow({
         where: { codigo: 'CAPTURISTA' },
       });
-      const hash = await argon2.hash('Password123!');
+      const hash = hashPasswordTest;
 
       const tempUser = await prisma.usuario.create({
         data: {
@@ -317,7 +324,7 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
       const rolContador = await prisma.rol.findUniqueOrThrow({
         where: { codigo: 'CONTADOR' },
       });
-      const hash = await argon2.hash('Password123!');
+      const hash = hashPasswordTest;
 
       const userRol = await prisma.usuario.create({
         data: {
@@ -413,7 +420,7 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
       const rolAdmin = await prisma.rol.findUniqueOrThrow({
         where: { codigo: 'ADMIN' },
       });
-      const hash = await argon2.hash('Password123!');
+      const hash = hashPasswordTest;
 
       const empresaTemp = await prisma.empresa.create({
         data: {
@@ -662,7 +669,7 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
       const rolAdmin = await prisma.rol.findUniqueOrThrow({
         where: { codigo: 'ADMIN' },
       });
-      const hash = await argon2.hash('Password123!');
+      const hash = hashPasswordTest;
 
       const empresaCuota = await prisma.empresa.create({
         data: {
@@ -1033,6 +1040,41 @@ describe('Hito 11A: Seguridad, Sesiones, Throttling y Reglas RN-072, RN-038, RN-
       // /api/v1/health está excluido del throttler
       const resHealth = await request(server).get('/api/v1/health');
       expect(resHealth.status).toBe(200);
+    });
+  });
+
+  describe('Mitigación de Body-Parser (Hito 11F.1)', () => {
+    it('rechaza solicitudes con payload comprimido (Content-Encoding: gzip) con HTTP 415', async () => {
+      const zlib = await import('zlib');
+      const payload = JSON.stringify({
+        correo: seed.empresaA.usuarios.admin.correo,
+        contrasena: 'Password123!',
+      });
+      const compressed = zlib.gzipSync(Buffer.from(payload));
+
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const res = await request(server)
+        .post('/api/v1/auth/login')
+        .set('Content-Type', 'application/json')
+        .set('Content-Encoding', 'gzip')
+        .send(compressed);
+
+      expect(res.status).toBe(415);
+      expect(res.body).toMatchObject({
+        statusCode: 415,
+        code: CodigoError.PETICION_INVALIDA,
+      });
+    });
+
+    it('permite login normal sin compresión (HTTP 200)', async () => {
+      const server = app.getHttpServer() as Parameters<typeof request>[0];
+      const res = await request(server).post('/api/v1/auth/login').send({
+        correo: seed.empresaA.usuarios.admin.correo,
+        contrasena: 'Password123!',
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('accessToken');
     });
   });
 });

@@ -11,6 +11,7 @@ import {
 import { generateTestJwt } from '../setup/test-tokens.util';
 import { CodigoError } from '../../src/common/errors/codigos-error.enum';
 import { EstadoCiclo, MetodoPago, Prisma } from '@prisma/client';
+import { AdjuntosService } from '../../src/modules/adjuntos/services/adjuntos.service';
 import { TokenDescargaService } from '../../src/modules/adjuntos/services/token-descarga.service';
 import {
   STORAGE_SERVICE,
@@ -177,6 +178,27 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
       expect(res.status).toBe(413);
       const body = res.body as ErrorResponseBody;
       expect(body.code).toBe(CodigoError.ARCHIVO_DEMASIADO_GRANDE);
+    });
+
+    it('subir 11 MB -> 413 rechazado en multer sin invocar AdjuntosService.subirAdjunto (servidor sigue operativo)', async () => {
+      const adjuntosService = app.get(AdjuntosService);
+      const spyService = jest.spyOn(adjuntosService, 'subirAdjunto');
+      const mb11 = Buffer.alloc(11 * 1024 * 1024);
+      validPdfHeader.copy(mb11, 0);
+
+      const res = await testRequest(app)
+        .post(`/api/v1/gastos/${seed.empresaA.gastoAdmin.id}/adjuntos`)
+        .set('Authorization', `Bearer ${tokenAdminA}`)
+        .attach('archivo', mb11, '11mb.pdf');
+
+      expect(res.status).toBe(413);
+      const body = res.body as ErrorResponseBody;
+      expect(body.code).toBe(CodigoError.ARCHIVO_DEMASIADO_GRANDE);
+      expect(spyService).not.toHaveBeenCalled();
+      spyService.mockRestore();
+
+      const healthRes = await testRequest(app).get('/api/v1/health');
+      expect(healthRes.status).toBe(200);
     });
 
     it('debe aceptar archivo PDF válido con su firma binaria correcta (201)', async () => {

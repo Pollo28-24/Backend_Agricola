@@ -258,3 +258,12 @@ export function ordenarObjetoDeterminista(valor: unknown): unknown {
 export function serializarOpenApiDeterminista(doc: OpenAPIObject): string {
   return JSON.stringify(ordenarObjetoDeterminista(doc), null, 2) + '\n';
 }
+
+export function configurarSwagger(app: INestApplication): OpenAPIObject | null {
+  if (process.env.NODE_ENV === 'production') {
+    return null;
+  }
+  const document = crearDocumentoOpenApi(app);
+  SwaggerModule.setup('api/docs', app, document);
+  return document;
+}

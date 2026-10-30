@@ -1,11 +1,11 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '../../src/app.module';
 import { DomainExceptionFilter } from '../../src/common/filters/domain-exception.filter';
 import { SerializacionInterceptor } from '../../src/common/interceptors/serializacion.interceptor';
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { crearDocumentoOpenApi } from '../../src/config/openapi.config';
+import { configurarSwagger } from '../../src/config/openapi.config';
+import { configurarBodyParsers } from '../../src/config/body-parser.config';
 import { assertDatabaseRealEsDeTest } from './e2e-env';
 
 export interface TestAppInstance {
@@ -18,7 +18,8 @@ export async function createTestApp(): Promise<TestAppInstance> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleFixture.createNestApplication();
+  const app = moduleFixture.createNestApplication({ bodyParser: false });
+  configurarBodyParsers(app);
 
   // 1. Configuración idéntica a main.ts
   app.setGlobalPrefix('api/v1');
@@ -35,8 +36,7 @@ export async function createTestApp(): Promise<TestAppInstance> {
     }),
   );
 
-  const document = crearDocumentoOpenApi(app);
-  SwaggerModule.setup('api/docs', app, document);
+  configurarSwagger(app);
 
   await app.init();
 
