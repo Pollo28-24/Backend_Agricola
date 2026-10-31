@@ -23,6 +23,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
+import { JwtService } from '@nestjs/jwt';
 import { AdjuntosService } from './services/adjuntos.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
@@ -39,7 +40,10 @@ import { MessageResponseDto } from '../../common/dto/mensaje-response.dto';
 @ApiBearerAuth('JWT-auth')
 @Controller()
 export class AdjuntosController {
-  constructor(private readonly adjuntosService: AdjuntosService) {}
+  constructor(
+    private readonly adjuntosService: AdjuntosService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   // =========================================================================
   // 1. GASTOS
@@ -358,15 +362,9 @@ export class AdjuntosController {
       );
       if (match) {
         try {
-          const parts = match[1].split('.');
-          if (parts.length >= 2) {
-            const payloadJson = Buffer.from(parts[1], 'base64url').toString(
-              'utf8',
-            );
-            const payload = JSON.parse(payloadJson) as { sub?: unknown };
-            if (payload && typeof payload.sub === 'number') {
-              return payload.sub;
-            }
+          const payload = this.jwtService.verify<{ sub?: unknown }>(match[1]);
+          if (payload && typeof payload.sub === 'number') {
+            return payload.sub;
           }
         } catch {
           // Ignorar token no decodificable en endpoint público

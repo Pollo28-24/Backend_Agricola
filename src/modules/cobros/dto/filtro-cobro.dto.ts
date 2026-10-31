@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 import { COBRO_CONSTANTS } from '../constants/cobro.constants';
+import { ToBoolean } from '../../../common/decorators/to-boolean.decorator';
 
 export class FiltroCobroDto {
   @ApiPropertyOptional({
@@ -34,7 +35,7 @@ export class FiltroCobroDto {
     default: false,
   })
   @IsOptional()
-  @Type(() => Boolean)
+  @ToBoolean()
   @IsBoolean()
   incluirAnulados?: boolean = false;
 }

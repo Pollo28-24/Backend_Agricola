@@ -124,27 +124,31 @@ export class AuthService {
       nuevoHash = await this.passwordService.hash(dto.contrasena);
     }
 
-    // Actualizar fecha de último acceso (y contrasenaHash si hubo rehash)
-    await this.prisma.usuario.update({
-      where: { id: usuario.id },
-      data: {
-        ultimoAcceso: new Date(),
-        ...(nuevoHash ? { contrasenaHash: nuevoHash } : {}),
-      },
-    });
+    // Actualizar fecha de último acceso (y contrasenaHash si hubo rehash) + auditoría en la misma transacción (ADR-001)
+    await this.prisma.$transaction(async (tx) => {
+      await tx.usuario.update({
+        where: { id: usuario.id },
+        data: {
+          ultimoAcceso: new Date(),
+          ...(nuevoHash ? { contrasenaHash: nuevoHash } : {}),
+        },
+      });
 
-    // Registrar INICIO_SESION en bitácora de auditoría
-    await this.auditService.registrar({
-      empresaId: usuario.empresaId,
-      usuarioId: usuario.id,
-      entidad: 'usuario',
-      entidadId: usuario.id,
-      accion: AccionAuditoria.INICIO_SESION,
-      ip,
-      valoresNuevos: {
-        correo: usuario.correo,
-        fecha: new Date().toISOString(),
-      },
+      await this.auditService.registrar(
+        {
+          empresaId: usuario.empresaId,
+          usuarioId: usuario.id,
+          entidad: 'usuario',
+          entidadId: usuario.id,
+          accion: AccionAuditoria.INICIO_SESION,
+          ip,
+          valoresNuevos: {
+            correo: usuario.correo,
+            fecha: new Date().toISOString(),
+          },
+        },
+        tx,
+      );
     });
 
     const permisos = usuario.rol.permisos.map((rp) => rp.permiso.codigo);
@@ -343,7 +347,10 @@ export class AuthService {
   /**
    * Cierre de sesión: revoca toda la familia del refresh token
    */
-  async logout(refreshToken?: string): Promise<{ mensaje: string }> {
+  async logout(
+    refreshToken?: string,
+    usuarioId?: number,
+  ): Promise<{ mensaje: string }> {
     if (refreshToken) {
       try {
         const payload = this.jwtService.verify<{ jti: string }>(refreshToken, {
@@ -351,8 +358,16 @@ export class AuthService {
         });
         const tokenDb = await this.prisma.refreshToken.findUnique({
           where: { jti: payload.jti },
-          select: { familiaId: true },
+          select: { familiaId: true, usuarioId: true },
         });
+        // Token ajeno: sin efecto y sin revelar existencia (B4)
+        if (
+          tokenDb &&
+          usuarioId !== undefined &&
+          tokenDb.usuarioId !== usuarioId
+        ) {
+          return { mensaje: 'Sesi\u00f3n cerrada exitosamente' };
+        }
         if (tokenDb?.familiaId) {
           await this.revocarFamilia(tokenDb.familiaId);
         } else {

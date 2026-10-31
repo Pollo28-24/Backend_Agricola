@@ -197,7 +197,7 @@ export class EmpresasService {
 
     const parcelasActivas = await this.prisma.parcela.count({
       where: {
-        predio: { empresaId },
+        predio: { empresaId, deletedAt: null },
         estado: { not: 'INACTIVA' },
         deletedAt: null,
       },
@@ -249,31 +249,54 @@ export class EmpresasService {
       );
     }
 
-    await this.prisma.empresa.update({
-      where: { id: empresaId },
-      data: {
-        ...(dto.nombre && { nombre: dto.nombre.trim() }),
-        ...(dto.razonSocial !== undefined && {
-          razonSocial: dto.razonSocial?.trim() || null,
-        }),
-        ...(dto.correo && { correo: dto.correo.toLowerCase().trim() }),
-        ...(dto.telefono !== undefined && {
-          telefono: dto.telefono?.trim() || null,
-        }),
-        ...(dto.direccion !== undefined && {
-          direccion: dto.direccion?.trim() || null,
-        }),
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const actualizada = await tx.empresa.update({
+        where: { id: empresaId },
+        data: {
+          ...(dto.nombre && { nombre: dto.nombre.trim() }),
+          ...(dto.razonSocial !== undefined && {
+            razonSocial: dto.razonSocial?.trim() || null,
+          }),
+          ...(dto.correo && { correo: dto.correo.toLowerCase().trim() }),
+          ...(dto.telefono !== undefined && {
+            telefono: dto.telefono?.trim() || null,
+          }),
+          ...(dto.direccion !== undefined && {
+            direccion: dto.direccion?.trim() || null,
+          }),
+        },
+      });
 
-    // Auditar cambio
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'empresa',
-      entidadId: empresaId,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: empresaActual,
-      valoresNuevos: dto,
+      // Auditar cambio en la misma transacción convirtiendo Date/Decimal a string (ADR-001 / C5)
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'empresa',
+          entidadId: empresaId,
+          accion: AccionAuditoria.ACTUALIZAR,
+          valoresAnteriores: {
+            nombre: empresaActual.nombre,
+            razonSocial: empresaActual.razonSocial,
+            correo: empresaActual.correo,
+            telefono: empresaActual.telefono,
+            direccion: empresaActual.direccion,
+            fechaInicioPlan: empresaActual.fechaInicioPlan
+              ? empresaActual.fechaInicioPlan.toISOString()
+              : null,
+            createdAt: empresaActual.createdAt.toISOString(),
+            updatedAt: empresaActual.updatedAt.toISOString(),
+          },
+          valoresNuevos: {
+            nombre: actualizada.nombre,
+            razonSocial: actualizada.razonSocial,
+            correo: actualizada.correo,
+            telefono: actualizada.telefono,
+            direccion: actualizada.direccion,
+            updatedAt: actualizada.updatedAt.toISOString(),
+          },
+        },
+        tx,
+      );
     });
 
     return this.obtenerMiEmpresa(empresaId);

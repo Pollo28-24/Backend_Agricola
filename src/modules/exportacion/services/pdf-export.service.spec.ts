@@ -1,4 +1,8 @@
+import PDFDocument from 'pdfkit';
+import { Workbook } from 'exceljs';
 import { PdfExportService } from './pdf-export.service';
+import { CsvExportService } from './csv-export.service';
+import { ExcelExportService } from './excel-export.service';
 import { EstadoCiclo } from '@prisma/client';
 import { RentabilidadCicloItemDto } from '../../reportes/dto/rentabilidad-ciclo-response.dto';
 import { ComparativoParcelaItemDto } from '../../reportes/dto/comparativo-parcela-response.dto';
@@ -140,5 +144,47 @@ describe('PdfExportService', () => {
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(0);
     expect(buffer.subarray(0, 4).toString('utf-8')).toBe('%PDF');
+  });
+
+  it('debe imprimir texto que empieza con "=" sin apóstrofo en PDF y con apóstrofo en Excel/CSV (C6)', async () => {
+    const itemConIgual: RentabilidadCicloItemDto = {
+      ...mockCicloItem,
+      ciclo: {
+        ...mockCicloItem.ciclo,
+        nombre: '=CICLO_FORMULA',
+      },
+    };
+
+    const textosPdf: string[] = [];
+    const textSpy = jest
+      .spyOn(PDFDocument.prototype, 'text')
+      .mockImplementation(function (this: PDFKit.PDFDocument, text?: unknown) {
+        if (typeof text === 'string') {
+          textosPdf.push(text);
+        }
+        return this;
+      });
+
+    try {
+      await service.exportarRentabilidad([itemConIgual]);
+    } finally {
+      textSpy.mockRestore();
+    }
+
+    expect(textosPdf.some((t) => t.includes('=CICLO_FORMULA'))).toBe(true);
+    expect(textosPdf.some((t) => t.includes("'=CICLO_FORMULA"))).toBe(false);
+
+    const csvService = new CsvExportService();
+    const csvStr = csvService
+      .exportarRentabilidad([itemConIgual])
+      .toString('utf-8');
+    expect(csvStr).toContain("'=CICLO_FORMULA");
+
+    const excelService = new ExcelExportService();
+    const excelBuffer = await excelService.exportarRentabilidad([itemConIgual]);
+    const wb = new Workbook();
+    await wb.xlsx.load(excelBuffer as unknown as ArrayBuffer);
+    const sheet = wb.getWorksheet('Rentabilidad');
+    expect(sheet?.getRow(2).getCell(2).value).toBe("'=CICLO_FORMULA");
   });
 });

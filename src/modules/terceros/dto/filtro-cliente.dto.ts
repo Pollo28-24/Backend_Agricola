@@ -1,8 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TipoCliente } from '@prisma/client';
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
-import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
+import { ToBoolean } from '../../../common/decorators/to-boolean.decorator';
 
 export class FiltroClienteDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -28,11 +28,7 @@ export class FiltroClienteDto extends PaginationQueryDto {
     example: true,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === 'true' || value === true) return true;
-    if (value === 'false' || value === false) return false;
-    return undefined;
-  })
+  @ToBoolean()
   @IsBoolean()
   activo?: boolean;
 }

@@ -46,31 +46,38 @@ export class ProveedoresService {
       );
     }
 
-    const nuevo = await this.prisma.proveedor.create({
-      data: {
-        empresaId,
-        nombre: nombreNormalizado,
-        rfc: dto.rfc?.trim().toUpperCase() || null,
-        telefono: dto.telefono?.trim() || null,
-        correo: dto.correo?.trim().toLowerCase() || null,
-        direccion: dto.direccion?.trim() || null,
-        activo: true,
-      },
-    });
+    const nuevo = await this.prisma.$transaction(async (tx) => {
+      const creado = await tx.proveedor.create({
+        data: {
+          empresaId,
+          nombre: nombreNormalizado,
+          rfc: dto.rfc?.trim().toUpperCase() || null,
+          telefono: dto.telefono?.trim() || null,
+          correo: dto.correo?.trim().toLowerCase() || null,
+          direccion: dto.direccion?.trim() || null,
+          activo: true,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'proveedor',
-      entidadId: nuevo.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevo.id,
-        nombre: nuevo.nombre,
-        rfc: nuevo.rfc,
-        telefono: nuevo.telefono,
-        correo: nuevo.correo,
-        activo: nuevo.activo,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'proveedor',
+          entidadId: creado.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: creado.id,
+            nombre: creado.nombre,
+            rfc: creado.rfc,
+            telefono: creado.telefono,
+            correo: creado.correo,
+            activo: creado.activo,
+          },
+        },
+        tx,
+      );
+
+      return creado;
     });
 
     return this.formatearProveedor(nuevo, 0);
@@ -109,7 +116,7 @@ export class ProveedoresService {
         where,
         include: {
           _count: {
-            select: { gastos: true },
+            select: { gastos: { where: { deletedAt: null } } },
           },
         },
         orderBy: { nombre: 'asc' },
@@ -139,7 +146,7 @@ export class ProveedoresService {
       },
       include: {
         _count: {
-          select: { gastos: true },
+          select: { gastos: { where: { deletedAt: null } } },
         },
       },
     });
@@ -168,7 +175,7 @@ export class ProveedoresService {
       },
       include: {
         _count: {
-          select: { gastos: true },
+          select: { gastos: { where: { deletedAt: null } } },
         },
       },
     });
@@ -216,30 +223,37 @@ export class ProveedoresService {
       dataToUpdate.direccion = dto.direccion?.trim() || null;
     }
 
-    const actualizado = await this.prisma.proveedor.update({
-      where: { id },
-      data: dataToUpdate,
-    });
+    const actualizado = await this.prisma.$transaction(async (tx) => {
+      const mod = await tx.proveedor.update({
+        where: { id },
+        data: dataToUpdate,
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'proveedor',
-      entidadId: id,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: {
-        nombre: proveedor.nombre,
-        rfc: proveedor.rfc,
-        telefono: proveedor.telefono,
-        correo: proveedor.correo,
-        direccion: proveedor.direccion,
-      },
-      valoresNuevos: {
-        nombre: actualizado.nombre,
-        rfc: actualizado.rfc,
-        telefono: actualizado.telefono,
-        correo: actualizado.correo,
-        direccion: actualizado.direccion,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'proveedor',
+          entidadId: id,
+          accion: AccionAuditoria.ACTUALIZAR,
+          valoresAnteriores: {
+            nombre: proveedor.nombre,
+            rfc: proveedor.rfc,
+            telefono: proveedor.telefono,
+            correo: proveedor.correo,
+            direccion: proveedor.direccion,
+          },
+          valoresNuevos: {
+            nombre: mod.nombre,
+            rfc: mod.rfc,
+            telefono: mod.telefono,
+            correo: mod.correo,
+            direccion: mod.direccion,
+          },
+        },
+        tx,
+      );
+
+      return mod;
     });
 
     return this.formatearProveedor(actualizado, proveedor._count.gastos);
@@ -261,7 +275,7 @@ export class ProveedoresService {
       },
       include: {
         _count: {
-          select: { gastos: true },
+          select: { gastos: { where: { deletedAt: null } } },
         },
       },
     });
@@ -272,18 +286,23 @@ export class ProveedoresService {
     );
 
     if (proveedor._count.gastos > 0) {
-      await this.prisma.proveedor.update({
-        where: { id },
-        data: { activo: false },
-      });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.proveedor.update({
+          where: { id },
+          data: { activo: false },
+        });
 
-      await this.auditService.registrar({
-        empresaId,
-        entidad: 'proveedor',
-        entidadId: id,
-        accion: AccionAuditoria.ACTUALIZAR,
-        valoresAnteriores: { activo: proveedor.activo },
-        valoresNuevos: { activo: false },
+        await this.auditService.registrar(
+          {
+            empresaId,
+            entidad: 'proveedor',
+            entidadId: id,
+            accion: AccionAuditoria.ACTUALIZAR,
+            valoresAnteriores: { activo: proveedor.activo },
+            valoresNuevos: { activo: false },
+          },
+          tx,
+        );
       });
 
       return {
@@ -298,25 +317,30 @@ export class ProveedoresService {
       150,
     );
 
-    await this.prisma.proveedor.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        activo: false,
-        nombre: nombreLiberado,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.proveedor.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          activo: false,
+          nombre: nombreLiberado,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'proveedor',
-      entidadId: id,
-      accion: AccionAuditoria.ELIMINAR,
-      valoresAnteriores: {
-        id: proveedor.id,
-        nombre: proveedor.nombre,
-        activo: proveedor.activo,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'proveedor',
+          entidadId: id,
+          accion: AccionAuditoria.ELIMINAR,
+          valoresAnteriores: {
+            id: proveedor.id,
+            nombre: proveedor.nombre,
+            activo: proveedor.activo,
+          },
+        },
+        tx,
+      );
     });
 
     return { message: 'Proveedor eliminado exitosamente' };

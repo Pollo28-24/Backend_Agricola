@@ -46,30 +46,37 @@ export class ClientesService {
       );
     }
 
-    const nuevo = await this.prisma.cliente.create({
-      data: {
-        empresaId,
-        nombre: nombreNormalizado,
-        rfc: dto.rfc?.trim().toUpperCase() || null,
-        telefono: dto.telefono?.trim() || null,
-        correo: dto.correo?.trim().toLowerCase() || null,
-        tipo: dto.tipo ?? TipoCliente.OTRO,
-        activo: true,
-      },
-    });
+    const nuevo = await this.prisma.$transaction(async (tx) => {
+      const creado = await tx.cliente.create({
+        data: {
+          empresaId,
+          nombre: nombreNormalizado,
+          rfc: dto.rfc?.trim().toUpperCase() || null,
+          telefono: dto.telefono?.trim() || null,
+          correo: dto.correo?.trim().toLowerCase() || null,
+          tipo: dto.tipo ?? TipoCliente.OTRO,
+          activo: true,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'cliente',
-      entidadId: nuevo.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevo.id,
-        nombre: nuevo.nombre,
-        rfc: nuevo.rfc,
-        tipo: nuevo.tipo,
-        activo: nuevo.activo,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'cliente',
+          entidadId: creado.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: creado.id,
+            nombre: creado.nombre,
+            rfc: creado.rfc,
+            tipo: creado.tipo,
+            activo: creado.activo,
+          },
+        },
+        tx,
+      );
+
+      return creado;
     });
 
     return this.formatearCliente(nuevo, 0);
@@ -112,7 +119,7 @@ export class ClientesService {
         where,
         include: {
           _count: {
-            select: { ventas: true },
+            select: { ventas: { where: { deletedAt: null } } },
           },
         },
         orderBy: { nombre: 'asc' },
@@ -142,7 +149,7 @@ export class ClientesService {
       },
       include: {
         _count: {
-          select: { ventas: true },
+          select: { ventas: { where: { deletedAt: null } } },
         },
       },
     });
@@ -171,7 +178,7 @@ export class ClientesService {
       },
       include: {
         _count: {
-          select: { ventas: true },
+          select: { ventas: { where: { deletedAt: null } } },
         },
       },
     });
@@ -219,30 +226,37 @@ export class ClientesService {
       dataToUpdate.tipo = dto.tipo;
     }
 
-    const actualizado = await this.prisma.cliente.update({
-      where: { id },
-      data: dataToUpdate,
-    });
+    const actualizado = await this.prisma.$transaction(async (tx) => {
+      const mod = await tx.cliente.update({
+        where: { id },
+        data: dataToUpdate,
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'cliente',
-      entidadId: id,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: {
-        nombre: cliente.nombre,
-        rfc: cliente.rfc,
-        telefono: cliente.telefono,
-        correo: cliente.correo,
-        tipo: cliente.tipo,
-      },
-      valoresNuevos: {
-        nombre: actualizado.nombre,
-        rfc: actualizado.rfc,
-        telefono: actualizado.telefono,
-        correo: actualizado.correo,
-        tipo: actualizado.tipo,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'cliente',
+          entidadId: id,
+          accion: AccionAuditoria.ACTUALIZAR,
+          valoresAnteriores: {
+            nombre: cliente.nombre,
+            rfc: cliente.rfc,
+            telefono: cliente.telefono,
+            correo: cliente.correo,
+            tipo: cliente.tipo,
+          },
+          valoresNuevos: {
+            nombre: mod.nombre,
+            rfc: mod.rfc,
+            telefono: mod.telefono,
+            correo: mod.correo,
+            tipo: mod.tipo,
+          },
+        },
+        tx,
+      );
+
+      return mod;
     });
 
     return this.formatearCliente(actualizado, cliente._count.ventas);
@@ -264,7 +278,7 @@ export class ClientesService {
       },
       include: {
         _count: {
-          select: { ventas: true },
+          select: { ventas: { where: { deletedAt: null } } },
         },
       },
     });
@@ -275,18 +289,23 @@ export class ClientesService {
     );
 
     if (cliente._count.ventas > 0) {
-      await this.prisma.cliente.update({
-        where: { id },
-        data: { activo: false },
-      });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.cliente.update({
+          where: { id },
+          data: { activo: false },
+        });
 
-      await this.auditService.registrar({
-        empresaId,
-        entidad: 'cliente',
-        entidadId: id,
-        accion: AccionAuditoria.ACTUALIZAR,
-        valoresAnteriores: { activo: cliente.activo },
-        valoresNuevos: { activo: false },
+        await this.auditService.registrar(
+          {
+            empresaId,
+            entidad: 'cliente',
+            entidadId: id,
+            accion: AccionAuditoria.ACTUALIZAR,
+            valoresAnteriores: { activo: cliente.activo },
+            valoresNuevos: { activo: false },
+          },
+          tx,
+        );
       });
 
       return {
@@ -301,25 +320,30 @@ export class ClientesService {
       150,
     );
 
-    await this.prisma.cliente.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        activo: false,
-        nombre: nombreLiberado,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cliente.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          activo: false,
+          nombre: nombreLiberado,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'cliente',
-      entidadId: id,
-      accion: AccionAuditoria.ELIMINAR,
-      valoresAnteriores: {
-        id: cliente.id,
-        nombre: cliente.nombre,
-        activo: cliente.activo,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'cliente',
+          entidadId: id,
+          accion: AccionAuditoria.ELIMINAR,
+          valoresAnteriores: {
+            id: cliente.id,
+            nombre: cliente.nombre,
+            activo: cliente.activo,
+          },
+        },
+        tx,
+      );
     });
 
     return { message: 'Cliente eliminado exitosamente' };

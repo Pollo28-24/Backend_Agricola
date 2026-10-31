@@ -74,9 +74,11 @@ describe('CiclosService', () => {
     };
 
     // Por defecto $transaction ejecuta el callback pasándole el prisma mock como tx
-    prisma.$transaction.mockImplementation((callback) => {
-      return callback(prisma);
-    });
+    prisma.$transaction.mockImplementation(
+      (callback: (tx: typeof prisma) => unknown) => {
+        return callback(prisma);
+      },
+    );
 
     auditService = {
       registrar: jest.fn().mockResolvedValue(undefined),
@@ -156,8 +158,9 @@ describe('CiclosService', () => {
           valoresNuevos: expect.objectContaining({
             nombre: 'Primavera 2027',
             estado: EstadoCiclo.PLANIFICADO,
-          }),
+          }) as unknown,
         }),
+        expect.anything(),
       );
     });
 
@@ -270,11 +273,12 @@ describe('CiclosService', () => {
           accion: AccionAuditoria.ACTUALIZAR,
           valoresAnteriores: expect.objectContaining({
             nombre: 'Original',
-          }),
+          }) as unknown,
           valoresNuevos: expect.objectContaining({
             nombre: 'Actualizado',
-          }),
+          }) as unknown,
         }),
+        expect.anything(),
       );
     });
 
@@ -361,11 +365,11 @@ describe('CiclosService', () => {
           accion: AccionAuditoria.ACTUALIZAR,
           valoresAnteriores: expect.objectContaining({
             estado: EstadoCiclo.PLANIFICADO,
-          }),
+          }) as unknown,
           valoresNuevos: expect.objectContaining({
             estado: EstadoCiclo.ACTIVO,
             accion: AccionCiclo.INICIAR,
-          }),
+          }) as unknown,
         }),
         expect.anything(),
       );
@@ -479,11 +483,11 @@ describe('CiclosService', () => {
           accion: AccionAuditoria.CERRAR_CICLO,
           valoresAnteriores: expect.objectContaining({
             estado: EstadoCiclo.ACTIVO,
-          }),
+          }) as unknown,
           valoresNuevos: expect.objectContaining({
             estado: EstadoCiclo.FINALIZADO,
             accion: AccionCiclo.FINALIZAR,
-          }),
+          }) as unknown,
         }),
         expect.anything(),
       );
@@ -541,11 +545,11 @@ describe('CiclosService', () => {
           accion: AccionAuditoria.REABRIR_CICLO,
           valoresAnteriores: expect.objectContaining({
             estado: EstadoCiclo.FINALIZADO,
-          }),
+          }) as unknown,
           valoresNuevos: expect.objectContaining({
             estado: EstadoCiclo.ACTIVO,
             accion: AccionCiclo.REABRIR,
-          }),
+          }) as unknown,
         }),
         expect.anything(),
       );
@@ -674,6 +678,40 @@ describe('CiclosService', () => {
 
       expect(prisma.cicloProduccion.update).not.toHaveBeenCalled();
       expect(auditService.registrar).not.toHaveBeenCalled();
+    });
+
+    it('debe filtrar registros dados de baja lógica (deletedAt: null) en _count al eliminar ciclo (C2)', async () => {
+      prisma.cicloProduccion.findFirst.mockResolvedValue({
+        id: 1,
+        empresaId,
+        estado: EstadoCiclo.PLANIFICADO,
+        _count: {
+          actividades: 0,
+          gastos: 0,
+          cosechas: 0,
+          ventas: 0,
+          mermas: 0,
+        },
+      });
+      prisma.cicloProduccion.update.mockResolvedValue({});
+
+      await service.eliminarCiclo(empresaId, usuarioId, 1);
+
+      expect(prisma.cicloProduccion.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            _count: {
+              select: {
+                actividades: { where: { deletedAt: null } },
+                gastos: { where: { deletedAt: null } },
+                cosechas: { where: { deletedAt: null } },
+                ventas: { where: { deletedAt: null } },
+                mermas: { where: { deletedAt: null } },
+              },
+            },
+          },
+        }),
+      );
     });
   });
 });

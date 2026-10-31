@@ -233,6 +233,7 @@ describe('AuthService', () => {
           accion: AccionAuditoria.INICIO_SESION,
           ip: '127.0.0.1',
         }),
+        expect.anything(),
       );
     });
 

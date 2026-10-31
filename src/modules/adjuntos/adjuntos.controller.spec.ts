@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Response } from 'express';
 import { Readable, PassThrough } from 'stream';
+import { JwtService } from '@nestjs/jwt';
 import { AdjuntosController } from './adjuntos.controller';
 import { AdjuntosService } from './services/adjuntos.service';
 import { UsuarioAutenticado } from '../auth/interfaces/jwt-payload.interface';
@@ -72,6 +73,12 @@ describe('AdjuntosController', () => {
         {
           provide: AdjuntosService,
           useValue: mockAdjuntosService,
+        },
+        {
+          provide: JwtService,
+          useValue: {
+            verify: jest.fn().mockImplementation(() => ({ sub: 1 })),
+          },
         },
       ],
     }).compile();

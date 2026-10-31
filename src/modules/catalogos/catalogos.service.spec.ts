@@ -36,6 +36,7 @@ describe('CatalogosService (RN-047, RN-048)', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
 
   const mockAuditService = {
@@ -44,6 +45,10 @@ describe('CatalogosService (RN-047, RN-048)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrismaService.$transaction.mockImplementation(
+      (cb: (tx: typeof mockPrismaService) => Promise<unknown>) =>
+        cb(mockPrismaService),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -216,6 +221,7 @@ describe('CatalogosService (RN-047, RN-048)', () => {
           entidadId: 20,
           accion: AccionAuditoria.CREAR,
         }),
+        expect.anything(),
       );
     });
 
@@ -266,10 +272,11 @@ describe('CatalogosService (RN-047, RN-048)', () => {
       );
       try {
         await service.crearCategoriaGasto(5, dto);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.PETICION_INVALIDA);
-        expect(e.getStatus()).toBe(400);
-        expect(e.message).toContain('RN-048');
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.PETICION_INVALIDA);
+        expect(err.getStatus()).toBe(400);
+        expect(err.message).toContain('RN-048');
       }
     });
 
@@ -291,9 +298,10 @@ describe('CatalogosService (RN-047, RN-048)', () => {
       );
       try {
         await service.crearCategoriaGasto(5, dto);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
-        expect(e.getStatus()).toBe(404);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
+        expect(err.getStatus()).toBe(404);
       }
     });
 
@@ -312,9 +320,10 @@ describe('CatalogosService (RN-047, RN-048)', () => {
       );
       try {
         await service.crearCategoriaGasto(5, dto);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.CONFLICTO);
-        expect(e.getStatus()).toBe(409);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.CONFLICTO);
+        expect(err.getStatus()).toBe(409);
       }
     });
   });

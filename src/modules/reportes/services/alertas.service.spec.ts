@@ -10,6 +10,7 @@ describe('AlertasService (Unitario)', () => {
     cicloProduccion: { findMany: jest.Mock };
     $queryRaw: jest.Mock;
     gasto: { groupBy: jest.Mock };
+    actividad: { groupBy: jest.Mock };
     empresa: { findUnique: jest.Mock };
     parcela: { count: jest.Mock };
     usuario: { count: jest.Mock };
@@ -23,6 +24,7 @@ describe('AlertasService (Unitario)', () => {
       cicloProduccion: { findMany: jest.fn() },
       $queryRaw: jest.fn(),
       gasto: { groupBy: jest.fn() },
+      actividad: { groupBy: jest.fn().mockResolvedValue([]) },
       empresa: { findUnique: jest.fn() },
       parcela: { count: jest.fn() },
       usuario: { count: jest.fn() },
@@ -802,6 +804,47 @@ describe('AlertasService (Unitario)', () => {
       } finally {
         jest.useRealTimers();
       }
+    });
+
+    it('C9: ciclo con actividad reciente y sin gasto NO dispara CICLO_SIN_CAPTURA', async () => {
+      prismaMock.cicloProduccion.findMany.mockResolvedValueOnce([
+        {
+          id: 77,
+          nombre: 'Ciclo Con Actividad Reciente',
+          estado: EstadoCiclo.ACTIVO,
+          fechaInicio: new Date('2026-09-01'), // Hace 50 días
+          fechaFin: null,
+          cerradoEn: null,
+          superficieSembrada: 10,
+          metaProduccionKg: null,
+          parcelaId: 77,
+          variedadId: 1,
+          variedad: { duracionCicloDias: 90 },
+        },
+      ]);
+
+      prismaMock.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      // Sin gastos registrados
+      prismaMock.gasto.groupBy.mockResolvedValueOnce([]);
+      // Con actividad reciente (hace 5 días <= 15 días)
+      prismaMock.actividad.groupBy.mockResolvedValueOnce([
+        { cicloId: 77, _max: { fecha: new Date('2026-10-16') } },
+      ]);
+
+      prismaMock.empresa.findUnique.mockResolvedValueOnce(null);
+      prismaMock.parcela.count.mockResolvedValueOnce(0);
+      prismaMock.usuario.count.mockResolvedValueOnce(0);
+
+      const res = await service.obtenerAlertas(empresaId, { hoy: hoyPrueba });
+      const alertaSinCaptura = res.data.find(
+        (a) => a.codigo === CodigoAlerta.CICLO_SIN_CAPTURA,
+      );
+      expect(alertaSinCaptura).toBeUndefined();
     });
   });
 });

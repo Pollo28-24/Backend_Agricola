@@ -110,37 +110,44 @@ export class CiclosService {
       );
     }
 
-    // 6. Creación en base de datos
-    const nuevoCiclo = await this.prisma.cicloProduccion.create({
-      data: {
-        empresaId,
-        parcelaId: dto.parcelaId,
-        variedadId: dto.variedadId,
-        nombre: dto.nombre?.trim() || null,
-        fechaInicio: fechaInicioDate,
-        fechaFin: fechaFinDate,
-        superficieSembrada: dto.superficieSembrada,
-        metaProduccionKg: dto.metaProduccionKg ?? null,
-        estado: EstadoCiclo.PLANIFICADO,
-        observaciones: dto.observaciones?.trim() || null,
-        creadoPorId: usuarioId,
-      },
-    });
+    // 6. Creación en base de datos y auditoría en la misma transacción (ADR-001)
+    const nuevoCiclo = await this.prisma.$transaction(async (tx) => {
+      const creado = await tx.cicloProduccion.create({
+        data: {
+          empresaId,
+          parcelaId: dto.parcelaId,
+          variedadId: dto.variedadId,
+          nombre: dto.nombre?.trim() || null,
+          fechaInicio: fechaInicioDate,
+          fechaFin: fechaFinDate,
+          superficieSembrada: dto.superficieSembrada,
+          metaProduccionKg: dto.metaProduccionKg ?? null,
+          estado: EstadoCiclo.PLANIFICADO,
+          observaciones: dto.observaciones?.trim() || null,
+          creadoPorId: usuarioId,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'ciclo_produccion',
-      entidadId: nuevoCiclo.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevoCiclo.id,
-        parcelaId: nuevoCiclo.parcelaId,
-        variedadId: nuevoCiclo.variedadId,
-        nombre: nuevoCiclo.nombre,
-        estado: nuevoCiclo.estado,
-        fechaInicio: dto.fechaInicio,
-        superficieSembrada: nuevoCiclo.superficieSembrada.toString(),
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'ciclo_produccion',
+          entidadId: creado.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: creado.id,
+            parcelaId: creado.parcelaId,
+            variedadId: creado.variedadId,
+            nombre: creado.nombre,
+            estado: creado.estado,
+            fechaInicio: dto.fechaInicio,
+            superficieSembrada: creado.superficieSembrada.toString(),
+          },
+        },
+        tx,
+      );
+
+      return creado;
     });
 
     return this.formatearCiclo(nuevoCiclo);
@@ -270,92 +277,100 @@ export class CiclosService {
     id: number,
     dto: UpdateCicloDto,
   ): Promise<CicloResponseDto> {
-    const ciclo = await this.prisma.cicloProduccion.findFirst({
-      where: {
-        id,
-        empresaId,
-        deletedAt: null,
-      },
-      include: {
-        parcela: true,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      // ORDEN DE BLOQUEO ÚNICO (RN-067): Ciclo primero (SELECT ... FOR UPDATE) y parcela después.
+      await bloquearCicloParaCaptura(tx, id, empresaId);
 
-    EntityValidationUtil.assertExists(
-      ciclo,
-      `Ciclo de producción con ID ${id} no encontrado en su empresa`,
-    );
+      const ciclo = await tx.cicloProduccion.findFirst({
+        where: {
+          id,
+          empresaId,
+          deletedAt: null,
+        },
+        include: {
+          parcela: true,
+        },
+      });
 
-    // RN-015: En ciclos FINALIZADO o CANCELADO se bloquea la modificación
-    if (
-      ciclo.estado === EstadoCiclo.FINALIZADO ||
-      ciclo.estado === EstadoCiclo.CANCELADO
-    ) {
-      throw new DomainError(
-        CodigoError.CICLO_CERRADO,
-        `No se permite modificar un ciclo en estado ${ciclo.estado} (RN-015)`,
-        HttpStatus.CONFLICT,
+      EntityValidationUtil.assertExists(
+        ciclo,
+        `Ciclo de producción con ID ${id} no encontrado en su empresa`,
       );
-    }
 
-    const dataToUpdate: Prisma.CicloProduccionUpdateInput = {};
-
-    if (dto.nombre !== undefined) {
-      dataToUpdate.nombre = dto.nombre?.trim() || null;
-    }
-
-    if (dto.observaciones !== undefined) {
-      dataToUpdate.observaciones = dto.observaciones?.trim() || null;
-    }
-
-    if (dto.metaProduccionKg !== undefined) {
-      dataToUpdate.metaProduccionKg = dto.metaProduccionKg;
-    }
-
-    if (dto.superficieSembrada !== undefined) {
-      // Congelar superficie si ya no es PLANIFICADO
-      if (ciclo.estado !== EstadoCiclo.PLANIFICADO) {
+      // RN-015: En ciclos FINALIZADO o CANCELADO se bloquea la modificación
+      if (
+        ciclo.estado === EstadoCiclo.FINALIZADO ||
+        ciclo.estado === EstadoCiclo.CANCELADO
+      ) {
         throw new DomainError(
-          CodigoError.CONFLICTO,
-          `No se puede modificar la superficie sembrada de un ciclo que ya se encuentra en estado ${ciclo.estado}`,
+          CodigoError.CICLO_CERRADO,
+          `No se permite modificar un ciclo en estado ${ciclo.estado} (RN-015)`,
           HttpStatus.CONFLICT,
         );
       }
 
-      const superficieParcela = Number(ciclo.parcela.superficie);
-      if (dto.superficieSembrada > superficieParcela) {
-        throw new DomainError(
-          CodigoError.PETICION_INVALIDA,
-          `La superficie sembrada (${dto.superficieSembrada} ha) excede la superficie de la parcela (${superficieParcela} ha) (RN-018)`,
-          HttpStatus.BAD_REQUEST,
-        );
+      const dataToUpdate: Prisma.CicloProduccionUpdateInput = {};
+
+      if (dto.nombre !== undefined) {
+        dataToUpdate.nombre = dto.nombre?.trim() || null;
       }
-      dataToUpdate.superficieSembrada = dto.superficieSembrada;
-    }
 
-    const actualizado = await this.prisma.cicloProduccion.update({
-      where: { id },
-      data: dataToUpdate,
+      if (dto.observaciones !== undefined) {
+        dataToUpdate.observaciones = dto.observaciones?.trim() || null;
+      }
+
+      if (dto.metaProduccionKg !== undefined) {
+        dataToUpdate.metaProduccionKg = dto.metaProduccionKg;
+      }
+
+      if (dto.superficieSembrada !== undefined) {
+        // Congelar superficie si ya no es PLANIFICADO
+        if (ciclo.estado !== EstadoCiclo.PLANIFICADO) {
+          throw new DomainError(
+            CodigoError.CONFLICTO,
+            `No se puede modificar la superficie sembrada de un ciclo que ya se encuentra en estado ${ciclo.estado}`,
+            HttpStatus.CONFLICT,
+          );
+        }
+
+        const superficieParcela = Number(ciclo.parcela.superficie);
+        if (dto.superficieSembrada > superficieParcela) {
+          throw new DomainError(
+            CodigoError.PETICION_INVALIDA,
+            `La superficie sembrada (${dto.superficieSembrada} ha) excede la superficie de la parcela (${superficieParcela} ha) (RN-018)`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+        dataToUpdate.superficieSembrada = dto.superficieSembrada;
+      }
+
+      const actualizado = await tx.cicloProduccion.update({
+        where: { id },
+        data: dataToUpdate,
+      });
+
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'ciclo_produccion',
+          entidadId: id,
+          accion: AccionAuditoria.ACTUALIZAR,
+          valoresAnteriores: {
+            nombre: ciclo.nombre,
+            superficieSembrada: ciclo.superficieSembrada.toString(),
+            metaProduccionKg: ciclo.metaProduccionKg?.toString() ?? null,
+          },
+          valoresNuevos: {
+            nombre: actualizado.nombre,
+            superficieSembrada: actualizado.superficieSembrada.toString(),
+            metaProduccionKg: actualizado.metaProduccionKg?.toString() ?? null,
+          },
+        },
+        tx,
+      );
+
+      return this.formatearCiclo(actualizado);
     });
-
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'ciclo_produccion',
-      entidadId: id,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: {
-        nombre: ciclo.nombre,
-        superficieSembrada: ciclo.superficieSembrada.toString(),
-        metaProduccionKg: ciclo.metaProduccionKg?.toString() ?? null,
-      },
-      valoresNuevos: {
-        nombre: actualizado.nombre,
-        superficieSembrada: actualizado.superficieSembrada.toString(),
-        metaProduccionKg: actualizado.metaProduccionKg?.toString() ?? null,
-      },
-    });
-
-    return this.formatearCiclo(actualizado);
   }
 
   // =====================================================================
@@ -621,11 +636,11 @@ export class CiclosService {
         include: {
           _count: {
             select: {
-              actividades: true,
-              gastos: true,
-              cosechas: true,
-              ventas: true,
-              mermas: true,
+              actividades: { where: { deletedAt: null } },
+              gastos: { where: { deletedAt: null } },
+              cosechas: { where: { deletedAt: null } },
+              ventas: { where: { deletedAt: null } },
+              mermas: { where: { deletedAt: null } },
             },
           },
         },

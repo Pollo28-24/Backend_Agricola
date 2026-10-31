@@ -38,6 +38,15 @@ export class CobrosService {
     ventaId: number,
     dto: CreateCobroDto,
   ): Promise<CobroResponseDto> {
+    const montoPreliminar = new Prisma.Decimal(dto.monto);
+    if (montoPreliminar.lessThanOrEqualTo(0)) {
+      throw new DomainError(
+        CodigoError.PETICION_INVALIDA,
+        'El monto debe ser un importe positivo mayor a cero',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     // 1. Leer venta preliminar fuera de la transacción para obtener cicloId
     //    sin inicializar prematuramente el snapshot MVCC en tx antes del lock.
     const ventaPrevia = await this.prisma.venta.findFirst({

@@ -453,6 +453,170 @@ describe('C7: Transaccionalidad Real y Rollback de Auditoría (E2E)', () => {
       });
       expect(bitacoras.length).toBe(0);
     });
+
+    it('(i) POST /api/v1/predios: si auditoría falla, el predio no se crea', async () => {
+      const uniqueNombre = `Predio Rollback ${Date.now()}`;
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_PREDIO'));
+      });
+
+      const res = await testRequest(app)
+        .post('/api/v1/predios')
+        .set('Authorization', adminToken)
+        .send({
+          nombre: uniqueNombre,
+          superficieTotal: 25.5,
+        });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const predioEnDb = await prisma.predio.findFirst({
+        where: { empresaId: seed.empresaA.id, nombre: uniqueNombre },
+      });
+      expect(predioEnDb).toBeNull();
+    });
+
+    it('(j) PATCH /api/v1/parcelas/:id: si auditoría falla, el cambio en parcela se revierte', async () => {
+      const antes = await prisma.parcela.findUniqueOrThrow({
+        where: { id: seed.empresaA.parcela2.id },
+      });
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_PARCELA'));
+      });
+
+      const res = await testRequest(app)
+        .patch(`/api/v1/parcelas/${seed.empresaA.parcela2.id}`)
+        .set('Authorization', adminToken)
+        .send({ nombre: `Parcela Rollback ${Date.now()}` });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const despues = await prisma.parcela.findUniqueOrThrow({
+        where: { id: seed.empresaA.parcela2.id },
+      });
+      expect(despues.nombre).toBe(antes.nombre);
+    });
+
+    it('(k) POST /api/v1/clientes: si auditoría falla, el cliente no se crea', async () => {
+      const uniqueNombre = `Cliente Rollback ${Date.now()}`;
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_CLIENTE'));
+      });
+
+      const res = await testRequest(app)
+        .post('/api/v1/clientes')
+        .set('Authorization', adminToken)
+        .send({ nombre: uniqueNombre });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const enDb = await prisma.cliente.findFirst({
+        where: { empresaId: seed.empresaA.id, nombre: uniqueNombre },
+      });
+      expect(enDb).toBeNull();
+    });
+
+    it('(l) POST /api/v1/proveedores: si auditoría falla, el proveedor no se crea', async () => {
+      const uniqueNombre = `Proveedor Rollback ${Date.now()}`;
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_PROVEEDOR'));
+      });
+
+      const res = await testRequest(app)
+        .post('/api/v1/proveedores')
+        .set('Authorization', adminToken)
+        .send({ nombre: uniqueNombre });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const enDb = await prisma.proveedor.findFirst({
+        where: { empresaId: seed.empresaA.id, nombre: uniqueNombre },
+      });
+      expect(enDb).toBeNull();
+    });
+
+    it('(m) POST /api/v1/catalogos/categorias-gasto: si auditoría falla, la categoría no se crea', async () => {
+      const uniqueNombre = `Cat Rollback ${Date.now()}`;
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_CATEGORIA'));
+      });
+
+      const res = await testRequest(app)
+        .post('/api/v1/catalogos/categorias-gasto')
+        .set('Authorization', adminToken)
+        .send({ nombre: uniqueNombre });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const enDb = await prisma.categoriaGasto.findFirst({
+        where: { empresaId: seed.empresaA.id, nombre: uniqueNombre },
+      });
+      expect(enDb).toBeNull();
+    });
+
+    it('(n) PATCH /api/v1/empresas/mi-empresa: si auditoría falla, la actualización de empresa se revierte', async () => {
+      const antes = await prisma.empresa.findUniqueOrThrow({
+        where: { id: seed.empresaA.id },
+      });
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_EMPRESA'));
+      });
+
+      const res = await testRequest(app)
+        .patch('/api/v1/empresas/mi-empresa')
+        .set('Authorization', adminToken)
+        .send({ direccion: `Dir Rollback ${Date.now()}` });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const despues = await prisma.empresa.findUniqueOrThrow({
+        where: { id: seed.empresaA.id },
+      });
+      expect(despues.direccion).toBe(antes.direccion);
+    });
+
+    it('(o) POST /api/v1/ciclos: si auditoría falla, el ciclo no se crea', async () => {
+      const uniqueNombre = `Ciclo Rollback ${Date.now()}`;
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_CICLO'));
+      });
+
+      const res = await testRequest(app)
+        .post('/api/v1/ciclos')
+        .set('Authorization', adminToken)
+        .send({
+          parcelaId: seed.empresaA.parcela2.id,
+          variedadId: seed.global.variedadId,
+          nombre: uniqueNombre,
+          fechaInicio: '2026-06-01',
+          superficieSembrada: 1,
+        });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const enDb = await prisma.cicloProduccion.findFirst({
+        where: { empresaId: seed.empresaA.id, nombre: uniqueNombre },
+      });
+      expect(enDb).toBeNull();
+    });
+
+    it('(p) POST /api/v1/auth/login: si auditoría falla, ultimoAcceso no se actualiza', async () => {
+      const fechaPrevia = new Date('2025-01-01T00:00:00.000Z');
+      await prisma.usuario.update({
+        where: { id: seed.empresaA.usuarios.capturista.id },
+        data: { ultimoAcceso: fechaPrevia },
+      });
+
+      jest.spyOn(auditService, 'registrar').mockImplementationOnce(() => {
+        return Promise.reject(new Error('FALLO_FORZADO_AUDITORIA_LOGIN'));
+      });
+
+      const res = await testRequest(app).post('/api/v1/auth/login').send({
+        correo: seed.empresaA.usuarios.capturista.correo,
+        contrasena: 'Password123!',
+      });
+
+      expect(res.status).toBeGreaterThanOrEqual(500);
+      const despues = await prisma.usuario.findUniqueOrThrow({
+        where: { id: seed.empresaA.usuarios.capturista.id },
+      });
+      expect(despues.ultimoAcceso?.toISOString()).toBe(
+        fechaPrevia.toISOString(),
+      );
+    });
   });
 
   describe('2. Prueba de control: Auditoría real exitosa y exclusión de secretos (RN-074)', () => {

@@ -57,7 +57,13 @@ export const envValidationSchema = Joi.object({
     ),
   STORAGE_SIGNED_URL_SECRET: Joi.string()
     .min(32)
-    .default('storage_signed_url_default_secret_minimum_32_characters_long')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.required(),
+      otherwise: Joi.string().default(
+        'storage_signed_url_default_secret_minimum_32_characters_long',
+      ),
+    })
     .description('Secreto HMAC para tokens de descarga firmada'),
   STORAGE_SIGNED_URL_TTL_SECONDS: Joi.number()
     .integer()

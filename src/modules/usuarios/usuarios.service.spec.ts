@@ -43,8 +43,8 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockPrismaService.$transaction.mockImplementation(async (cb: any) =>
-      cb(mockPrismaService),
+    mockPrismaService.$transaction.mockImplementation(
+      (cb: (tx: typeof mockPrismaService) => unknown) => cb(mockPrismaService),
     );
     mockPrismaService.$queryRaw.mockResolvedValue([{ id: 1 }]);
 
@@ -132,9 +132,10 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       await expect(service.crear(1, dtoCrear)).rejects.toThrow(DomainError);
       try {
         await service.crear(1, dtoCrear);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
-        expect(e.getStatus()).toBe(409);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
+        expect(err.getStatus()).toBe(409);
       }
     });
 
@@ -154,9 +155,10 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       await expect(service.crear(1, dtoCrear)).rejects.toThrow(DomainError);
       try {
         await service.crear(1, dtoCrear);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.CONFLICTO);
-        expect(e.getStatus()).toBe(409);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.CONFLICTO);
+        expect(err.getStatus()).toBe(409);
       }
     });
 
@@ -173,9 +175,10 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       await expect(service.crear(1, dtoCrear)).rejects.toThrow(DomainError);
       try {
         await service.crear(1, dtoCrear);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
-        expect(e.getStatus()).toBe(404);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
+        expect(err.getStatus()).toBe(404);
       }
     });
   });
@@ -206,9 +209,10 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       await expect(service.obtenerPorId(10, 99)).rejects.toThrow(DomainError);
       try {
         await service.obtenerPorId(10, 99);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
-        expect(e.getStatus()).toBe(404);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.RECURSO_NO_ENCONTRADO);
+        expect(err.getStatus()).toBe(404);
       }
     });
   });
@@ -223,7 +227,7 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       });
 
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
+        (callback: (tx: unknown) => unknown) => {
           const tx = {
             usuario: { update: jest.fn().mockResolvedValue({}) },
             refreshToken: {
@@ -277,10 +281,51 @@ describe('UsuariosService (RN-037, RN-061, RN-068, Sección 3.11)', () => {
       );
       try {
         await service.actualizar(10, 8, { activo: true });
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
-        expect(e.getStatus()).toBe(409);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.LIMITE_PLAN_EXCEDIDO);
+        expect(err.getStatus()).toBe(409);
       }
+    });
+
+    it('debe impedir que un ADMIN se desactive o elimine a sí mismo y revocar refresh_token al desactivar a otro (C3)', async () => {
+      mockPrismaService.usuario.findFirst.mockResolvedValue({
+        id: 1,
+        empresaId: 10,
+        nombre: 'Admin',
+        apellido: 'Principal',
+        activo: true,
+        rolId: 1,
+        rol: { codigo: 'ADMIN', permisos: [] },
+        createdAt: new Date(),
+      });
+
+      await expect(
+        service.actualizar(10, 1, { activo: false }, 1),
+      ).rejects.toThrow(DomainError);
+
+      await expect(service.eliminar(10, 1, 1)).rejects.toThrow(DomainError);
+
+      mockPrismaService.usuario.update.mockResolvedValue({
+        id: 2,
+        empresaId: 10,
+        nombre: 'Colab',
+        apellido: 'Test',
+        correo: 'c@test.com',
+        telefono: null,
+        activo: false,
+        rolId: 2,
+        rol: { codigo: 'CAPTURISTA', permisos: [] },
+        ultimoAcceso: null,
+        createdAt: new Date(),
+      });
+
+      await service.actualizar(10, 2, { activo: false }, 1);
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { usuarioId: 2, revocado: false },
+        }),
+      );
     });
   });
 });

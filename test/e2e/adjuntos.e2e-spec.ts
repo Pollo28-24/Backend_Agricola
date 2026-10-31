@@ -1,4 +1,6 @@
 import { INestApplication } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { createTestApp } from '../setup/create-test-app';
 import { testRequest } from '../setup/http.util';
 import { PrismaService } from '../../src/prisma/prisma.service';
@@ -91,6 +93,15 @@ describe('Módulo de Archivos Adjuntos (E2E) - Hito 10A', () => {
 
   afterAll(async () => {
     await app.close();
+
+    const storageLocalPath = process.env.STORAGE_LOCAL_PATH;
+    if (storageLocalPath) {
+      const rutaTest = path.resolve(process.cwd(), storageLocalPath);
+      const rutaDev = path.resolve(process.cwd(), './storage_uploads');
+      if (rutaTest !== rutaDev && rutaTest !== process.cwd()) {
+        await fs.promises.rm(rutaTest, { recursive: true, force: true });
+      }
+    }
   });
 
   // =========================================================================

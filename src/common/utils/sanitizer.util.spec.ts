@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { sanitizeLog, CAMPOS_SENSIBLES } from './sanitizer.util';
 
 describe('SanitizerUtil (RN-074)', () => {
@@ -81,6 +82,31 @@ describe('SanitizerUtil (RN-074)', () => {
     expect(resultado).toEqual({
       id: '9007199254740991',
       cantidad: 100,
+    });
+  });
+
+  it('debe convertir Prisma.Decimal y Date a string sin descomponer {s,e,d} (C5)', () => {
+    const fecha = new Date('2026-10-30T12:00:00.000Z');
+    const input = {
+      monto: new Prisma.Decimal('1234.56'),
+      superficie: new Prisma.Decimal('10.50'),
+      fechaCreacion: fecha,
+      anidado: {
+        precio: new Prisma.Decimal('99.90'),
+        fecha: fecha,
+      },
+    };
+
+    const resultado = sanitizeLog(input);
+
+    expect(resultado).toEqual({
+      monto: '1234.56',
+      superficie: '10.5',
+      fechaCreacion: '2026-10-30T12:00:00.000Z',
+      anidado: {
+        precio: '99.9',
+        fecha: '2026-10-30T12:00:00.000Z',
+      },
     });
   });
 

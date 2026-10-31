@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { VentaEstadoCobroPolicy } from '../../../common/domain/policies/venta-estado-cobro.policy';
-import { TextoSeguroUtil } from '../utils/texto-seguro.util';
 import { RentabilidadCicloItemDto } from '../../reportes/dto/rentabilidad-ciclo-response.dto';
 import { CostoPorCategoriaDto } from '../../reportes/dto/costo-categoria-response.dto';
 import { CostoPorActividadDto } from '../../reportes/dto/costo-actividad-response.dto';
@@ -50,11 +49,11 @@ export class PdfExportService {
         for (const [idx, it] of items.entries()) {
           doc.fontSize(11).font('Helvetica-Bold').fillColor('#2D5A27');
           doc.text(
-            `${idx + 1}. Ciclo: ${TextoSeguroUtil.escapar(it.ciclo.nombre || 'Sin nombre')} [${it.ciclo.estado}]`,
+            `${idx + 1}. Ciclo: ${it.ciclo.nombre || 'Sin nombre'} [${it.ciclo.estado}]`,
           );
           doc.fontSize(9).font('Helvetica').fillColor('#333333');
           doc.text(
-            `Parcela: ${TextoSeguroUtil.escapar(it.ciclo.parcela)} | Predio: ${TextoSeguroUtil.escapar(it.ciclo.predio)} | Variedad: ${TextoSeguroUtil.escapar(it.ciclo.variedad)} | Cultivo: ${TextoSeguroUtil.escapar(it.ciclo.cultivo)}`,
+            `Parcela: ${it.ciclo.parcela} | Predio: ${it.ciclo.predio} | Variedad: ${it.ciclo.variedad} | Cultivo: ${it.ciclo.cultivo}`,
           );
           doc.text(
             `Periodo: ${it.ciclo.fechaInicio} a ${it.ciclo.fechaFin || 'Activo'} | Superficie: ${it.indicadores.superficieSembrada} ha`,
@@ -109,7 +108,7 @@ export class PdfExportService {
 
         this.imprimirEncabezado(
           doc,
-          `Reporte Integral de Ciclo: ${TextoSeguroUtil.escapar(ciclo.ciclo.nombre || 'Ciclo #' + ciclo.ciclo.id)}`,
+          `Reporte Integral de Ciclo: ${ciclo.ciclo.nombre || 'Ciclo #' + ciclo.ciclo.id}`,
           `Generado: ${hoy} | Estado: ${ciclo.ciclo.estado}`,
         );
 
@@ -122,10 +121,10 @@ export class PdfExportService {
         doc.moveDown(0.3);
         doc.fontSize(9).font('Helvetica').fillColor('#333333');
         doc.text(
-          `Parcela: ${TextoSeguroUtil.escapar(ciclo.ciclo.parcela)} | Predio: ${TextoSeguroUtil.escapar(ciclo.ciclo.predio)}`,
+          `Parcela: ${ciclo.ciclo.parcela} | Predio: ${ciclo.ciclo.predio}`,
         );
         doc.text(
-          `Cultivo: ${TextoSeguroUtil.escapar(ciclo.ciclo.cultivo)} | Variedad: ${TextoSeguroUtil.escapar(ciclo.ciclo.variedad)}`,
+          `Cultivo: ${ciclo.ciclo.cultivo} | Variedad: ${ciclo.ciclo.variedad}`,
         );
         doc.text(
           `Fechas: Inicio ${ciclo.ciclo.fechaInicio} | Fin ${ciclo.ciclo.fechaFin || 'En curso'}`,
@@ -173,7 +172,7 @@ export class PdfExportService {
         } else {
           for (const cat of costosCategoria) {
             doc.text(
-              `- ${TextoSeguroUtil.escapar(cat.categoriaRaiz)}: $${cat.monto} (${cat.porcentaje}%)`,
+              `- ${cat.categoriaRaiz}: $${cat.monto} (${cat.porcentaje}%)`,
             );
           }
         }
@@ -194,7 +193,7 @@ export class PdfExportService {
         } else {
           for (const act of costosActividad) {
             doc.text(
-              `- ${TextoSeguroUtil.escapar(act.tipoActividad)}: ${act.numeroActividades} act. | ${act.horasTotales} hrs | Costo: $${act.costoTotal}`,
+              `- ${act.tipoActividad}: ${act.numeroActividades} act. | ${act.horasTotales} hrs | Costo: $${act.costoTotal}`,
             );
           }
         }
@@ -213,7 +212,7 @@ export class PdfExportService {
         } else {
           for (const m of mermas) {
             doc.text(
-              `- Motivo: ${TextoSeguroUtil.escapar(m.motivo)} | Etapa: ${TextoSeguroUtil.escapar(m.etapa)} | Cantidad: ${m.kgMerma} kg`,
+              `- Motivo: ${m.motivo} | Etapa: ${m.etapa} | Cantidad: ${m.kgMerma} kg`,
             );
           }
         }
@@ -256,11 +255,11 @@ export class PdfExportService {
         for (const [idx, it] of items.entries()) {
           doc.fontSize(11).font('Helvetica-Bold').fillColor('#2D5A27');
           doc.text(
-            `${idx + 1}. ${TextoSeguroUtil.escapar(it.ciclo.nombre || 'Ciclo #' + it.ciclo.id)} (${it.ciclo.estado}) - Inicio: ${it.ciclo.fechaInicio}`,
+            `${idx + 1}. ${it.ciclo.nombre || 'Ciclo #' + it.ciclo.id} (${it.ciclo.estado}) - Inicio: ${it.ciclo.fechaInicio}`,
           );
           doc.fontSize(9).font('Helvetica').fillColor('#333333');
           doc.text(
-            `Parcela: ${TextoSeguroUtil.escapar(it.ciclo.parcela)} | Variedad: ${TextoSeguroUtil.escapar(it.ciclo.variedad)} | Superficie: ${it.indicadores.superficieSembrada} ha`,
+            `Parcela: ${it.ciclo.parcela} | Variedad: ${it.ciclo.variedad} | Superficie: ${it.indicadores.superficieSembrada} ha`,
           );
           doc.text(
             `Costo Total: $${it.indicadores.costoTotal} | Ingresos: $${it.indicadores.ingresos} | Ganancia: $${it.indicadores.ganancia}`,
@@ -339,7 +338,7 @@ export class PdfExportService {
         for (const [idx, it] of res.data.entries()) {
           doc.fontSize(9).font('Helvetica-Bold').fillColor('#333333');
           doc.text(
-            `${idx + 1}. Factura: ${TextoSeguroUtil.escapar(it.folio || 'S/F')} | Cliente: ${TextoSeguroUtil.escapar(it.clienteNombre)} (ID: ${it.clienteId})`,
+            `${idx + 1}. Factura: ${it.folio || 'S/F'} | Cliente: ${it.clienteNombre} (ID: ${it.clienteId})`,
           );
           doc.font('Helvetica').fillColor('#555555');
           doc.text(

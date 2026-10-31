@@ -267,6 +267,7 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
         entidad: 'parcela',
         accion: AccionAuditoria.ACTUALIZAR,
       }),
+      expect.anything(),
     );
   });
 
@@ -311,6 +312,7 @@ describe('ParcelasService (RN-037, RN-041, RN-068, ADR-002)', () => {
         entidad: 'parcela',
         accion: AccionAuditoria.ELIMINAR,
       }),
+      expect.anything(),
     );
   });
 

@@ -207,35 +207,56 @@ export class CatalogosService {
       );
     }
 
-    // 3. Crear categoría personalizada asociada al tenant (RN-047)
-    const nuevaCategoria = await this.prisma.categoriaGasto.create({
-      data: {
-        empresaId,
-        nombre: nombreNormalizado,
-        descripcion: dto.descripcion?.trim() || null,
-        categoriaPadreId: dto.categoriaPadreId || null,
-        activo: true,
-      },
-    });
+    // 3. Crear categoría personalizada asociada al tenant y auditar en la misma transacción (RN-047, RN-043, ADR-001)
+    const nuevaCategoria = await this.prisma.$transaction(async (tx) => {
+      const creada = await tx.categoriaGasto.create({
+        data: {
+          empresaId,
+          nombre: nombreNormalizado,
+          descripcion: dto.descripcion?.trim() || null,
+          categoriaPadreId: dto.categoriaPadreId || null,
+          activo: true,
+        },
+      });
 
-    // 4. Registrar auditoría (RN-043, RN-074)
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'categoria_gasto',
-      entidadId: nuevaCategoria.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevaCategoria.id,
-        nombre: nuevaCategoria.nombre,
-        categoriaPadreId: nuevaCategoria.categoriaPadreId,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'categoria_gasto',
+          entidadId: creada.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: creada.id,
+            nombre: creada.nombre,
+            categoriaPadreId: creada.categoriaPadreId,
+          },
+        },
+        tx,
+      );
+
+      return creada;
     });
 
     return this.mapearCategoria(nuevaCategoria, false);
   }
 
   private mapearCategoria(
-    c: any,
+    c: {
+      id: number;
+      empresaId: number | null;
+      categoriaPadreId: number | null;
+      nombre: string;
+      descripcion: string | null;
+      activo: boolean;
+      hijas?: Array<{
+        id: number;
+        empresaId: number | null;
+        categoriaPadreId: number | null;
+        nombre: string;
+        descripcion: string | null;
+        activo: boolean;
+      }>;
+    },
     incluirHijas: boolean,
   ): CategoriaGastoResponseDto {
     return {
@@ -248,9 +269,7 @@ export class CatalogosService {
       activo: c.activo,
       ...(incluirHijas && c.hijas
         ? {
-            subcategorias: c.hijas.map((h: any) =>
-              this.mapearCategoria(h, false),
-            ),
+            subcategorias: c.hijas.map((h) => this.mapearCategoria(h, false)),
           }
         : {}),
     };

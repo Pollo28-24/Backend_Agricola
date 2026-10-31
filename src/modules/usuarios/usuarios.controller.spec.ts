@@ -70,8 +70,8 @@ describe('UsuariosController', () => {
       nombre: 'Lucía María',
     });
 
-    const res = await controller.actualizar(10, 5, dto);
-    expect(mockUsuariosService.actualizar).toHaveBeenCalledWith(10, 5, dto);
+    const res = await controller.actualizar(10, 5, dto, 1);
+    expect(mockUsuariosService.actualizar).toHaveBeenCalledWith(10, 5, dto, 1);
     expect(res.nombre).toBe('Lucía María');
   });
 
@@ -80,8 +80,8 @@ describe('UsuariosController', () => {
       mensaje: 'Usuario dado de baja exitosamente',
     });
 
-    const res = await controller.eliminar(10, 5);
-    expect(mockUsuariosService.eliminar).toHaveBeenCalledWith(10, 5);
+    const res = await controller.eliminar(10, 5, 1);
+    expect(mockUsuariosService.eliminar).toHaveBeenCalledWith(10, 5, 1);
     expect(res.mensaje).toContain('baja exitosamente');
   });
 });

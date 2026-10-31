@@ -22,6 +22,7 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
     parcela: {
       count: jest.fn(),
     },
+    $transaction: jest.fn(),
   };
 
   const mockAuditService = {
@@ -30,6 +31,10 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPrismaService.$transaction.mockImplementation(
+      (cb: (tx: typeof mockPrismaService) => Promise<unknown>) =>
+        cb(mockPrismaService),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -83,6 +88,7 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
         entidad: 'predio',
         accion: AccionAuditoria.CREAR,
       }),
+      expect.anything(),
     );
   });
 
@@ -97,9 +103,10 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
     );
     try {
       await service.crearPredio(10, dtoPredio);
-    } catch (e: any) {
-      expect(e.code).toBe(CodigoError.CONFLICTO);
-      expect(e.getStatus()).toBe(409);
+    } catch (e: unknown) {
+      const err = e as DomainError;
+      expect(err.code).toBe(CodigoError.CONFLICTO);
+      expect(err.getStatus()).toBe(409);
     }
   });
 
@@ -140,7 +147,7 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
           id: 1,
           empresaId: 10,
           deletedAt: null,
-        }),
+        }) as unknown,
       }),
     );
   });
@@ -177,6 +184,7 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
         entidad: 'predio',
         accion: AccionAuditoria.ACTUALIZAR,
       }),
+      expect.anything(),
     );
   });
 
@@ -190,9 +198,10 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
     await expect(service.eliminarPredio(10, 1)).rejects.toThrow(DomainError);
     try {
       await service.eliminarPredio(10, 1);
-    } catch (e: any) {
-      expect(e.code).toBe(CodigoError.CONFLICTO);
-      expect(e.getStatus()).toBe(409);
+    } catch (e: unknown) {
+      const err = e as DomainError;
+      expect(err.code).toBe(CodigoError.CONFLICTO);
+      expect(err.getStatus()).toBe(409);
     }
   });
 
@@ -211,8 +220,8 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
       where: { id: 5 },
       data: expect.objectContaining({
         nombre: 'Predio A Borrar#baja5',
-        deletedAt: expect.any(Date),
-      }),
+        deletedAt: expect.any(Date) as unknown,
+      }) as unknown,
     });
     expect(mockAuditService.registrar).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -220,6 +229,7 @@ describe('PrediosService (RN-003, RN-041, RN-068)', () => {
         entidad: 'predio',
         accion: AccionAuditoria.ELIMINAR,
       }),
+      expect.anything(),
     );
   });
 });

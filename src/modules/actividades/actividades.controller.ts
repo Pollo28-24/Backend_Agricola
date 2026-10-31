@@ -65,7 +65,7 @@ export class ActividadesController {
   }
 
   @Get()
-  @RequirePermisos('actividad:crear', 'registro:administrar')
+  @RequirePermisos('actividad:crear')
   @ApiOperation({
     summary:
       'Listar actividades de la empresa con filtros opcionales y paginación (RN-068 / Contrato 3.23)',
@@ -79,7 +79,7 @@ export class ActividadesController {
   }
 
   @Get(':id')
-  @RequirePermisos('actividad:crear', 'registro:administrar')
+  @RequirePermisos('actividad:crear')
   @ApiOperation({
     summary:
       'Obtener detalle enriquecido de una actividad por ID (incluye conteo de gastos vinculados)',
@@ -97,7 +97,7 @@ export class ActividadesController {
   }
 
   @Patch(':id')
-  @RequirePermisos('actividad:crear', 'registro:administrar')
+  @RequirePermisos('actividad:crear')
   @ApiOperation({
     summary:
       'Actualizar una actividad existente sujeta a ventana de 48h (RN-062) y ciclo abierto (RN-015)',
@@ -136,7 +136,7 @@ export class ActividadesController {
   }
 
   @Delete(':id')
-  @RequirePermisos('actividad:crear', 'registro:administrar')
+  @RequirePermisos('registro:administrar')
   @ApiOperation({
     summary:
       'Baja lógica de una actividad bajo ventana de 48h (RN-062) e integridad con gastos (RN-046)',

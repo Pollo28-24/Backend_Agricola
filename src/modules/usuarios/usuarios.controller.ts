@@ -102,8 +102,9 @@ export class UsuariosController {
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateUsuarioDto,
+    @CurrentUser('id') actorId?: number,
   ): Promise<UsuarioResponseDto> {
-    return this.usuariosService.actualizar(empresaId, id, dto);
+    return this.usuariosService.actualizar(empresaId, id, dto, actorId);
   }
 
   @RequirePermisos('usuario:administrar')
@@ -124,7 +125,8 @@ export class UsuariosController {
   async eliminar(
     @CurrentUser('empresaId') empresaId: number,
     @Param('id', ParseIntPipe) id: number,
+    @CurrentUser('id') actorId?: number,
   ): Promise<MensajeResponseDto> {
-    return this.usuariosService.eliminar(empresaId, id);
+    return this.usuariosService.eliminar(empresaId, id, actorId);
   }
 }

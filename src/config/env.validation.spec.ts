@@ -123,6 +123,8 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
       DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
       JWT_SECRET: validSecret,
       JWT_REFRESH_SECRET: validSecret,
+      STORAGE_SIGNED_URL_SECRET:
+        'prod_storage_signed_url_secret_minimum_32_chars',
       MAIL_TRANSPORT: 'brevo',
       BREVO_API_KEY: 'xkeysib-12345678901234567890',
       MAIL_FROM_EMAIL: 'soporte@rentabilidad-agricola.com',
@@ -300,6 +302,44 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
           DB_ALLOW_PUBLIC_KEY_RETRIEVAL: boolean;
         };
         expect(valProd.DB_ALLOW_PUBLIC_KEY_RETRIEVAL).toBe(false);
+      });
+    });
+
+    describe('STORAGE_SIGNED_URL_SECRET (C10)', () => {
+      it('en production debe fallar si falta STORAGE_SIGNED_URL_SECRET (sin default)', () => {
+        const envSinSecret = { ...baseProductionEnv };
+        delete (envSinSecret as Record<string, unknown>)
+          .STORAGE_SIGNED_URL_SECRET;
+
+        const res = envValidationSchema.validate(envSinSecret);
+        expect(res.error).toBeDefined();
+        expect(res.error?.message).toContain('STORAGE_SIGNED_URL_SECRET');
+      });
+
+      it('en development y test debe conservar el default si no se provee STORAGE_SIGNED_URL_SECRET', () => {
+        const resDev = envValidationSchema.validate({
+          NODE_ENV: 'development',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+        });
+        expect(resDev.error).toBeUndefined();
+        expect(
+          (resDev.value as { STORAGE_SIGNED_URL_SECRET: string })
+            .STORAGE_SIGNED_URL_SECRET,
+        ).toBe('storage_signed_url_default_secret_minimum_32_characters_long');
+
+        const resTest = envValidationSchema.validate({
+          NODE_ENV: 'test',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+        });
+        expect(resTest.error).toBeUndefined();
+        expect(
+          (resTest.value as { STORAGE_SIGNED_URL_SECRET: string })
+            .STORAGE_SIGNED_URL_SECRET,
+        ).toBe('storage_signed_url_default_secret_minimum_32_characters_long');
       });
     });
   });

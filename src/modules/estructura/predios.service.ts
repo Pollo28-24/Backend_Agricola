@@ -43,29 +43,36 @@ export class PrediosService {
       );
     }
 
-    const nuevoPredio = await this.prisma.predio.create({
-      data: {
-        empresaId,
-        nombre: nombreNormalizado,
-        ubicacion: dto.ubicacion?.trim() || null,
-        municipio: dto.municipio?.trim() || null,
-        entidadFederativa: dto.entidadFederativa?.trim() || null,
-        superficieTotal: dto.superficieTotal,
-        latitud: dto.latitud ?? null,
-        longitud: dto.longitud ?? null,
-      },
-    });
+    const nuevoPredio = await this.prisma.$transaction(async (tx) => {
+      const creado = await tx.predio.create({
+        data: {
+          empresaId,
+          nombre: nombreNormalizado,
+          ubicacion: dto.ubicacion?.trim() || null,
+          municipio: dto.municipio?.trim() || null,
+          entidadFederativa: dto.entidadFederativa?.trim() || null,
+          superficieTotal: dto.superficieTotal,
+          latitud: dto.latitud ?? null,
+          longitud: dto.longitud ?? null,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'predio',
-      entidadId: nuevoPredio.id,
-      accion: AccionAuditoria.CREAR,
-      valoresNuevos: {
-        id: nuevoPredio.id,
-        nombre: nuevoPredio.nombre,
-        superficieTotal: nuevoPredio.superficieTotal.toString(),
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'predio',
+          entidadId: creado.id,
+          accion: AccionAuditoria.CREAR,
+          valoresNuevos: {
+            id: creado.id,
+            nombre: creado.nombre,
+            superficieTotal: creado.superficieTotal.toString(),
+          },
+        },
+        tx,
+      );
+
+      return creado;
     });
 
     return this.formatearPredio(nuevoPredio, 0);
@@ -161,49 +168,56 @@ export class PrediosService {
       }
     }
 
-    const predioActualizado = await this.prisma.predio.update({
-      where: { id: predioId },
-      data: {
-        ...(dto.nombre && { nombre: dto.nombre.trim() }),
-        ...(dto.ubicacion !== undefined && {
-          ubicacion: dto.ubicacion?.trim() || null,
-        }),
-        ...(dto.municipio !== undefined && {
-          municipio: dto.municipio?.trim() || null,
-        }),
-        ...(dto.entidadFederativa !== undefined && {
-          entidadFederativa: dto.entidadFederativa?.trim() || null,
-        }),
-        ...(dto.superficieTotal !== undefined && {
-          superficieTotal: dto.superficieTotal,
-        }),
-        ...(dto.latitud !== undefined && { latitud: dto.latitud }),
-        ...(dto.longitud !== undefined && { longitud: dto.longitud }),
-      },
-      include: {
-        _count: {
-          select: {
-            parcelas: {
-              where: { deletedAt: null },
+    const predioActualizado = await this.prisma.$transaction(async (tx) => {
+      const actualizado = await tx.predio.update({
+        where: { id: predioId },
+        data: {
+          ...(dto.nombre && { nombre: dto.nombre.trim() }),
+          ...(dto.ubicacion !== undefined && {
+            ubicacion: dto.ubicacion?.trim() || null,
+          }),
+          ...(dto.municipio !== undefined && {
+            municipio: dto.municipio?.trim() || null,
+          }),
+          ...(dto.entidadFederativa !== undefined && {
+            entidadFederativa: dto.entidadFederativa?.trim() || null,
+          }),
+          ...(dto.superficieTotal !== undefined && {
+            superficieTotal: dto.superficieTotal,
+          }),
+          ...(dto.latitud !== undefined && { latitud: dto.latitud }),
+          ...(dto.longitud !== undefined && { longitud: dto.longitud }),
+        },
+        include: {
+          _count: {
+            select: {
+              parcelas: {
+                where: { deletedAt: null },
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'predio',
-      entidadId: predioId,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: {
-        nombre: predioActual.nombre,
-        superficieTotal: predioActual.superficieTotal?.toString() ?? '',
-      },
-      valoresNuevos: {
-        nombre: predioActualizado.nombre,
-        superficieTotal: predioActualizado.superficieTotal?.toString() ?? '',
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'predio',
+          entidadId: predioId,
+          accion: AccionAuditoria.ACTUALIZAR,
+          valoresAnteriores: {
+            nombre: predioActual.nombre,
+            superficieTotal: predioActual.superficieTotal?.toString() ?? '',
+          },
+          valoresNuevos: {
+            nombre: actualizado.nombre,
+            superficieTotal: actualizado.superficieTotal?.toString() ?? '',
+          },
+        },
+        tx,
+      );
+
+      return actualizado;
     });
 
     return this.formatearPredio(
@@ -251,23 +265,28 @@ export class PrediosService {
       150,
     );
 
-    await this.prisma.predio.update({
-      where: { id: predioId },
-      data: {
-        deletedAt: new Date(),
-        nombre: nombreLiberado,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.predio.update({
+        where: { id: predioId },
+        data: {
+          deletedAt: new Date(),
+          nombre: nombreLiberado,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'predio',
-      entidadId: predioId,
-      accion: AccionAuditoria.ELIMINAR,
-      valoresAnteriores: {
-        id: predio.id,
-        nombreOriginal: predio.nombre,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'predio',
+          entidadId: predioId,
+          accion: AccionAuditoria.ELIMINAR,
+          valoresAnteriores: {
+            id: predio.id,
+            nombreOriginal: predio.nombre,
+          },
+        },
+        tx,
+      );
     });
 
     return { mensaje: 'Predio eliminado exitosamente' };
@@ -278,7 +297,19 @@ export class PrediosService {
   // =====================================================================
 
   private formatearPredio(
-    predio: any,
+    predio: {
+      id: number;
+      empresaId: number;
+      nombre: string;
+      ubicacion: string | null;
+      municipio: string | null;
+      entidadFederativa: string | null;
+      superficieTotal: { toString(): string };
+      latitud: { toString(): string } | null;
+      longitud: { toString(): string } | null;
+      createdAt: Date;
+      updatedAt: Date;
+    },
     parcelasCount: number,
   ): PredioResponseDto {
     return {

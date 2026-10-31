@@ -35,7 +35,7 @@ export class GastosService {
   ) {}
 
   // =====================================================================
-  // 1. CREACIÓN DE GASTO OPERATIVO
+  // 1. CREACIÃ“N DE GASTO OPERATIVO
   // =====================================================================
 
   async crearGasto(
@@ -119,7 +119,7 @@ export class GastosService {
     if (!ciclo) {
       throw new DomainError(
         CodigoError.RECURSO_NO_ENCONTRADO,
-        'Ciclo de producción no encontrado en su empresa (RN-068)',
+        'Ciclo de producciÃ³n no encontrado en su empresa (RN-068)',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -127,7 +127,7 @@ export class GastosService {
     if (!categoria) {
       throw new DomainError(
         CodigoError.RECURSO_NO_ENCONTRADO,
-        'Categoría de gasto no encontrada o inactiva (RN-068)',
+        'CategorÃ­a de gasto no encontrada o inactiva (RN-068)',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -143,7 +143,7 @@ export class GastosService {
     if (dto.actividadId && !actividad) {
       throw new DomainError(
         CodigoError.RECURSO_NO_ENCONTRADO,
-        'Actividad agrícola no encontrada en su empresa (RN-068)',
+        'Actividad agrÃ­cola no encontrada en su empresa (RN-068)',
         HttpStatus.NOT_FOUND,
       );
     }
@@ -156,7 +156,7 @@ export class GastosService {
       );
     }
 
-    // Validar políticas de dominio de Ciclo y Actividad
+    // Validar polÃ­ticas de dominio de Ciclo y Actividad
     this.cyclePolicy.assertCaptureAllowed(ciclo);
     this.cyclePolicy.assertFechaCoherente(ciclo, fechaOperativa, 'gasto');
     this.actividadPolicy.assertActividadPerteneceAlCiclo({
@@ -164,7 +164,7 @@ export class GastosService {
       actividad,
     });
 
-    // Transaccionar: crear y auditar atómicamente
+    // Transaccionar: crear y auditar atÃ³micamente
     return this.prisma.$transaction(async (tx) => {
       // Bloquear ciclo para captura mediante SELECT ... FOR UPDATE (C5)
       const cicloTx = await bloquearCicloParaCaptura(
@@ -333,7 +333,7 @@ export class GastosService {
   }
 
   // =====================================================================
-  // 4. ACTUALIZACIÓN CON FUSIÓN DE VALORES (A4)
+  // 4. ACTUALIZACIÃ“N CON FUSIÃ“N DE VALORES (A4)
   // =====================================================================
 
   async actualizarGasto(
@@ -363,7 +363,7 @@ export class GastosService {
       );
     }
 
-    // Validar ventana de edición y permisos de autoría (RN-062)
+    // Validar ventana de ediciÃ³n y permisos de autorÃ­a (RN-062)
     this.windowValidator.assertEdicionPermitida({
       createdAt: gastoExistente.createdAt,
       creadoPorId: gastoExistente.creadoPorId,
@@ -375,7 +375,7 @@ export class GastosService {
     // Validar estado del ciclo
     this.cyclePolicy.assertCaptureAllowed(gastoExistente.ciclo);
 
-    // Fusión de fecha
+    // FusiÃ³n de fecha
     const fechaFusionada = dto.fecha
       ? this.parsearFecha(dto.fecha)
       : gastoExistente.fecha;
@@ -388,7 +388,7 @@ export class GastosService {
       );
     }
 
-    // Fusión de montos y desglose aritmético
+    // FusiÃ³n de montos y desglose aritmÃ©tico
     const totalFusionado = dto.total
       ? new Prisma.Decimal(dto.total)
       : gastoExistente.total;
@@ -422,11 +422,17 @@ export class GastosService {
           : null
         : gastoExistente.impuesto;
 
-    // Si hay cantidad fusionada, debe existir unidadId
+    // Si hay cantidad fusionada, debe existir unidadId -- EXCEPTO gasto de monto directo (unidadId=null en BD)
     const unidadIdFusionado =
       dto.unidadId !== undefined ? dto.unidadId : gastoExistente.unidadId;
 
-    if (cantidadFusionada !== null && !unidadIdFusionado) {
+    const esGastoMontoDirecto = gastoExistente.unidadId === null;
+
+    if (
+      cantidadFusionada !== null &&
+      !unidadIdFusionado &&
+      !esGastoMontoDirecto
+    ) {
       throw new DomainError(
         CodigoError.PETICION_INVALIDA,
         'La unidad de medida es obligatoria cuando se especifica una cantidad (RN-024)',
@@ -434,11 +440,19 @@ export class GastosService {
       );
     }
 
+    // Para gasto de monto directo que solo cambia total: recalcular costoUnitario
+    const costoUnitarioFinal =
+      esGastoMontoDirecto &&
+      dto.total !== undefined &&
+      dto.costoUnitario === undefined
+        ? totalFusionado.sub(impuestoFusionado ?? new Prisma.Decimal(0))
+        : costoUnitarioFusionado;
+
     // Revalidar RN-045 con los valores fusionados
     this.toleranciaPolicy.assertToleranciaValida({
       total: totalFusionado,
       cantidad: cantidadFusionada,
-      costoUnitario: costoUnitarioFusionado,
+      costoUnitario: costoUnitarioFinal,
       impuesto: impuestoFusionado,
     });
 
@@ -455,7 +469,7 @@ export class GastosService {
       if (!categoria) {
         throw new DomainError(
           CodigoError.RECURSO_NO_ENCONTRADO,
-          'Categoría de gasto no encontrada o inactiva (RN-068)',
+          'CategorÃ­a de gasto no encontrada o inactiva (RN-068)',
           HttpStatus.NOT_FOUND,
         );
       }
@@ -487,7 +501,7 @@ export class GastosService {
       if (!actividad) {
         throw new DomainError(
           CodigoError.RECURSO_NO_ENCONTRADO,
-          'Actividad agrícola no encontrada en su empresa (RN-068)',
+          'Actividad agrÃ­cola no encontrada en su empresa (RN-068)',
           HttpStatus.NOT_FOUND,
         );
       }
@@ -520,7 +534,7 @@ export class GastosService {
         empresaId,
       );
 
-      // Releer el gasto dentro de la transacción bajo el lock
+      // Releer el gasto dentro de la transacciÃ³n bajo el lock
       const gastoTx = await tx.gasto.findFirst({
         where: { id, deletedAt: null, ciclo: { empresaId, deletedAt: null } },
       });
@@ -545,12 +559,16 @@ export class GastosService {
       }
       if (dto.total !== undefined) {
         dataToUpdate.total = totalFusionado;
+        // Gasto de monto directo: también actualizar costoUnitario
+        if (esGastoMontoDirecto && dto.costoUnitario === undefined) {
+          dataToUpdate.costoUnitario = costoUnitarioFinal ?? totalFusionado;
+        }
       }
       if (dto.cantidad !== undefined) {
         dataToUpdate.cantidad = cantidadFusionada ?? new Prisma.Decimal(1);
       }
       if (dto.costoUnitario !== undefined) {
-        dataToUpdate.costoUnitario = costoUnitarioFusionado ?? totalFusionado;
+        dataToUpdate.costoUnitario = costoUnitarioFinal ?? totalFusionado;
       }
       if (dto.impuesto !== undefined) {
         dataToUpdate.impuesto = impuestoFusionado ?? new Prisma.Decimal(0);
@@ -608,7 +626,7 @@ export class GastosService {
   }
 
   // =====================================================================
-  // 5. ELIMINACIÓN DE GASTO (SOFT DELETE) - EXCLUSIVO ADMIN (A2)
+  // 5. ELIMINACIÃ“N DE GASTO (SOFT DELETE) - EXCLUSIVO ADMIN (A2)
   // =====================================================================
 
   async eliminarGasto(
@@ -651,7 +669,7 @@ export class GastosService {
         empresaId,
       );
 
-      // Releer el gasto dentro de la transacción bajo el lock
+      // Releer el gasto dentro de la transacciÃ³n bajo el lock
       const gastoTx = await tx.gasto.findFirst({
         where: { id, deletedAt: null, ciclo: { empresaId, deletedAt: null } },
       });
@@ -698,7 +716,7 @@ export class GastosService {
     if (!parsed.isValid()) {
       throw new DomainError(
         CodigoError.PETICION_INVALIDA,
-        `Formato de fecha inválido: ${fechaStr}. Debe ser YYYY-MM-DD`,
+        `Formato de fecha invÃ¡lido: ${fechaStr}. Debe ser YYYY-MM-DD`,
         HttpStatus.BAD_REQUEST,
       );
     }

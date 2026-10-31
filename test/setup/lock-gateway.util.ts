@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import mariadb, { Connection } from 'mariadb';
 import { assertDatabaseUrlEsValida } from './e2e-env';
 import { permitirRecuperacionClavePublica } from '../../src/config/database-security.config';
@@ -37,6 +37,44 @@ export async function holdCicloLock(
   if (mutateInsideTx) {
     await mutateInsideTx(conn);
   }
+
+  return {
+    commit: async () => {
+      try {
+        await conn.commit();
+      } finally {
+        await conn.end();
+      }
+    },
+    rollback: async () => {
+      try {
+        await conn.rollback();
+      } finally {
+        await conn.end();
+      }
+    },
+  };
+}
+/**
+ * Compuerta de Lock sobre Usuario: Retiene un bloqueo exclusivo SELECT ... FOR UPDATE sobre un usuario
+ * para probar carreras TOCTOU en reactivación (RN-037).
+ */
+export async function holdUserLock(usuarioId: number): Promise<LockHolder> {
+  const dbParams = assertDatabaseUrlEsValida();
+  const conn = await mariadb.createConnection({
+    host: dbParams.host,
+    port: dbParams.port,
+    user: dbParams.user,
+    password: dbParams.password,
+    database: dbParams.database,
+    allowPublicKeyRetrieval: permitirRecuperacionClavePublica(),
+  });
+
+  await conn.beginTransaction();
+
+  await conn.query('SELECT id FROM usuario WHERE id = ? FOR UPDATE', [
+    usuarioId,
+  ]);
 
   return {
     commit: async () => {

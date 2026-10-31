@@ -229,12 +229,10 @@ describe('GastosService', () => {
 
       await expect(
         service.crearGasto(empresaId, usuarioId, validDto),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.RECURSO_NO_ENCONTRADO,
-          status: 404,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.RECURSO_NO_ENCONTRADO,
+        status: 404,
+      });
     });
 
     it('debe rechazar con 400 si la fecha del gasto es anterior a la fechaInicio del ciclo (RN-044)', async () => {
@@ -252,12 +250,10 @@ describe('GastosService', () => {
           ...validDto,
           fecha: '2027-01-15',
         }),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.FECHA_ANTERIOR_AL_INICIO,
-          status: 400,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.FECHA_ANTERIOR_AL_INICIO,
+        status: 400,
+      });
     });
 
     it('debe rechazar con 409 si el ciclo está en estado FINALIZADO (RN-015 / RN-023)', async () => {
@@ -272,12 +268,10 @@ describe('GastosService', () => {
 
       await expect(
         service.crearGasto(empresaId, usuarioId, validDto),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.CICLO_CERRADO,
-          status: 409,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.CICLO_CERRADO,
+        status: 409,
+      });
     });
 
     it('debe rechazar con 400 si la actividad pertenece a otro ciclo (RN-046)', async () => {
@@ -289,12 +283,10 @@ describe('GastosService', () => {
 
       await expect(
         service.crearGasto(empresaId, usuarioId, validDto),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.ACTIVIDAD_DE_OTRO_CICLO,
-          status: 400,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.ACTIVIDAD_DE_OTRO_CICLO,
+        status: 400,
+      });
     });
 
     it('debe rechazar con 400 si viene cantidad pero no se especifica unidadId (RN-024 / A7)', async () => {
@@ -304,12 +296,10 @@ describe('GastosService', () => {
           cantidad: '5.000',
           unidadId: undefined,
         }),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.PETICION_INVALIDA,
-          status: 400,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.PETICION_INVALIDA,
+        status: 400,
+      });
     });
   });
 
@@ -399,12 +389,10 @@ describe('GastosService', () => {
 
       await expect(
         service.obtenerGastoPorId(empresaId, usuarioId, false, 50),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.RECURSO_NO_ENCONTRADO,
-          status: 404,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.RECURSO_NO_ENCONTRADO,
+        status: 404,
+      });
     });
 
     it('debe permitir la consulta a un CONTADOR o ADMIN aunque el gasto sea ajeno (A3)', async () => {
@@ -468,12 +456,97 @@ describe('GastosService', () => {
           10,
           dtoInvalido,
         ),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.TOTAL_NO_COINCIDE,
-          status: 400,
-        }),
+      ).rejects.toMatchObject({
+        code: CodigoError.TOTAL_NO_COINCIDE,
+        status: 400,
+      });
+    });
+
+    // B3 — Gasto de monto directo (unidadId=null, cantidad=1, costoUnitario=total)
+    const gastoMontoDirecto = {
+      id: 20,
+      cicloId: 1,
+      categoriaId: 2,
+      proveedorId: null,
+      actividadId: null,
+      unidadId: null, // sin desglose real
+      creadoPorId: usuarioId,
+      fecha: new Date('2027-01-15T00:00:00.000Z'),
+      descripcion: 'Gasto por monto directo',
+      cantidad: new Prisma.Decimal('1'),
+      costoUnitario: new Prisma.Decimal('500'),
+      impuesto: new Prisma.Decimal('0'),
+      total: new Prisma.Decimal('500'),
+      numeroComprobante: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ciclo: {
+        id: 1,
+        empresaId,
+        estado: EstadoCiclo.ACTIVO,
+        fechaInicio: new Date('2027-01-01T00:00:00.000Z'),
+      },
+    };
+
+    it('B3: gasto monto directo - PATCH solo total NO debe lanzar PETICION_INVALIDA por unidadId null', async () => {
+      prisma.gasto.findFirst.mockResolvedValue(gastoMontoDirecto);
+      prisma.cicloProduccion.findFirst.mockResolvedValue(
+        gastoMontoDirecto.ciclo,
       );
+      prisma.gasto.update.mockResolvedValue({
+        ...gastoMontoDirecto,
+        total: new Prisma.Decimal('600'),
+        costoUnitario: new Prisma.Decimal('600'),
+      });
+
+      const dto: UpdateGastoDto = { total: '600.00' };
+
+      const result = await service.actualizarGasto(
+        empresaId,
+        usuarioId,
+        false,
+        false,
+        20,
+        dto,
+      );
+
+      expect(result.total).toBe('600');
+    });
+
+    it('B3: gasto monto directo - PATCH solo total debe actualizar costoUnitario = total - impuesto', async () => {
+      const gastoConImpuesto = {
+        ...gastoMontoDirecto,
+        impuesto: new Prisma.Decimal('50'),
+        total: new Prisma.Decimal('550'),
+        costoUnitario: new Prisma.Decimal('500'),
+      };
+      prisma.gasto.findFirst.mockResolvedValue(gastoConImpuesto);
+      prisma.cicloProduccion.findFirst.mockResolvedValue(
+        gastoMontoDirecto.ciclo,
+      );
+      prisma.gasto.update.mockResolvedValue({
+        ...gastoConImpuesto,
+        total: new Prisma.Decimal('660'),
+        costoUnitario: new Prisma.Decimal('610'),
+      });
+
+      const dto: UpdateGastoDto = { total: '660.00' };
+
+      await service.actualizarGasto(
+        empresaId,
+        usuarioId,
+        false,
+        false,
+        20,
+        dto,
+      );
+
+      // El update debe haber seteado costoUnitario = 660 - 50 = 610
+      const calls = prisma.gasto.update.mock.calls as Array<
+        [{ data: { costoUnitario?: Prisma.Decimal } }]
+      >;
+      const updateCall = calls[0][0];
+      expect(updateCall.data.costoUnitario?.toString()).toBe('610');
     });
 
     it('debe actualizar exitosamente cuando los valores fusionados son coherentes', async () => {
@@ -521,12 +594,10 @@ describe('GastosService', () => {
     it('debe rechazar con PERMISO_DENEGADO (403) si quien intenta eliminar no es ADMIN (A2)', async () => {
       await expect(
         service.eliminarGasto(empresaId, usuarioId, false, 10),
-      ).rejects.toThrow(
-        expect.objectContaining({
-          code: CodigoError.PERMISO_DENEGADO,
-          status: 403,
-        }),
-      );
+      ).rejects.toMatchObject({
+        code: CodigoError.PERMISO_DENEGADO,
+        status: 403,
+      });
     });
 
     it('debe permitir soft delete y registrar auditoría si es ADMIN con registro:administrar', async () => {

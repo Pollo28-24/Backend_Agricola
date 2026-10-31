@@ -26,7 +26,7 @@ export class CreateCobroDto {
   })
   @IsNotEmpty()
   @IsString()
-  @Matches(/^\d+(\.\d{1,2})?$/, {
+  @Matches(/^(?!0+(\.0{1,2})?$)\d+(\.\d{1,2})?$/, {
     message: 'El monto debe ser un importe positivo con hasta 2 decimales',
   })
   monto: string;

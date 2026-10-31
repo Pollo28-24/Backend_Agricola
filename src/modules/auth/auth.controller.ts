@@ -86,7 +86,7 @@ export class AuthController {
     @CurrentUser('id') usuarioId: number,
     @Body() dto?: RefreshTokenDto,
   ): Promise<MensajeResponseDto> {
-    return this.authService.logout(dto?.refreshToken);
+    return this.authService.logout(dto?.refreshToken, usuarioId);
   }
 
   @UseGuards(JwtAuthGuard)

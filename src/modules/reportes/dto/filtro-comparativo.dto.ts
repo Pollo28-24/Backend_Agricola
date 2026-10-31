@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type, Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Min, Max, IsBoolean } from 'class-validator';
+import { ToBoolean } from '../../../common/decorators/to-boolean.decorator';
 
 export class FiltroComparativoDto {
   @ApiPropertyOptional({
@@ -33,10 +34,7 @@ export class FiltroComparativoDto {
       'Si es true incluye ciclos ACTIVO y SUSPENDIDO además de FINALIZADO. Por defecto solo FINALIZADO.',
   })
   @IsOptional()
-  @Transform(
-    ({ value }) =>
-      value === true || value === 'true' || value === 1 || value === '1',
-  )
+  @ToBoolean()
   @IsBoolean()
   incluirActivos?: boolean = false;
 }

@@ -173,12 +173,28 @@ export class AlertasService {
               Array<{ cicloId: number | null; _max: { fecha: Date | null } }>
             >([]);
 
-      const [filasRent, filasCat, filasComp, gastosMax] = await Promise.all([
-        rentPromise,
-        catPromise,
-        compPromise,
-        gastosPromise,
-      ]);
+      const actividadesPromise =
+        ciclosActivosIds.length > 0
+          ? this.prisma.actividad.groupBy({
+              by: ['cicloId'],
+              where: {
+                cicloId: { in: ciclosActivosIds },
+                deletedAt: null,
+              },
+              _max: { fecha: true },
+            })
+          : Promise.resolve<
+              Array<{ cicloId: number | null; _max: { fecha: Date | null } }>
+            >([]);
+
+      const [filasRent, filasCat, filasComp, gastosMax, actividadesMax] =
+        await Promise.all([
+          rentPromise,
+          catPromise,
+          compPromise,
+          gastosPromise,
+          actividadesPromise,
+        ]);
 
       filasRent.forEach((r) => rentabilidadMap.set(Number(r.cicloId), r));
 
@@ -199,6 +215,19 @@ export class AlertasService {
       gastosMax.forEach((g) => {
         if (g._max.fecha) {
           maxFechaGastoMap.set(Number(g.cicloId), g._max.fecha);
+        }
+      });
+
+      actividadesMax.forEach((a) => {
+        if (a._max.fecha) {
+          const cId = Number(a.cicloId);
+          const fechaPrevia = maxFechaGastoMap.get(cId);
+          if (
+            !fechaPrevia ||
+            new Date(a._max.fecha).getTime() > new Date(fechaPrevia).getTime()
+          ) {
+            maxFechaGastoMap.set(cId, a._max.fecha);
+          }
         }
       });
     }

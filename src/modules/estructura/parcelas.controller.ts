@@ -16,12 +16,11 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiQuery,
 } from '@nestjs/swagger';
-import { EstadoParcela } from '@prisma/client';
 import { ParcelasService } from './parcelas.service';
 import { CreateParcelaDto } from './dto/create-parcela.dto';
 import { UpdateParcelaDto } from './dto/update-parcela.dto';
+import { FiltroParcelaDto } from './dto/filtro-parcela.dto';
 import { ParcelaResponseDto } from './dto/parcela-response.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequirePermisos } from '../../common/decorators/require-permisos.decorator';
@@ -64,22 +63,15 @@ export class ParcelasController {
   @ApiOperation({
     summary: 'Listar parcelas de la empresa (con filtros opcionales)',
   })
-  @ApiQuery({ name: 'predioId', required: false, type: Number })
-  @ApiQuery({
-    name: 'estado',
-    required: false,
-    enum: EstadoParcela,
-  })
   @ApiResponse({ status: 200, type: [ParcelaResponseDto] })
   async listar(
     @CurrentUser('empresaId') empresaId: number,
-    @Query('predioId') predioId?: number,
-    @Query('estado') estado?: EstadoParcela,
+    @Query() filtro?: FiltroParcelaDto,
   ): Promise<ParcelaResponseDto[]> {
     return this.parcelasService.listarParcelas(
       empresaId,
-      predioId ? Number(predioId) : undefined,
-      estado,
+      filtro?.predioId,
+      filtro?.estado,
     );
   }
 

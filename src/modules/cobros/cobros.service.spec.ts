@@ -561,4 +561,19 @@ describe('CobrosService (RN-054, RN-063, RN-071, RN-073)', () => {
       expect(anyService.deleteCobro).toBeUndefined();
     });
   });
+
+  describe('C8: rechazar monto 0.00', () => {
+    it('rechaza monto "0.00" con PETICION_INVALIDA (400) en DTO y servicio', async () => {
+      await expect(
+        service.registrarCobro(empresaId, usuarioId, ventaId, {
+          fecha: '2026-03-15',
+          monto: '0.00',
+          metodo: MetodoPago.EFECTIVO,
+        }),
+      ).rejects.toMatchObject({
+        code: CodigoError.PETICION_INVALIDA,
+      });
+      expect(prisma.venta.findFirst).not.toHaveBeenCalled();
+    });
+  });
 });

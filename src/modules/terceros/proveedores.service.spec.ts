@@ -17,6 +17,7 @@ describe('ProveedoresService', () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
   let auditService: {
     registrar: jest.Mock;
@@ -33,7 +34,11 @@ describe('ProveedoresService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation(
+      (cb: (tx: typeof prisma) => Promise<unknown>) => cb(prisma),
+    );
 
     auditService = {
       registrar: jest.fn().mockResolvedValue(undefined),
@@ -91,6 +96,7 @@ describe('ProveedoresService', () => {
           entidadId: 1,
           accion: AccionAuditoria.CREAR,
         }),
+        expect.anything(),
       );
     });
 
@@ -211,6 +217,7 @@ describe('ProveedoresService', () => {
         expect.objectContaining({
           accion: AccionAuditoria.ACTUALIZAR,
         }),
+        expect.anything(),
       );
     });
   });
@@ -235,7 +242,7 @@ describe('ProveedoresService', () => {
           data: expect.objectContaining({
             activo: false,
             nombre: 'Semillas S.A.#baja7',
-          }),
+          }) as unknown,
         }),
       );
     });
@@ -257,6 +264,30 @@ describe('ProveedoresService', () => {
         expect.objectContaining({
           where: { id: 7 },
           data: { activo: false },
+        }),
+      );
+    });
+
+    it('debe excluir gastos dados de baja lógica (deletedAt: null) en _count (C2)', async () => {
+      prisma.proveedor.findFirst.mockResolvedValue({
+        id: 7,
+        empresaId,
+        nombre: 'Proveedor Sin Gastos Activos',
+        activo: true,
+        _count: { gastos: 0 },
+      });
+      prisma.proveedor.update.mockResolvedValue({});
+
+      const res = await service.eliminarProveedor(empresaId, 7);
+
+      expect(res.message).toContain('eliminado exitosamente');
+      expect(prisma.proveedor.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            _count: {
+              select: { gastos: { where: { deletedAt: null } } },
+            },
+          },
         }),
       );
     });

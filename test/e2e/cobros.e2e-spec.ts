@@ -927,7 +927,7 @@ describe('Hito 8: Módulo de Cobros y Cuentas por Cobrar (E2E)', () => {
 
       expect(registro).not.toBeNull();
       expect(registro?.accion).toBe('CREAR');
-      const serializado = JSON.stringify(registro, (_k, v) =>
+      const serializado = JSON.stringify(registro, (_k, v: unknown) =>
         typeof v === 'bigint' ? v.toString() : v,
       );
       expect(serializado).not.toContain('password');
@@ -1047,6 +1047,32 @@ describe('Hito 8: Módulo de Cobros y Cuentas por Cobrar (E2E)', () => {
       expect(sumaTotalCobradoTs).toBe(Number(vSql.cobrado));
       // 2. Suma de saldoPendiente en TS coincide con porCobrar de la vista SQL
       expect(sumaSaldoPendienteTs).toBe(Number(vSql.porCobrar));
+    });
+  });
+
+  describe('C8: Validación de monto estrictamente mayor a 0', () => {
+    it('rechaza monto "0.00" con 400 PETICION_INVALIDA antes del CHECK de BD', async () => {
+      const cicloDed = await crearCicloAisladoParaConcurrencia(
+        prisma,
+        seed.empresaA.id,
+        seed.empresaA.usuarios.admin.id,
+        seed.global.variedadId,
+      );
+      const venta = await crearVentaBase(cicloDed.cicloId, seed.empresaA.id);
+
+      const postRes = await testRequest(app)
+        .post(`/api/v1/ventas/${venta.id}/cobros`)
+        .set('Authorization', tokenA_Admin)
+        .send({
+          fecha: '2026-03-15',
+          monto: '0.00',
+          metodo: MetodoPago.EFECTIVO,
+        });
+
+      expect(postRes.status).toBe(400);
+      expect((postRes.body as ApiResponseError).code).toBe(
+        CodigoError.PETICION_INVALIDA,
+      );
     });
   });
 });

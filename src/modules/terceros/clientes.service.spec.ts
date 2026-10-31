@@ -17,6 +17,7 @@ describe('ClientesService', () => {
       create: jest.Mock;
       update: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
   let auditService: {
     registrar: jest.Mock;
@@ -33,7 +34,11 @@ describe('ClientesService', () => {
         create: jest.fn(),
         update: jest.fn(),
       },
+      $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation(
+      (cb: (tx: typeof prisma) => Promise<unknown>) => cb(prisma),
+    );
 
     auditService = {
       registrar: jest.fn().mockResolvedValue(undefined),
@@ -84,6 +89,7 @@ describe('ClientesService', () => {
         expect.objectContaining({
           accion: AccionAuditoria.CREAR,
         }),
+        expect.anything(),
       );
     });
 
@@ -200,6 +206,7 @@ describe('ClientesService', () => {
         expect.objectContaining({
           accion: AccionAuditoria.ACTUALIZAR,
         }),
+        expect.anything(),
       );
     });
   });
@@ -224,7 +231,7 @@ describe('ClientesService', () => {
           data: expect.objectContaining({
             activo: false,
             nombre: 'Distribuidora del Sur#baja12',
-          }),
+          }) as unknown,
         }),
       );
     });
@@ -246,6 +253,30 @@ describe('ClientesService', () => {
         expect.objectContaining({
           where: { id: 12 },
           data: { activo: false },
+        }),
+      );
+    });
+
+    it('debe excluir ventas dadas de baja lógica (deletedAt: null) en _count (C2)', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({
+        id: 12,
+        empresaId,
+        nombre: 'Cliente Sin Ventas Activas',
+        activo: true,
+        _count: { ventas: 0 },
+      });
+      prisma.cliente.update.mockResolvedValue({});
+
+      const res = await service.eliminarCliente(empresaId, 12);
+
+      expect(res.message).toContain('eliminado exitosamente');
+      expect(prisma.cliente.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: {
+            _count: {
+              select: { ventas: { where: { deletedAt: null } } },
+            },
+          },
         }),
       );
     });

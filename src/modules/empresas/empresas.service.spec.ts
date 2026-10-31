@@ -89,7 +89,7 @@ describe('EmpresasService (F-01, F0, RN-037)', () => {
 
       // Simular transacción
       mockPrismaService.$transaction.mockImplementation(
-        async (callback: any) => {
+        (callback: (tx: unknown) => unknown) => {
           const tx = {
             planSuscripcion: {
               findUnique: jest.fn().mockResolvedValue({
@@ -145,9 +145,10 @@ describe('EmpresasService (F-01, F0, RN-037)', () => {
       await expect(service.registrar(dtoRegistro)).rejects.toThrow(DomainError);
       try {
         await service.registrar(dtoRegistro);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.CONFLICTO);
-        expect(e.getStatus()).toBe(409);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.CONFLICTO);
+        expect(err.getStatus()).toBe(409);
       }
     });
 
@@ -162,9 +163,10 @@ describe('EmpresasService (F-01, F0, RN-037)', () => {
       await expect(service.registrar(dtoRegistro)).rejects.toThrow(DomainError);
       try {
         await service.registrar(dtoRegistro);
-      } catch (e: any) {
-        expect(e.code).toBe(CodigoError.CONFLICTO);
-        expect(e.getStatus()).toBe(409);
+      } catch (e: unknown) {
+        const err = e as DomainError;
+        expect(err.code).toBe(CodigoError.CONFLICTO);
+        expect(err.getStatus()).toBe(409);
       }
     });
   });
@@ -199,6 +201,13 @@ describe('EmpresasService (F-01, F0, RN-037)', () => {
       expect(res.cuotas.maxUsuarios).toBe(3);
       expect(res.cuotas.parcelasActivas).toBe(4);
       expect(res.cuotas.maxParcelas).toBe(10);
+      expect(mockPrismaService.parcela.count).toHaveBeenCalledWith({
+        where: {
+          predio: { empresaId: 10, deletedAt: null },
+          estado: { not: 'INACTIVA' },
+          deletedAt: null,
+        },
+      });
     });
   });
 });

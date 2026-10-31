@@ -38,7 +38,7 @@ export class GastosController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @RequirePermisos('gasto:crear', 'registro:administrar')
+  @RequirePermisos('gasto:crear')
   @ApiOperation({
     summary:
       'Registrar un nuevo gasto o costo operativo en el ciclo (F-09 / RN-019 / RN-020 / RN-045)',
@@ -118,7 +118,7 @@ export class GastosController {
   }
 
   @Patch(':id')
-  @RequirePermisos('gasto:crear', 'gasto:editar_todos', 'registro:administrar')
+  @RequirePermisos('gasto:crear')
   @ApiOperation({
     summary:
       'Actualizar un gasto existente sujeto a ventana de 48h (RN-062), ciclo abierto (RN-015) y recálculo fusionado (RN-045)',

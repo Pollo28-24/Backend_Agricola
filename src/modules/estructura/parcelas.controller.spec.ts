@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { ParcelasController } from './parcelas.controller';
 import { ParcelasService } from './parcelas.service';
+import { FiltroParcelaDto } from './dto/filtro-parcela.dto';
 import { EstadoParcela } from '@prisma/client';
 
 describe('ParcelasController', () => {
@@ -47,13 +51,25 @@ describe('ParcelasController', () => {
 
   it('debe delegar listarParcelas con filtros opcionales', async () => {
     mockParcelasService.listarParcelas.mockResolvedValue([{ id: 10 }]);
-    const res = await controller.listar(5, 1, EstadoParcela.DISPONIBLE);
+    const res = await controller.listar(5, {
+      predioId: 1,
+      estado: EstadoParcela.DISPONIBLE,
+    });
     expect(mockParcelasService.listarParcelas).toHaveBeenCalledWith(
       5,
       1,
       EstadoParcela.DISPONIBLE,
     );
     expect(res).toHaveLength(1);
+  });
+
+  it('FiltroParcelaDto debe rechazar predioId o estado inválidos (C7)', async () => {
+    const dtoInvalido = plainToInstance(FiltroParcelaDto, {
+      predioId: 'abc',
+      estado: 'ESTADO_INEXISTENTE',
+    });
+    const errores = await validate(dtoInvalido);
+    expect(errores.length).toBe(2);
   });
 
   it('debe delegar obtenerParcelaPorId', async () => {
@@ -86,30 +102,39 @@ describe('ParcelasController', () => {
   });
 
   describe('Permisos RBAC granulares (Fase 1)', () => {
-    const reflector = new (require('@nestjs/core').Reflector)();
+    const reflector = new Reflector();
 
     it('la clase ParcelasController no debe tener RequirePermisos a nivel global', () => {
-      const permisosClase = reflector.get('permisos', ParcelasController);
+      const permisosClase = reflector.get<string[] | undefined>(
+        'permisos',
+        ParcelasController,
+      );
       expect(permisosClase).toBeUndefined();
     });
 
     it('crear, actualizar y eliminar deben exigir estructura:administrar', () => {
-      expect(reflector.get('permisos', controller.crear)).toEqual([
+      const proto = ParcelasController.prototype as unknown as Record<
+        string,
+        (...args: unknown[]) => unknown
+      >;
+      expect(reflector.get('permisos', proto.crear)).toEqual([
         'estructura:administrar',
       ]);
-      expect(reflector.get('permisos', controller.actualizar)).toEqual([
+      expect(reflector.get('permisos', proto.actualizar)).toEqual([
         'estructura:administrar',
       ]);
-      expect(reflector.get('permisos', controller.eliminar)).toEqual([
+      expect(reflector.get('permisos', proto.eliminar)).toEqual([
         'estructura:administrar',
       ]);
     });
 
     it('listar y obtenerPorId deben permitir acceso de lectura sin estructura:administrar', () => {
-      expect(reflector.get('permisos', controller.listar)).toBeUndefined();
-      expect(
-        reflector.get('permisos', controller.obtenerPorId),
-      ).toBeUndefined();
+      const proto = ParcelasController.prototype as unknown as Record<
+        string,
+        (...args: unknown[]) => unknown
+      >;
+      expect(reflector.get('permisos', proto.listar)).toBeUndefined();
+      expect(reflector.get('permisos', proto.obtenerPorId)).toBeUndefined();
     });
   });
 });

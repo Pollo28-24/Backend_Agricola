@@ -219,33 +219,10 @@ export class ParcelasService {
 
     EntityValidationUtil.assertExists(parcelaActual, 'Parcela no encontrada');
 
-    if (
+    const esReactivacion =
       parcelaActual.estado === EstadoParcela.INACTIVA &&
       dto.estado &&
-      dto.estado !== EstadoParcela.INACTIVA
-    ) {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM empresa WHERE id = ${empresaId} FOR UPDATE`;
-        const empresa = await tx.empresa.findUnique({
-          where: { id: empresaId },
-          include: { plan: true },
-        });
-        const parcelasActivas = await tx.parcela.count({
-          where: {
-            predio: { empresaId },
-            estado: { not: EstadoParcela.INACTIVA },
-            deletedAt: null,
-          },
-        });
-        if (empresa && parcelasActivas >= empresa.plan.maxParcelas) {
-          throw new DomainError(
-            CodigoError.LIMITE_PLAN_EXCEDIDO,
-            `No se puede reactivar la parcela. Su plan permite un máximo de ${empresa.plan.maxParcelas} parcelas activas (RN-037).`,
-            HttpStatus.CONFLICT,
-          );
-        }
-      });
-    }
+      dto.estado !== EstadoParcela.INACTIVA;
 
     const targetPredioId = dto.predioId ?? parcelaActual.predioId;
 
@@ -288,41 +265,121 @@ export class ParcelasService {
       );
     }
 
-    const parcelaActualizada = await this.prisma.parcela.update({
-      where: { id: parcelaId },
-      data: {
-        ...(dto.predioId && { predioId: dto.predioId }),
-        ...(dto.tipoSueloId !== undefined && { tipoSueloId: dto.tipoSueloId }),
-        ...(dto.nombre && { nombre: dto.nombre.trim() }),
-        ...(dto.superficie !== undefined && { superficie: dto.superficie }),
-        ...(dto.latitud !== undefined && { latitud: dto.latitud }),
-        ...(dto.longitud !== undefined && { longitud: dto.longitud }),
-        ...(dto.poligono !== undefined && {
-          poligono: dto.poligono ?? undefined,
-        }),
-        ...(dto.estado && { estado: dto.estado }),
-      },
-      include: {
-        predio: true,
-        tipoSuelo: true,
-      },
-    });
+    // Reactivación con cupo: update + auditoría DENTRO del mismo $transaction que el FOR UPDATE
+    if (esReactivacion) {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM empresa WHERE id = ${empresaId} FOR UPDATE`;
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'parcela',
-      entidadId: parcelaId,
-      accion: AccionAuditoria.ACTUALIZAR,
-      valoresAnteriores: {
-        nombre: parcelaActual.nombre,
-        superficie: parcelaActual.superficie.toString(),
-        estado: parcelaActual.estado,
-      },
-      valoresNuevos: {
-        nombre: parcelaActualizada.nombre,
-        superficie: parcelaActualizada.superficie.toString(),
-        estado: parcelaActualizada.estado,
-      },
+        const empresa = await tx.empresa.findUnique({
+          where: { id: empresaId },
+          include: { plan: true },
+        });
+        const parcelasActivas = await tx.parcela.count({
+          where: {
+            predio: { empresaId },
+            estado: { not: EstadoParcela.INACTIVA },
+            deletedAt: null,
+          },
+        });
+        if (empresa && parcelasActivas >= empresa.plan.maxParcelas) {
+          throw new DomainError(
+            CodigoError.LIMITE_PLAN_EXCEDIDO,
+            `No se puede reactivar la parcela. Su plan permite un máximo de ${empresa.plan.maxParcelas} parcelas activas (RN-037).`,
+            HttpStatus.CONFLICT,
+          );
+        }
+
+        const parcelaActualizada = await tx.parcela.update({
+          where: { id: parcelaId },
+          data: {
+            ...(dto.predioId && { predioId: dto.predioId }),
+            ...(dto.tipoSueloId !== undefined && {
+              tipoSueloId: dto.tipoSueloId,
+            }),
+            ...(dto.nombre && { nombre: dto.nombre.trim() }),
+            ...(dto.superficie !== undefined && { superficie: dto.superficie }),
+            ...(dto.latitud !== undefined && { latitud: dto.latitud }),
+            ...(dto.longitud !== undefined && { longitud: dto.longitud }),
+            ...(dto.poligono !== undefined && {
+              poligono: dto.poligono ?? undefined,
+            }),
+            ...(dto.estado && { estado: dto.estado }),
+          },
+          include: {
+            predio: true,
+            tipoSuelo: true,
+          },
+        });
+
+        await this.auditService.registrar(
+          {
+            empresaId,
+            entidad: 'parcela',
+            entidadId: parcelaId,
+            accion: AccionAuditoria.ACTUALIZAR,
+            valoresAnteriores: {
+              nombre: parcelaActual.nombre,
+              superficie: parcelaActual.superficie.toString(),
+              estado: parcelaActual.estado,
+            },
+            valoresNuevos: {
+              nombre: parcelaActualizada.nombre,
+              superficie: parcelaActualizada.superficie.toString(),
+              estado: parcelaActualizada.estado,
+            },
+          },
+          tx,
+        );
+
+        return this.formatearParcela(parcelaActualizada);
+      });
+    }
+
+    // Sin reactivación: update + auditoría en la misma transacción (ADR-001)
+    const parcelaActualizada = await this.prisma.$transaction(async (tx) => {
+      const actualizada = await tx.parcela.update({
+        where: { id: parcelaId },
+        data: {
+          ...(dto.predioId && { predioId: dto.predioId }),
+          ...(dto.tipoSueloId !== undefined && {
+            tipoSueloId: dto.tipoSueloId,
+          }),
+          ...(dto.nombre && { nombre: dto.nombre.trim() }),
+          ...(dto.superficie !== undefined && { superficie: dto.superficie }),
+          ...(dto.latitud !== undefined && { latitud: dto.latitud }),
+          ...(dto.longitud !== undefined && { longitud: dto.longitud }),
+          ...(dto.poligono !== undefined && {
+            poligono: dto.poligono ?? undefined,
+          }),
+          ...(dto.estado && { estado: dto.estado }),
+        },
+        include: {
+          predio: true,
+          tipoSuelo: true,
+        },
+      });
+
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'parcela',
+          entidadId: parcelaId,
+          accion: AccionAuditoria.ACTUALIZAR,
+          valoresAnteriores: {
+            nombre: parcelaActual.nombre,
+            superficie: parcelaActual.superficie.toString(),
+            estado: parcelaActual.estado,
+          },
+          valoresNuevos: {
+            nombre: actualizada.nombre,
+            superficie: actualizada.superficie.toString(),
+            estado: actualizada.estado,
+          },
+        },
+        tx,
+      );
+
+      return actualizada;
     });
 
     return this.formatearParcela(parcelaActualizada);
@@ -374,24 +431,29 @@ export class ParcelasService {
       120,
     );
 
-    await this.prisma.parcela.update({
-      where: { id: parcelaId },
-      data: {
-        deletedAt: new Date(),
-        estado: EstadoParcela.INACTIVA,
-        nombre: nombreLiberado,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.parcela.update({
+        where: { id: parcelaId },
+        data: {
+          deletedAt: new Date(),
+          estado: EstadoParcela.INACTIVA,
+          nombre: nombreLiberado,
+        },
+      });
 
-    await this.auditService.registrar({
-      empresaId,
-      entidad: 'parcela',
-      entidadId: parcelaId,
-      accion: AccionAuditoria.ELIMINAR,
-      valoresAnteriores: {
-        id: parcela.id,
-        nombreOriginal: parcela.nombre,
-      },
+      await this.auditService.registrar(
+        {
+          empresaId,
+          entidad: 'parcela',
+          entidadId: parcelaId,
+          accion: AccionAuditoria.ELIMINAR,
+          valoresAnteriores: {
+            id: parcela.id,
+            nombreOriginal: parcela.nombre,
+          },
+        },
+        tx,
+      );
     });
 
     return { mensaje: 'Parcela dada de baja exitosamente' };
