@@ -7,8 +7,22 @@ import { RecordWindowValidator } from '../../common/domain/validators/record-win
 import { AdjuntosController } from './adjuntos.controller';
 import { AdjuntosService } from './services/adjuntos.service';
 import { LocalStorageService } from './services/local-storage.service';
+import { R2StorageService } from './services/r2-storage.service';
 import { TokenDescargaService } from './services/token-descarga.service';
-import { STORAGE_SERVICE } from './interfaces/storage-service.interface';
+import {
+  STORAGE_SERVICE,
+  IStorageService,
+} from './interfaces/storage-service.interface';
+
+export function crearStorageService(
+  configService: ConfigService,
+): IStorageService {
+  const driver = configService.get<string>('STORAGE_DRIVER');
+  if (driver === 'r2') {
+    return new R2StorageService(configService);
+  }
+  return new LocalStorageService(configService);
+}
 
 @Module({
   imports: [
@@ -25,10 +39,10 @@ import { STORAGE_SERVICE } from './interfaces/storage-service.interface';
   providers: [
     AdjuntosService,
     TokenDescargaService,
-    LocalStorageService,
     {
       provide: STORAGE_SERVICE,
-      useExisting: LocalStorageService,
+      inject: [ConfigService],
+      useFactory: crearStorageService,
     },
     CicloCapturaPolicy,
     RecordWindowValidator,

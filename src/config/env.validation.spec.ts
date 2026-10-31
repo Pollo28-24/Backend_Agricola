@@ -342,5 +342,88 @@ describe('envValidationSchema (Bloques 2 y 3)', () => {
         ).toBe('storage_signed_url_default_secret_minimum_32_characters_long');
       });
     });
+
+    describe('STORAGE_DRIVER y variables Cloudflare R2 (DT-07)', () => {
+      it('debe ser válido con STORAGE_DRIVER=local (o por defecto) sin variables R2', () => {
+        const resDefault = envValidationSchema.validate({
+          NODE_ENV: 'development',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+        });
+        expect(resDefault.error).toBeUndefined();
+        expect(
+          (resDefault.value as { STORAGE_DRIVER: string }).STORAGE_DRIVER,
+        ).toBe('local');
+
+        const resLocal = envValidationSchema.validate({
+          NODE_ENV: 'development',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+          STORAGE_DRIVER: 'local',
+        });
+        expect(resLocal.error).toBeUndefined();
+        expect(
+          (resLocal.value as { STORAGE_DRIVER: string }).STORAGE_DRIVER,
+        ).toBe('local');
+      });
+
+      it('debe fallar cuando STORAGE_DRIVER=r2 y faltan las variables obligatorias de R2', () => {
+        const baseR2 = {
+          NODE_ENV: 'development',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+          STORAGE_DRIVER: 'r2',
+          R2_BUCKET_NAME: 'mi-bucket-test',
+          R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+          R2_ACCESS_KEY_ID: 'fake_access_key_id',
+          R2_SECRET_ACCESS_KEY: 'fake_secret_access_key',
+        };
+
+        for (const campo of [
+          'R2_BUCKET_NAME',
+          'R2_ENDPOINT',
+          'R2_ACCESS_KEY_ID',
+          'R2_SECRET_ACCESS_KEY',
+        ]) {
+          const copia = { ...baseR2 } as Record<string, unknown>;
+          delete copia[campo];
+          const res = envValidationSchema.validate(copia);
+          expect(res.error).toBeDefined();
+          expect(res.error?.message).toContain(campo);
+        }
+      });
+
+      it('debe ser válido cuando STORAGE_DRIVER=r2 y se proveen todas las variables obligatorias (con y sin R2_ACCOUNT_ID)', () => {
+        const resSinAccount = envValidationSchema.validate({
+          NODE_ENV: 'development',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+          STORAGE_DRIVER: 'r2',
+          R2_BUCKET_NAME: 'mi-bucket-test',
+          R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+          R2_ACCESS_KEY_ID: 'fake_access_key_id',
+          R2_SECRET_ACCESS_KEY: 'fake_secret_access_key',
+        });
+        expect(resSinAccount.error).toBeUndefined();
+
+        const resConAccount = envValidationSchema.validate({
+          NODE_ENV: 'development',
+          DATABASE_URL: 'mysql://root:pass@localhost:3306/db',
+          JWT_SECRET: validSecret,
+          JWT_REFRESH_SECRET: validSecret,
+          STORAGE_DRIVER: 'r2',
+          R2_ACCOUNT_ID: 'fake_account_id',
+          R2_BUCKET_NAME: 'mi-bucket-test',
+          R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+          R2_ACCESS_KEY_ID: 'fake_access_key_id',
+          R2_SECRET_ACCESS_KEY: 'fake_secret_access_key',
+        });
+        expect(resConAccount.error).toBeUndefined();
+      });
+    });
   });
 });

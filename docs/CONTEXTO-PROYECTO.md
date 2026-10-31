@@ -50,6 +50,7 @@ Documento de verdad técnica y arquitectura viva para el sistema backend de Rent
 ### Motores de Exportación de Reportes
 - `exceljs`: `4.4.0` (versión fija exacta)
 - `pdfkit`: `0.17.2` (versión fija exacta)
+- `@aws-sdk/client-s3`: `3.1152.0` (versión fija exacta — cliente S3 para Cloudflare R2, ADR-019)
 
 ### Calidad de Código y Pruebas
 - `typescript`: `5.7.3` (declarado: `^5.7.3`)
@@ -406,7 +407,7 @@ Tabla exhaustiva del enum `CodigoError` (`src/common/errors/codigos-error.enum.t
 - git add selectivo, nunca git add .; sin scratch/, .env ni logs.
 - Informes: máximo de líneas indicado, hashes COMPLETOS, salidas CRUDAS de comandos; si no se ejecutó algo, decirlo.
 - Dependencias: versión exacta, más de 14 días, ficha y npm audit.
-- Línea base de calidad: lint 161 errores y 76 avisos (237 problemas globales; 0 errores y 0 avisos en archivos nuevos y modificados de la rama verificado por compuerta mecánica), 686 tests unitarios (93 suites), 280 e2e (17 suites activas, más 1 suite de volumen condicional omitida con `E2E_VOLUMEN=1`), contrato:verificar 0 (109 rutas, 38 códigos), db:verify 0 fallas (74 comprobaciones del Anexo D: 19 de estructura + 38 de indicadores de vistas + 17 de restricciones con `tmp_esperar_error`), 6 migraciones aplicadas limpiamente en `backend` y `rentabilidad_agricola_test`.
+- Línea base de calidad: lint 161 errores y 76 avisos (237 problemas globales; 0 errores y 0 avisos en archivos nuevos y modificados de la rama verificado por compuerta mecánica), 710 tests unitarios (95 suites), 280 e2e (17 suites activas, más 1 suite de volumen condicional omitida con `E2E_VOLUMEN=1`), contrato:verificar 0 (109 rutas, 38 códigos), db:verify 0 fallas (74 comprobaciones del Anexo D: 19 de estructura + 38 de indicadores de vistas + 17 de restricciones con `tmp_esperar_error`), 6 migraciones aplicadas limpiamente en `backend` y `rentabilidad_agricola_test`.
 
 ---
 
@@ -419,8 +420,8 @@ Tabla exhaustiva del enum `CodigoError` (`src/common/errors/codigos-error.enum.t
 | **DT-03** | Filtrado avanzado en memoria vs SQL para `estadoCobro` en ventas | ADR-009 (Cobros y Cuentas por Cobrar) | `estadoCobro` es un estado derivado en runtime. Al paginar grandes volúmenes de ventas, requerirá subconsultas indexadas o columna materializada en BD. |
 | **DT-04** | Alertas push en tiempo real ante cuentas por cobrar vencidas | ADR-009 (Cobros) | Actualmente solo se evalúa pull vía API (`GET /reportes/cuentas-por-cobrar`). Pendiente worker de notificaciones push para la app móvil. |
 | **DT-05** | Configuración personalizada de umbrales de alerta por empresa | ADR-010 (Indicadores y Tablero) | Los umbrales de margen y merma están fijos en código/vistas. Se difirió la tabla `configuracion_alerta` por tenant. |
-| **DT-06** | Job periódico de reconciliación de huérfanos en almacenamiento | ADR-012 (Archivos Adjuntos) | Si el servidor se apaga abruptamente tras escribir en disco y antes del commit de BD, queda un archivo huérfano. Requiere un cron nocturno de reconciliación. |
-| **DT-07** | Driver de almacenamiento para nube (S3 / Google Cloud Storage) | ADR-012 (Archivos Adjuntos) | La interfaz `IStorageService` está desacoplada pero solo cuenta con `LocalStorageService`. Para despliegues elásticos multi-instancia se requiere el adaptador S3. |
+| **DT-06** | Job periódico de reconciliación de huérfanos en almacenamiento (local y R2) | ADR-012 / ADR-019 (Archivos Adjuntos) | Abierta: si el servidor se apaga abruptamente tras escribir en almacenamiento (disco local o Cloudflare R2) y antes del commit de BD, o falla la compensación post-rollback, queda un objeto huérfano. Requiere un cron nocturno de reconciliación (aplica también a R2). |
+| **DT-07** | Driver de almacenamiento para nube (Cloudflare R2 / S3) | ADR-012 / ADR-019 (Hito R2) | **Resuelta con driver R2 (verificación manual pendiente — ver DT-23)**: Implementado `R2StorageService` (`@aws-sdk/client-s3@3.1152.0`) seleccionable vía `STORAGE_DRIVER=r2`, bucket privado, clave `<empresaId>/<uuid>.<ext>` y descarga en streaming con token HMAC de 300 s. |
 | **DT-08** | Cola asíncrona (BullMQ / Redis) para exportaciones masivas (>5,000 filas) | ADR-013 (Exportación de Reportes) | Exportaciones síncronas están acotadas a 5,000 registros para proteger la memoria del proceso Node.js. Volúmenes mayores requieren procesamiento background con streaming. |
 | **DT-09** | Gating por `incluyeReportes` del plan de suscripción (sin número de RN, pendiente decisión de producto) | ADR-013 (Exportación de Reportes — Errata 11A) | Pendiente definición de producto sobre si `plan_suscripcion.incluyeReportes` restringe solo `/reportes/exportaciones/*` o todo `/reportes/*` para planes BASICO y PRODUCTOR. |
 | **DT-10** | Almacenamiento distribuido (Redis) para `@nestjs/throttler` en despliegues multi-instancia | ADR-014 (Seguridad y Throttling) | El limitador de tasa opera en memoria local del proceso Node.js. Al escalar horizontalmente a múltiples instancias se debe inyectar storage Redis compartido. |

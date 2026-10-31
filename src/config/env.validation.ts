@@ -55,6 +55,42 @@ export const envValidationSchema = Joi.object({
     .description(
       'Directorio base para almacenamiento local de archivos adjuntos',
     ),
+  STORAGE_DRIVER: Joi.string()
+    .valid('local', 'r2')
+    .default('local')
+    .description('Driver de almacenamiento de archivos adjuntos (local o r2)'),
+  R2_ACCOUNT_ID: Joi.string()
+    .optional()
+    .allow('', null)
+    .description('ID de cuenta de Cloudflare R2 (opcional)'),
+  R2_BUCKET_NAME: Joi.string()
+    .when('STORAGE_DRIVER', {
+      is: 'r2',
+      then: Joi.string().min(1).required(),
+      otherwise: Joi.string().optional().allow('', null),
+    })
+    .description('Nombre del bucket privado en Cloudflare R2'),
+  R2_ENDPOINT: Joi.string()
+    .when('STORAGE_DRIVER', {
+      is: 'r2',
+      then: Joi.string().min(1).required(),
+      otherwise: Joi.string().optional().allow('', null),
+    })
+    .description('Endpoint S3-compatible de Cloudflare R2'),
+  R2_ACCESS_KEY_ID: Joi.string()
+    .when('STORAGE_DRIVER', {
+      is: 'r2',
+      then: Joi.string().min(1).required(),
+      otherwise: Joi.string().optional().allow('', null),
+    })
+    .description('Access Key ID para el cliente S3 de Cloudflare R2'),
+  R2_SECRET_ACCESS_KEY: Joi.string()
+    .when('STORAGE_DRIVER', {
+      is: 'r2',
+      then: Joi.string().min(1).required(),
+      otherwise: Joi.string().optional().allow('', null),
+    })
+    .description('Secret Access Key para el cliente S3 de Cloudflare R2'),
   STORAGE_SIGNED_URL_SECRET: Joi.string()
     .min(32)
     .when('NODE_ENV', {
